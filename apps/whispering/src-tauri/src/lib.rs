@@ -79,6 +79,7 @@ pub async fn run() {
     // Register command handlers (same for all platforms now)
     let builder = builder.invoke_handler(tauri::generate_handler![
         write_text,
+        reset_window_size,
         // Audio recorder commands
         get_current_recording_id,
         enumerate_recording_devices,
@@ -180,6 +181,31 @@ async fn write_text(app: tauri::AppHandle, text: String) -> Result<(), String> {
         app.clipboard()
             .write_text(&content)
             .map_err(|e| format!("Failed to restore clipboard: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// Resets window size by deleting the saved window state file
+///
+/// This command removes the `.window-state.json` file from the app's data directory,
+/// allowing the window to reset to default dimensions on next launch or manual resize.
+/// The frontend should immediately resize the window to defaults after calling this.
+#[tauri::command]
+async fn reset_window_size(app: tauri::AppHandle) -> Result<(), String> {
+    // Get app data directory
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+
+    // Construct path to window state file (same name as used by tauri-plugin-window-state)
+    let state_file = app_dir.join(".window-state.json");
+
+    // Delete the file if it exists
+    if state_file.exists() {
+        std::fs::remove_file(&state_file)
+            .map_err(|e| format!("Failed to delete window state file: {}", e))?;
     }
 
     Ok(())

@@ -5,12 +5,15 @@
 	import * as DropdownMenu from '@repo/ui/dropdown-menu';
 	import { cn } from '@repo/ui/utils';
 	import { LogicalSize, getCurrentWindow } from '@tauri-apps/api/window';
+	import { invoke } from '@tauri-apps/api/core';
+	import { toast } from 'svelte-sonner';
 	import {
 		LayersIcon,
 		ListIcon,
 		Minimize2Icon,
 		MoonIcon,
 		MoreVerticalIcon,
+		RotateCcwIcon,
 		SettingsIcon,
 		SunIcon,
 	} from '@lucide/svelte';
@@ -20,6 +23,18 @@
 		class: className,
 		collapsed = false,
 	}: { class?: string; collapsed?: boolean } = $props();
+
+	const resetWindowSize = async () => {
+		try {
+			await invoke('reset_window_size');
+			const window = getCurrentWindow();
+			await window.setSize(new LogicalSize(1080, 800));
+			toast.success('Window size reset to default');
+		} catch (error) {
+			console.error('Failed to reset window size:', error);
+			toast.error(`Failed to reset window size: ${error}`);
+		}
+	};
 
 	const navItems = [
 		{
@@ -61,6 +76,12 @@
 						icon: Minimize2Icon,
 						type: 'button',
 						action: () => getCurrentWindow().setSize(new LogicalSize(72, 84)),
+					},
+					{
+						label: 'Reset window size',
+						icon: RotateCcwIcon,
+						type: 'button',
+						action: resetWindowSize,
 					},
 				] as const)
 			: []),
