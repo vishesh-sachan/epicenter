@@ -170,7 +170,7 @@ export const settingsSchema = z.object({
 	// Shared settings in transcription
 	'transcription.outputLanguage': z.enum(SUPPORTED_LANGUAGES).default('auto'),
 	'transcription.prompt': z.string().default(''),
-	'transcription.temperature': z.string().default('0.0'),
+	'transcription.temperature': z.coerce.string().default('0.0'),
 	// Audio compression settings
 	'transcription.compressionEnabled': z.boolean().default(false),
 	'transcription.compressionOptions': z
