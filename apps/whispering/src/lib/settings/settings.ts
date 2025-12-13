@@ -106,6 +106,13 @@ export const Settings = type({
 		.enumerated(...ALWAYS_ON_TOP_MODES)
 		.default('Never'),
 
+	// Overlay window position (desktop only). Controls where the recording overlay
+	// appears on screen. Values:
+	// - 'None'    : Do not show the overlay
+	// - 'Bottom'  : Overlay anchored to the bottom of the screen
+	// - 'Top'     : Overlay anchored to the top of the screen
+	'overlay.position': type.enumerated('None', 'Bottom', 'Top').default('Bottom'),
+
 	// UI settings
 	/**
 	 * Navigation layout mode.

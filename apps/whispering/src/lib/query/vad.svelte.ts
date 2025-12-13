@@ -1,8 +1,10 @@
 import { MicVAD, utils } from '@ricky0123/vad-web';
+import { invoke } from '@tauri-apps/api/core';
 import { extractErrorMessage } from 'wellcrafted/error';
 import { Err, Ok, tryAsync, trySync } from 'wellcrafted/result';
 import type { VadState } from '$lib/constants/audio';
 import { WhisperingErr } from '$lib/result';
+import { AudioLevelMonitor, emitMicLevels } from '$lib/services/audio-levels';
 import {
 	cleanupRecordingStream,
 	enumerateDevices,
@@ -28,6 +30,7 @@ function createVadRecorder() {
 	let maybeVad: MicVAD | null = null;
 	let _state = $state<VadState>('IDLE');
 	let currentStream: MediaStream | null = null;
+	let audioMonitor: AudioLevelMonitor | null = null;
 
 	return {
 		/**
@@ -105,6 +108,19 @@ function createVadRecorder() {
 			const { stream, deviceOutcome } = streamResult;
 			currentStream = stream;
 
+			// Set up audio level monitoring for overlay visualization
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					audioMonitor = new AudioLevelMonitor();
+					audioMonitor.connect(stream);
+					audioMonitor.startMonitoring((levels) => {
+						emitMicLevels(levels);
+					});
+				} catch (error) {
+					console.warn('Failed to start audio level monitoring:', error);
+				}
+			}
+
 			// Create VAD with the validated stream
 			const { data: newVad, error: initializeVadError } = await tryAsync({
 				try: () =>
@@ -141,9 +157,28 @@ function createVadRecorder() {
 
 			if (initializeVadError) {
 				// Clean up stream if VAD initialization fails
+				if (audioMonitor) {
+					audioMonitor.stopMonitoring();
+					audioMonitor.disconnect();
+					audioMonitor = null;
+				}
 				cleanupRecordingStream(stream);
 				currentStream = null;
 				return Err(initializeVadError);
+			}
+
+			// Show the recording overlay in Tauri
+			if (window.__TAURI_INTERNALS__) {
+				console.log('[VAD OVERLAY DEBUG] Calling show_recording_overlay_command...');
+				try {
+					const { settings } = await import('$lib/stores/settings.svelte');
+					await invoke('show_recording_overlay_command', { position: settings.value['overlay.position'] });
+					console.log('[VAD OVERLAY DEBUG] show_recording_overlay_command succeeded');
+				} catch (error) {
+					console.error('[VAD OVERLAY DEBUG] Failed to show recording overlay:', error);
+				}
+			} else {
+				console.log('[VAD OVERLAY DEBUG] Not in Tauri, skipping overlay');
 			}
 
 			// Start listening
@@ -182,6 +217,23 @@ function createVadRecorder() {
 			if (!maybeVad) return Ok(undefined);
 
 			const vadInstance = maybeVad;
+
+			// Stop audio monitoring
+			if (audioMonitor) {
+				audioMonitor.stopMonitoring();
+				audioMonitor.disconnect();
+				audioMonitor = null;
+			}
+
+			// Hide the overlay
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					await invoke('hide_recording_overlay_command');
+				} catch (error) {
+					console.warn('Failed to hide recording overlay:', error);
+				}
+			}
+
 			const { error: destroyError } = trySync({
 				try: () => vadInstance.destroy(),
 				catch: (error) =>

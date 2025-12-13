@@ -24,6 +24,13 @@ use command::{execute_command, spawn_command};
 pub mod markdown_reader;
 use markdown_reader::{bulk_delete_files, count_markdown_files, read_markdown_files};
 
+pub mod overlay;
+use overlay::{
+    create_recording_overlay, emit_mic_levels, hide_recording_overlay_command,
+    show_recording_overlay_command, show_transcribing_overlay_command,
+    update_overlay_position_command,
+};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 #[tokio::main]
 pub async fn run() {
@@ -163,11 +170,21 @@ pub async fn run() {
         read_markdown_files,
         count_markdown_files,
         bulk_delete_files,
+        // Overlay commands
+        emit_mic_levels_command,
+        show_recording_overlay_command,
+        show_transcribing_overlay_command,
+        hide_recording_overlay_command,
+        update_overlay_position_command,
     ]);
 
     let app = builder
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
+
+    // Create overlay window after app initialization
+    #[cfg(desktop)]
+    create_recording_overlay(app.handle());
 
     app.run(|handler, event| {
         // Only track events if Aptabase is enabled (key is not empty)
@@ -265,5 +282,12 @@ async fn simulate_enter_keystroke() -> Result<(), String> {
         .key(Key::Return, Direction::Click)
         .map_err(|e| format!("Failed to simulate Enter key: {}", e))?;
 
+    Ok(())
+}
+
+/// Emits microphone levels to the overlay window
+#[tauri::command]
+async fn emit_mic_levels_command(app: tauri::AppHandle, levels: Vec<f32>) -> Result<(), String> {
+    emit_mic_levels(&app, &levels);
     Ok(())
 }

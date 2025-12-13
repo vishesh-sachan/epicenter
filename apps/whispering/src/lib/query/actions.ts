@@ -680,6 +680,17 @@ async function processRecordingPipeline({
 		toastId: transcribeToastId,
 	});
 
+	// Hide the overlay after transcription is delivered
+	if (window.__TAURI_INTERNALS__) {
+		try {
+			await import('@tauri-apps/api/core').then(({ invoke }) =>
+				invoke('hide_recording_overlay_command'),
+			);
+		} catch (error) {
+			console.warn('Failed to hide recording overlay:', error);
+		}
+	}
+
 	// Determine if we need to chain to transformation
 	const transformationId =
 		settings.value['transformations.selectedTransformationId'];
@@ -747,4 +758,15 @@ async function processRecordingPipeline({
 		text: transformationRun.output,
 		toastId: transformToastId,
 	});
+
+	// Hide the overlay after transformation is delivered
+	if (window.__TAURI_INTERNALS__) {
+		try {
+			await import('@tauri-apps/api/core').then(({ invoke }) =>
+				invoke('hide_recording_overlay_command'),
+			);
+		} catch (error) {
+			console.warn('Failed to hide recording overlay:', error);
+		}
+	}
 }

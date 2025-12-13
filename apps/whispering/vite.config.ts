@@ -1,5 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
+import fs from 'fs';
+import path from 'path';
 import { defineConfig } from 'vite';
 import devtoolsJson from 'vite-plugin-devtools-json';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
@@ -18,6 +20,22 @@ export default defineConfig(async () => ({
 				Buffer: true,
 			},
 		}),
+		// Plugin to serve overlay HTML in dev mode
+		{
+			name: 'serve-overlay',
+			configureServer(server) {
+				server.middlewares.use((req, res, next) => {
+					if (req.url === '/src/overlay/index.html') {
+						const overlayPath = path.resolve(__dirname, 'src/overlay/index.html');
+						const html = fs.readFileSync(overlayPath, 'utf-8');
+						res.setHeader('Content-Type', 'text/html');
+						res.end(html);
+						return;
+					}
+					next();
+				});
+			},
+		},
 	],
 	// Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
 	//

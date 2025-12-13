@@ -1,9 +1,11 @@
+import { invoke } from '@tauri-apps/api/core';
 import { Err, Ok, type Result, tryAsync, trySync } from 'wellcrafted/result';
 import {
 	type CancelRecordingResult,
 	TIMESLICE_MS,
 	type WhisperingRecordingState,
 } from '$lib/constants/audio';
+import { AudioLevelMonitor, emitMicLevels } from '../audio-levels';
 import {
 	cleanupRecordingStream,
 	enumerateDevices,
@@ -24,6 +26,7 @@ type ActiveRecording = {
 	stream: MediaStream;
 	mediaRecorder: MediaRecorder;
 	recordedChunks: Blob[];
+	audioMonitor: AudioLevelMonitor | null;
 };
 
 export function createNavigatorRecorderService(): RecorderService {
@@ -95,6 +98,20 @@ export function createNavigatorRecorderService(): RecorderService {
 			// Set up recording state and event handlers
 			const recordedChunks: Blob[] = [];
 
+			// Set up audio level monitoring for overlay visualization
+			let audioMonitor: AudioLevelMonitor | null = null;
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					audioMonitor = new AudioLevelMonitor();
+					audioMonitor.connect(stream);
+					audioMonitor.startMonitoring((levels) => {
+						emitMicLevels(levels);
+					});
+				} catch (error) {
+					console.warn('Failed to start audio level monitoring:', error);
+				}
+			}
+
 			// Store active recording state
 			activeRecording = {
 				recordingId,
@@ -103,12 +120,27 @@ export function createNavigatorRecorderService(): RecorderService {
 				stream,
 				mediaRecorder,
 				recordedChunks,
+				audioMonitor,
 			};
 
 			// Set up event handlers
 			mediaRecorder.addEventListener('dataavailable', (event: BlobEvent) => {
 				if (event.data.size) recordedChunks.push(event.data);
 			});
+
+			// Show the recording overlay in Tauri
+			if (window.__TAURI_INTERNALS__) {
+				console.log('[OVERLAY DEBUG] Calling show_recording_overlay_command...');
+				try {
+					const { settings } = await import('$lib/stores/settings.svelte');
+					await invoke('show_recording_overlay_command', { position: settings.value['overlay.position'] });
+					console.log('[OVERLAY DEBUG] show_recording_overlay_command succeeded');
+				} catch (error) {
+					console.error('[OVERLAY DEBUG] Failed to show recording overlay:', error);
+				}
+			} else {
+				console.log('[OVERLAY DEBUG] Not in Tauri, skipping overlay');
+			}
 
 			// Start recording
 			mediaRecorder.start(TIMESLICE_MS);
@@ -129,6 +161,21 @@ export function createNavigatorRecorderService(): RecorderService {
 
 			const recording = activeRecording;
 			activeRecording = null; // Clear immediately to prevent race conditions
+
+			// Stop audio level monitoring
+			if (recording.audioMonitor) {
+				recording.audioMonitor.stopMonitoring();
+				recording.audioMonitor.disconnect();
+			}
+
+			// Show transcribing state in overlay
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					await invoke('show_transcribing_overlay_command');
+				} catch (error) {
+					console.warn('Failed to show transcribing overlay:', error);
+				}
+			}
 
 			sendStatus({
 				title: '⏸️ Finishing Recording',
@@ -175,6 +222,21 @@ export function createNavigatorRecorderService(): RecorderService {
 
 			const recording = activeRecording;
 			activeRecording = null; // Clear immediately
+
+			// Stop audio level monitoring
+			if (recording.audioMonitor) {
+				recording.audioMonitor.stopMonitoring();
+				recording.audioMonitor.disconnect();
+			}
+
+			// Hide the overlay
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					await invoke('hide_recording_overlay_command');
+				} catch (error) {
+					console.warn('Failed to hide recording overlay:', error);
+				}
+			}
 
 			sendStatus({
 				title: '🛑 Cancelling',
