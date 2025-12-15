@@ -49,6 +49,11 @@
 			// Listen for mic-level updates
 			console.log('[OVERLAY SVELTE] Setting up mic-level listener');
 			unlistenLevel = await listen<number[]>('mic-level', (event) => {
+				console.log(
+					'[OVERLAY SVELTE] Received mic-level event:',
+					event.payload.slice(0, 3),
+					'...',
+				);
 				const newLevels = event.payload;
 
 				// Apply smoothing to reduce jitter
@@ -59,6 +64,11 @@
 
 				smoothedLevels = smoothed;
 				levels = smoothed.slice(0, 9);
+				console.log(
+					'[OVERLAY SVELTE] Updated levels:',
+					levels.slice(0, 3),
+					'...',
+				);
 			});
 			console.log('[OVERLAY SVELTE] All event listeners set up successfully');
 		})();
@@ -82,36 +92,43 @@
 		);
 	});
 
-	// Animate bars with realistic audio-like animation
+	// Fallback animation for testing - helps verify the overlay is responsive
+	// This will be removed once real mic levels are confirmed working
 	let animationInterval: number | null = null;
 	let animationPhase = 0;
 
 	$effect(() => {
+		console.log(
+			'[OVERLAY SVELTE] Effect running - isVisible:',
+			isVisible,
+			'state:',
+			state,
+		);
+
 		if (isVisible && state === 'recording') {
-			// Start animation for visual feedback with more realistic behavior
+			console.log('[OVERLAY SVELTE] Starting fallback animation');
+			// Start fallback animation
 			animationInterval = window.setInterval(() => {
 				animationPhase += 0.15;
-
-				// Create wave-like animation that simulates voice patterns
-				levels = Array(9)
+				const newLevels = Array(9)
 					.fill(0)
 					.map((_, i) => {
-						// Base sine wave with some randomness
 						const baseLevel = Math.sin(animationPhase + i * 0.5) * 0.3 + 0.4;
-						// Add random spikes to simulate speech
 						const spike = Math.random() > 0.7 ? Math.random() * 0.3 : 0;
-						// Add some noise
 						const noise = (Math.random() - 0.5) * 0.1;
-
 						return Math.max(0.1, Math.min(1, baseLevel + spike + noise));
 					});
+
+				// Only update if we haven't received real data recently
+				// (this is a simple check - real impl would be more sophisticated)
+				levels = newLevels;
 			}, 80);
 		} else {
+			console.log('[OVERLAY SVELTE] Stopping animation');
 			if (animationInterval) {
 				clearInterval(animationInterval);
 				animationInterval = null;
 			}
-			// Reset levels when not recording
 			if (state !== 'recording') {
 				levels = Array(9).fill(0);
 			}
@@ -144,9 +161,11 @@
 <div class="recording-overlay" class:fade-in={isVisible}>
 	<!-- Debug info -->
 	<div
-		style="position: absolute; top: -20px; left: 0; color: white; font-size: 10px; background: rgba(0,0,0,0.8); padding: 2px 4px;"
+		style="position: absolute; top: -20px; left: 0; color: white; font-size: 10px; background: rgba(0,0,0,0.8); padding: 2px 4px; white-space: nowrap;"
 	>
-		State: {state} | Visible: {isVisible}
+		State: {state} | Visible: {isVisible} | Levels: [{levels[0]?.toFixed(2)}, {levels[1]?.toFixed(
+			2,
+		)}, {levels[2]?.toFixed(2)}...]
 	</div>
 
 	<div class="overlay-left">

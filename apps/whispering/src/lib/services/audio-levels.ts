@@ -121,8 +121,9 @@ export function createAudioLevelMonitor(): AudioLevelMonitor {
  */
 export async function emitMicLevels(levels: number[]): Promise<void> {
 	try {
+		console.log('[AUDIO LEVELS] Emitting levels:', levels.slice(0, 3), '...');
 		await invoke('emit_mic_levels_command', { levels });
 	} catch (error) {
-		console.error('Failed to emit mic levels:', error);
+		console.error('[AUDIO LEVELS] Failed to emit mic levels:', error);
 	}
 }

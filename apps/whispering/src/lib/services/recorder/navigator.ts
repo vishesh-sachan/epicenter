@@ -133,7 +133,9 @@ export function createNavigatorRecorderService(): RecorderService {
 				console.log('[OVERLAY DEBUG] Calling show_recording_overlay_command...');
 				try {
 					const { settings } = await import('$lib/stores/settings.svelte');
-					await invoke('show_recording_overlay_command', { position: settings.value['overlay.position'] });
+					const position = settings.value['overlay.position'];
+					console.log('[OVERLAY DEBUG] Position from settings:', position);
+					await invoke('show_recording_overlay_command', { position });
 					console.log('[OVERLAY DEBUG] show_recording_overlay_command succeeded');
 				} catch (error) {
 					console.error('[OVERLAY DEBUG] Failed to show recording overlay:', error);
@@ -171,9 +173,13 @@ export function createNavigatorRecorderService(): RecorderService {
 			// Show transcribing state in overlay
 			if (window.__TAURI_INTERNALS__) {
 				try {
-					await invoke('show_transcribing_overlay_command');
+					const { settings } = await import('$lib/stores/settings.svelte');
+					const position = settings.value['overlay.position'];
+					console.log('[OVERLAY DEBUG] Calling show_transcribing_overlay_command with position:', position);
+					await invoke('show_transcribing_overlay_command', { position });
+					console.log('[OVERLAY DEBUG] show_transcribing_overlay_command succeeded');
 				} catch (error) {
-					console.warn('Failed to show transcribing overlay:', error);
+					console.warn('[OVERLAY DEBUG] Failed to show transcribing overlay:', error);
 				}
 			}
 

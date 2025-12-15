@@ -5,7 +5,8 @@
 	grid-template-columns: auto 1fr auto;
 	align-items: center;
 	padding: 6px;
-	background: #000000cc;
+	background: oklch(0.208 0.042 265.755 / 0.95); /* --card with high opacity for visibility */
+	border: 1px solid oklch(1 0 0 / 0.1); /* --border */
 	border-radius: 18px;
 	opacity: 1; /* Always visible for now - was: opacity: 0 */
 	transition: opacity 300ms ease-out;
@@ -41,7 +42,7 @@
 
 .bar {
 	width: 6px;
-	background: #ffe5ee;
+	background: oklch(0.929 0.013 255.508); /* --primary (light purple/gray) */
 	max-height: 20px;
 	border-radius: 2px;
 	transition: height 80ms linear;
@@ -53,9 +54,10 @@
 }
 
 .transcribing-text {
-	color: white;
+	color: oklch(0.984 0.003 247.858); /* --foreground (light text) */
 	font-size: 12px;
 	font-family:
+		'Manrope Variable',
 		-apple-system,
 		BlinkMacSystemFont,
 		'Segoe UI',
