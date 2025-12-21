@@ -13,6 +13,7 @@
 
 	let sidebarOpen = $state(false);
 	let unlistenNavigate: UnlistenFn | null = null;
+	let unlistenCancelRecording: UnlistenFn | null = null;
 
 	$effect(() => {
 		const unlisten = services.localShortcutManager.listen();
@@ -32,10 +33,16 @@
 				goto(event.payload.path);
 			},
 		);
+
+		// Listen for cancel recording requests from the overlay window
+		unlistenCancelRecording = await listen('cancel-recording-request', () => {
+			rpc.commands.cancelManualRecording.execute();
+		});
 	});
 
 	onDestroy(() => {
 		unlistenNavigate?.();
+		unlistenCancelRecording?.();
 	});
 </script>
 

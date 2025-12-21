@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+	import { listen, type UnlistenFn, emit } from '@tauri-apps/api/event';
 	import { invoke } from '@tauri-apps/api/core';
 	import { MicrophoneIcon, TranscriptionIcon, CancelIcon } from './icons';
 	import './RecordingOverlay.css';
@@ -79,7 +79,7 @@
 
 	function updateAudioLevels(newLevels: number[]) {
 		hasReceivedAudioLevels = true;
-		
+
 		// Apply smoothing to reduce jitter
 		const smoothed = smoothedLevels.map((prev, i) => {
 			const target = newLevels[i] || 0;
@@ -107,9 +107,9 @@
 
 	async function handleCancel() {
 		try {
-			await invoke('cancel_recording');
+			await emit('cancel-recording-request');
 		} catch (error) {
-			console.error('Failed to cancel recording:', error);
+			console.error('[OVERLAY] Failed to emit cancel event:', error);
 		}
 	}
 </script>
