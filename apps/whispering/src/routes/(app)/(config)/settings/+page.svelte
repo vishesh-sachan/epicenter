@@ -61,11 +61,12 @@
 		if (position === 'None') return;
 
 		try {
+			const { overlayService } = await import('$lib/services/overlay');
 			// Show overlay at current position
-			await invoke('show_recording_overlay_command', { position });
+			await overlayService.showRecording();
 			// Hide it after 3 seconds
 			setTimeout(async () => {
-				await invoke('hide_recording_overlay_command');
+				await overlayService.hide();
 			}, 3000);
 		} catch (err) {
 			console.error('Failed to preview overlay:', err);

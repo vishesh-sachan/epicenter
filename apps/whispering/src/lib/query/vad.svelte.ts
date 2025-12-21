@@ -4,12 +4,13 @@ import { extractErrorMessage } from 'wellcrafted/error';
 import { Err, Ok, tryAsync, trySync } from 'wellcrafted/result';
 import type { VadState } from '$lib/constants/audio';
 import { WhisperingErr } from '$lib/result';
-import { AudioLevelMonitor, emitMicLevels } from '$lib/services/audio-levels';
+import { AudioLevelMonitor } from '$lib/services/audio-levels';
 import {
 	cleanupRecordingStream,
 	enumerateDevices,
 	getRecordingStream,
 } from '$lib/services/device-stream';
+import { overlayService } from '$lib/services/overlay';
 import { settings } from '$lib/stores/settings.svelte';
 import { defineQuery } from './_client';
 
@@ -114,7 +115,7 @@ function createVadRecorder() {
 					audioMonitor = new AudioLevelMonitor();
 					audioMonitor.connect(stream);
 					audioMonitor.startMonitoring((levels) => {
-						emitMicLevels(levels);
+						overlayService.updateAudioLevels(levels);
 					});
 				} catch (error) {
 					console.warn('Failed to start audio level monitoring:', error);
@@ -169,16 +170,11 @@ function createVadRecorder() {
 
 			// Show the recording overlay in Tauri
 			if (window.__TAURI_INTERNALS__) {
-				console.log('[VAD OVERLAY DEBUG] Calling show_recording_overlay_command...');
 				try {
-					const { settings } = await import('$lib/stores/settings.svelte');
-					await invoke('show_recording_overlay_command', { position: settings.value['overlay.position'] });
-					console.log('[VAD OVERLAY DEBUG] show_recording_overlay_command succeeded');
+					await overlayService.showRecording();
 				} catch (error) {
-					console.error('[VAD OVERLAY DEBUG] Failed to show recording overlay:', error);
+					console.error('[VAD] Failed to show recording overlay:', error);
 				}
-			} else {
-				console.log('[VAD OVERLAY DEBUG] Not in Tauri, skipping overlay');
 			}
 
 			// Start listening
@@ -228,9 +224,9 @@ function createVadRecorder() {
 			// Hide the overlay
 			if (window.__TAURI_INTERNALS__) {
 				try {
-					await invoke('hide_recording_overlay_command');
+					await overlayService.hide();
 				} catch (error) {
-					console.warn('Failed to hide recording overlay:', error);
+					console.warn('[VAD] Failed to hide recording overlay:', error);
 				}
 			}
 
