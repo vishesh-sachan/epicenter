@@ -26,9 +26,8 @@ use markdown_reader::{bulk_delete_files, count_markdown_files, read_markdown_fil
 
 pub mod overlay;
 use overlay::{
-    create_recording_overlay, emit_mic_levels, hide_recording_overlay_command,
-    show_recording_overlay_command, show_transcribing_overlay_command,
-    update_overlay_position_command,
+    create_recording_overlay, emit_mic_levels, hide_overlay_command, show_overlay_command,
+    update_overlay_data_command, update_overlay_position_command,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -172,9 +171,9 @@ pub async fn run() {
         bulk_delete_files,
         // Overlay commands
         emit_mic_levels_command,
-        show_recording_overlay_command,
-        show_transcribing_overlay_command,
-        hide_recording_overlay_command,
+        show_overlay_command,
+        update_overlay_data_command,
+        hide_overlay_command,
         update_overlay_position_command,
     ]);
 

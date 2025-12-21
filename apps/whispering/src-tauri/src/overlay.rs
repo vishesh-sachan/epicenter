@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindowBuilder};
 use log::info;
 
@@ -17,12 +17,43 @@ const OVERLAY_BOTTOM_OFFSET: f64 = 15.0;
 const OVERLAY_BOTTOM_OFFSET: f64 = 40.0;
 
 /// Overlay position setting
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
 pub enum OverlayPosition {
     None,
     Top,
     Bottom,
+}
+
+/// Overlay mode/state
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OverlayMode {
+    Recording,
+    Transcribing,
+    Transforming,
+    Hidden,
+}
+
+/// Data that can be displayed in the overlay
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlayData {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_levels: Option<Vec<f32>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress: Option<f32>,
+}
+
+/// Complete overlay state
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OverlayState {
+    pub mode: OverlayMode,
+    pub position: OverlayPosition,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<OverlayData>,
 }
 
 impl Default for OverlayPosition {
@@ -246,45 +277,93 @@ pub fn emit_mic_levels(app_handle: &AppHandle, levels: &Vec<f32>) {
     }
 }
 
-// Tauri command wrappers
+// Tauri command wrappers - Unified overlay API
 
-#[tauri::command]
-pub fn show_recording_overlay_command(app: tauri::AppHandle, position: String) {
-    info!("[OVERLAY] show_recording_overlay_command invoked from frontend with position: {}", position);
-    let pos = match position.as_str() {
-        "Top" => OverlayPosition::Top,
-        "Bottom" => OverlayPosition::Bottom,
-        "None" => OverlayPosition::None,
-        _ => OverlayPosition::default(),
-    };
-    show_recording_overlay(&app, pos);
-    info!("[OVERLAY] show_recording_overlay_command completed");
+fn parse_position(position: &str) -> Result<OverlayPosition, String> {
+    match position {
+        "Top" => Ok(OverlayPosition::Top),
+        "Bottom" => Ok(OverlayPosition::Bottom),
+        "None" => Ok(OverlayPosition::None),
+        _ => Err(format!("Invalid position: {}", position)),
+    }
 }
 
+/// Show the overlay with specified mode, position, and data
 #[tauri::command]
-pub fn show_transcribing_overlay_command(app: tauri::AppHandle, position: String) {
-    let pos = match position.as_str() {
-        "Top" => OverlayPosition::Top,
-        "Bottom" => OverlayPosition::Bottom,
-        "None" => OverlayPosition::None,
-        _ => OverlayPosition::default(),
-    };
-    show_transcribing_overlay(&app, pos);
+pub async fn show_overlay_command(
+    app: tauri::AppHandle,
+    mode: String,
+    position: String,
+    data: Option<OverlayData>,
+) -> Result<(), String> {
+    info!("[OVERLAY] show_overlay_command: mode={}, position={:?}, data={:?}", mode, position, data);
+    
+    let pos = parse_position(&position)?;
+    
+    if pos == OverlayPosition::None {
+        info!("[OVERLAY] Position is None, not showing overlay");
+        return Ok(());
+    }
+
+    if let Some(overlay_window) = app.get_webview_window("recording_overlay") {
+        // Update position before showing
+        if let Some((x, y)) = calculate_overlay_position(&app, pos) {
+            let _ = overlay_window
+                .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+        }
+
+        let _ = overlay_window.show();
+
+        #[cfg(target_os = "windows")]
+        force_overlay_topmost(&overlay_window);
+
+        // Emit unified overlay state
+        let state = OverlayState {
+            mode: match mode.as_str() {
+                "recording" => OverlayMode::Recording,
+                "transcribing" => OverlayMode::Transcribing,
+                "transforming" => OverlayMode::Transforming,
+                _ => return Err(format!("Invalid mode: {}", mode)),
+            },
+            position: pos,
+            data,
+        };
+        
+        let _ = overlay_window.emit("overlay-state", &state);
+        info!("[OVERLAY] Emitted overlay-state event");
+        
+        Ok(())
+    } else {
+        Err("Overlay window not found".to_string())
+    }
 }
 
+/// Update the overlay data without changing mode or position
 #[tauri::command]
-pub fn hide_recording_overlay_command(app: tauri::AppHandle) {
+pub async fn update_overlay_data_command(
+    app: tauri::AppHandle,
+    data: OverlayData,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("recording_overlay") {
+        window
+            .emit("overlay-data-update", &data)
+            .map_err(|e| format!("Failed to update overlay data: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Hide the overlay
+#[tauri::command]
+pub async fn hide_overlay_command(app: tauri::AppHandle) -> Result<(), String> {
     hide_recording_overlay(&app);
+    Ok(())
 }
 
+/// Update overlay position
 #[tauri::command]
 pub fn update_overlay_position_command(app: tauri::AppHandle, position: String) {
     info!("[OVERLAY] update_overlay_position_command invoked with position: {}", position);
-    let pos = match position.as_str() {
-        "Top" => OverlayPosition::Top,
-        "Bottom" => OverlayPosition::Bottom,
-        "None" => OverlayPosition::None,
-        _ => OverlayPosition::default(),
-    };
-    update_overlay_position(&app, pos);
+    if let Ok(pos) = parse_position(&position) {
+        update_overlay_position(&app, pos);
+    }
 }
