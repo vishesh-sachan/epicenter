@@ -128,11 +128,7 @@
 		{:else if mode === 'transcribing'}
 			<div class="transcribing-text">Transcribing...</div>
 		{:else if mode === 'transforming'}
-			<div class="transforming-container">
-				<div class="transforming-bar">
-					<div class="transforming-bar-fill"></div>
-				</div>
-			</div>
+			<div class="transcribing-text">Transforming...</div>
 		{/if}
 	</div>
 

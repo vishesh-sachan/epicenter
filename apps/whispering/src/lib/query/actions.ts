@@ -558,11 +558,31 @@ export const commands = {
 				description: 'Transforming your clipboard text...',
 			});
 
+			// Show transforming overlay with indeterminate loader
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					const { overlayService } = await import('$lib/services/overlay');
+					await overlayService.showTransforming();
+				} catch (error) {
+					console.warn('Failed to show transforming overlay:', error);
+				}
+			}
+
 			const { data: output, error: transformError } =
 				await transformer.transformInput.execute({
 					input: clipboardText,
 					transformation,
 				});
+
+			// Hide overlay after transformation
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					const { overlayService } = await import('$lib/services/overlay');
+					await overlayService.hide();
+				} catch (error) {
+					console.warn('Failed to hide transforming overlay:', error);
+				}
+			}
 
 			if (transformError) {
 				notify.error.execute({ id: toastId, ...transformError });
@@ -731,11 +751,33 @@ async function processRecordingPipeline({
 		description:
 			'Applying your selected transformation to the transcribed text...',
 	});
+
+	// Show transforming overlay with indeterminate loader
+	if (window.__TAURI_INTERNALS__) {
+		try {
+			const { overlayService } = await import('$lib/services/overlay');
+			await overlayService.showTransforming();
+		} catch (error) {
+			console.warn('Failed to show transforming overlay:', error);
+		}
+	}
+
 	const { data: transformationRun, error: transformError } =
 		await transformer.transformRecording.execute({
 			recordingId: recording.id,
 			transformation,
 		});
+
+	// Hide overlay after transformation (before checking for errors)
+	if (window.__TAURI_INTERNALS__) {
+		try {
+			const { overlayService } = await import('$lib/services/overlay');
+			await overlayService.hide();
+		} catch (error) {
+			console.warn('Failed to hide transforming overlay:', error);
+		}
+	}
+
 	if (transformError) {
 		notify.error.execute({ id: transformToastId, ...transformError });
 		return;
@@ -757,14 +799,4 @@ async function processRecordingPipeline({
 		text: transformationRun.output,
 		toastId: transformToastId,
 	});
-
-	// Hide the overlay after transformation is delivered
-	if (window.__TAURI_INTERNALS__) {
-		try {
-			const { overlayService } = await import('$lib/services/overlay');
-			await overlayService.hide();
-		} catch (error) {
-			console.warn('Failed to hide recording overlay:', error);
-		}
-	}
 }

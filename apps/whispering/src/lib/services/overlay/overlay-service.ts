@@ -79,7 +79,7 @@ class OverlayService {
 	}
 
 	/**
-	 * Show overlay in transforming mode
+	 * Show overlay in transforming mode with pulsing text
 	 */
 	async showTransforming(): Promise<void> {
 		console.log('[OVERLAY SERVICE] Showing transforming mode');
@@ -105,7 +105,7 @@ class OverlayService {
 	}
 
 	/**
-	 * Update overlay data (audio levels, text, progress, etc.)
+	 * Update overlay data (audio levels, text, etc.)
 	 * Only works when overlay is visible
 	 */
 	async updateData(data: OverlayData): Promise<void> {
