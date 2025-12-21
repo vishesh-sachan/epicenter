@@ -5,7 +5,7 @@ import {
 	TIMESLICE_MS,
 	type WhisperingRecordingState,
 } from '$lib/constants/audio';
-import { AudioLevelMonitor, emitMicLevels } from '../audio-levels';
+import { AudioLevelMonitor } from '../audio-levels';
 import {
 	cleanupRecordingStream,
 	enumerateDevices,
@@ -18,6 +18,7 @@ import type {
 	RecorderServiceError,
 } from './types';
 import { RecorderServiceErr } from './types';
+import { overlayService } from '../overlay';
 
 type ActiveRecording = {
 	recordingId: string;
@@ -105,7 +106,7 @@ export function createNavigatorRecorderService(): RecorderService {
 					audioMonitor = new AudioLevelMonitor();
 					audioMonitor.connect(stream);
 					audioMonitor.startMonitoring((levels) => {
-						emitMicLevels(levels);
+						overlayService.updateAudioLevels(levels);
 					});
 				} catch (error) {
 					console.warn('Failed to start audio level monitoring:', error);
@@ -130,18 +131,11 @@ export function createNavigatorRecorderService(): RecorderService {
 
 			// Show the recording overlay in Tauri
 			if (window.__TAURI_INTERNALS__) {
-				console.log('[OVERLAY DEBUG] Calling show_recording_overlay_command...');
 				try {
-					const { settings } = await import('$lib/stores/settings.svelte');
-					const position = settings.value['overlay.position'];
-					console.log('[OVERLAY DEBUG] Position from settings:', position);
-					await invoke('show_recording_overlay_command', { position });
-					console.log('[OVERLAY DEBUG] show_recording_overlay_command succeeded');
+					await overlayService.showRecording();
 				} catch (error) {
-					console.error('[OVERLAY DEBUG] Failed to show recording overlay:', error);
+					console.error('[OVERLAY] Failed to show recording overlay:', error);
 				}
-			} else {
-				console.log('[OVERLAY DEBUG] Not in Tauri, skipping overlay');
 			}
 
 			// Start recording
@@ -173,13 +167,9 @@ export function createNavigatorRecorderService(): RecorderService {
 			// Show transcribing state in overlay
 			if (window.__TAURI_INTERNALS__) {
 				try {
-					const { settings } = await import('$lib/stores/settings.svelte');
-					const position = settings.value['overlay.position'];
-					console.log('[OVERLAY DEBUG] Calling show_transcribing_overlay_command with position:', position);
-					await invoke('show_transcribing_overlay_command', { position });
-					console.log('[OVERLAY DEBUG] show_transcribing_overlay_command succeeded');
+					await overlayService.showTranscribing();
 				} catch (error) {
-					console.warn('[OVERLAY DEBUG] Failed to show transcribing overlay:', error);
+					console.warn('[OVERLAY] Failed to show transcribing overlay:', error);
 				}
 			}
 
@@ -238,9 +228,9 @@ export function createNavigatorRecorderService(): RecorderService {
 			// Hide the overlay
 			if (window.__TAURI_INTERNALS__) {
 				try {
-					await invoke('hide_recording_overlay_command');
+					await overlayService.hide();
 				} catch (error) {
-					console.warn('Failed to hide recording overlay:', error);
+					console.warn('[OVERLAY] Failed to hide recording overlay:', error);
 				}
 			}
 
