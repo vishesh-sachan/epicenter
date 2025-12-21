@@ -164,7 +164,7 @@ pub struct OverlayState {
 
 The overlay component listens for `overlay-state` events and renders the appropriate UI:
 
-- **Recording Mode:** 9-bar audio visualization
+- **Recording Mode:** 9-bar audio visualization (real levels or pulsing animation fallback)
 - **Transcribing Mode:** "Transcribing..." with pulsing animation
 - **Transforming Mode:** "Transforming..." with pulsing animation
 - **Hidden Mode:** Window hidden via Rust command
@@ -209,6 +209,25 @@ Audio device → CPAL stream → RMS calculation → 8.0x amplification
 - CPAL captures raw device audio (typically quieter)
 - Navigator uses WebAudio's automatic gain control
 - Different multipliers (8.0x vs 5.0x) compensate for these differences
+
+### FFmpeg Recorder
+
+```
+FFmpeg CLI → File output (no real-time levels)
+  → overlayService.showRecording() → Pulsing animation fallback
+```
+
+**File:** `src/lib/services/recorder/ffmpeg.ts`
+- FFmpeg is a command-line tool that writes audio directly to file
+- No access to real-time audio levels during recording
+- Overlay displays pulsing animated bars as visual feedback
+- Animation automatically switches to real levels if data becomes available
+
+**Pulsing Animation:**
+- 9 bars with staggered wave effect (0.1s delay per bar)
+- Opacity pulses between 0.4 and 1.0
+- Scale pulses between 0.6 and 1.0 (scaleY)
+- 1.5s animation cycle with ease-in-out timing
 
 ## Design Principles
 
