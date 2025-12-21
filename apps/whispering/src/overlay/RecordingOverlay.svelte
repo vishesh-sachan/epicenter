@@ -9,7 +9,6 @@
 	type OverlayData = {
 		audioLevels?: number[];
 		text?: string;
-		progress?: number;
 	};
 	type OverlayState = {
 		mode: OverlayMode;
@@ -129,7 +128,11 @@
 		{:else if mode === 'transcribing'}
 			<div class="transcribing-text">Transcribing...</div>
 		{:else if mode === 'transforming'}
-			<div class="transcribing-text">Transforming...</div>
+			<div class="transforming-container">
+				<div class="transforming-bar">
+					<div class="transforming-bar-fill"></div>
+				</div>
+			</div>
 		{/if}
 	</div>
 

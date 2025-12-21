@@ -25,8 +25,6 @@ export interface OverlayData {
 	audioLevels?: number[];
 	/** Text to display */
 	text?: string;
-	/** Progress percentage (0-100) */
-	progress?: number;
 }
 
 /**
