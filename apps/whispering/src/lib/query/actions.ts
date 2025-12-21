@@ -683,9 +683,8 @@ async function processRecordingPipeline({
 	// Hide the overlay after transcription is delivered
 	if (window.__TAURI_INTERNALS__) {
 		try {
-			await import('@tauri-apps/api/core').then(({ invoke }) =>
-				invoke('hide_recording_overlay_command'),
-			);
+			const { overlayService } = await import('$lib/services/overlay');
+			await overlayService.hide();
 		} catch (error) {
 			console.warn('Failed to hide recording overlay:', error);
 		}
@@ -762,9 +761,8 @@ async function processRecordingPipeline({
 	// Hide the overlay after transformation is delivered
 	if (window.__TAURI_INTERNALS__) {
 		try {
-			await import('@tauri-apps/api/core').then(({ invoke }) =>
-				invoke('hide_recording_overlay_command'),
-			);
+			const { overlayService } = await import('$lib/services/overlay');
+			await overlayService.hide();
 		} catch (error) {
 			console.warn('Failed to hide recording overlay:', error);
 		}
