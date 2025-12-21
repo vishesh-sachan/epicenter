@@ -108,10 +108,14 @@
 	height: 24px;
 	border-radius: 50%;
 	background: transparent;
+	border: none;
+	padding: 0;
+	margin: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	cursor: pointer;
+	pointer-events: auto;
 	transition:
 		background-color 150ms ease-out,
 		transform 100ms ease-out;
@@ -119,10 +123,11 @@
 }
 
 .cancel-button:hover {
-	background: #faa2ca33;
+	background-color: oklch(1 0 0 / 0.1);
 	transform: scale(1.05);
 }
 
 .cancel-button:active {
+	background-color: oklch(1 0 0 / 0.15);
 	transform: scale(0.95);
 }
