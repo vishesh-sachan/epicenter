@@ -20,6 +20,7 @@
 	let mode = $state<OverlayMode>('hidden');
 	let levels = $state<number[]>(Array(9).fill(0));
 	let smoothedLevels = $state<number[]>(Array(9).fill(0));
+	let hasReceivedAudioLevels = $state(false);
 
 	let unlistenState: UnlistenFn | null = null;
 	let unlistenHide: UnlistenFn | null = null;
@@ -33,6 +34,11 @@
 				const { mode: newMode, data } = event.payload;
 				mode = newMode;
 				isVisible = newMode !== 'hidden';
+
+				// Reset audio levels flag when mode changes
+				if (newMode === 'recording') {
+					hasReceivedAudioLevels = false;
+				}
 
 				if (data?.audioLevels) {
 					updateAudioLevels(data.audioLevels);
@@ -72,6 +78,8 @@
 	});
 
 	function updateAudioLevels(newLevels: number[]) {
+		hasReceivedAudioLevels = true;
+		
 		// Apply smoothing to reduce jitter
 		const smoothed = smoothedLevels.map((prev, i) => {
 			const target = newLevels[i] || 0;
@@ -113,7 +121,7 @@
 
 	<div class="overlay-middle">
 		{#if mode === 'recording'}
-			<div class="bars-container">
+			<div class="bars-container" class:pulsing={!hasReceivedAudioLevels}>
 				{#each levels as level, i (i)}
 					<div
 						class="bar"

@@ -49,6 +49,33 @@
 	min-height: 4px;
 }
 
+/* Pulsing animation for bars when no real audio levels (e.g., FFmpeg) */
+.bars-container.pulsing .bar {
+	animation: pulse-bar 1.5s ease-in-out infinite;
+	animation-delay: calc(var(--bar-index, 0) * 0.1s);
+}
+
+.bars-container.pulsing .bar:nth-child(1) { --bar-index: 0; height: 8px; }
+.bars-container.pulsing .bar:nth-child(2) { --bar-index: 1; height: 12px; }
+.bars-container.pulsing .bar:nth-child(3) { --bar-index: 2; height: 16px; }
+.bars-container.pulsing .bar:nth-child(4) { --bar-index: 3; height: 18px; }
+.bars-container.pulsing .bar:nth-child(5) { --bar-index: 4; height: 20px; }
+.bars-container.pulsing .bar:nth-child(6) { --bar-index: 5; height: 18px; }
+.bars-container.pulsing .bar:nth-child(7) { --bar-index: 6; height: 16px; }
+.bars-container.pulsing .bar:nth-child(8) { --bar-index: 7; height: 12px; }
+.bars-container.pulsing .bar:nth-child(9) { --bar-index: 8; height: 8px; }
+
+@keyframes pulse-bar {
+	0%, 100% {
+		opacity: 0.4;
+		transform: scaleY(0.6);
+	}
+	50% {
+		opacity: 1;
+		transform: scaleY(1);
+	}
+}
+
 .recording-overlay.fade-in {
 	opacity: 1;
 }

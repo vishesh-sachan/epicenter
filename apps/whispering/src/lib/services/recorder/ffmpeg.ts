@@ -14,6 +14,7 @@ import type {
 import { PLATFORM_TYPE } from '$lib/constants/platform';
 import * as services from '$lib/services';
 import { asShellCommand } from '$lib/services/command';
+import { overlayService } from '../overlay';
 import type {
 	Device,
 	DeviceAcquisitionOutcome,
@@ -390,6 +391,9 @@ export function createFfmpegRecorderService(): RecorderService {
 				outputPath,
 			};
 
+			// Show recording overlay
+			await overlayService.showRecording();
+
 			sendStatus({
 				title: '🎙️ Recording',
 				description: 'FFmpeg is now recording audio...',
@@ -446,6 +450,9 @@ export function createFfmpegRecorderService(): RecorderService {
 			}
 
 			const outputPath = session.outputPath;
+
+			// Show transcribing overlay
+			await overlayService.showTranscribing();
 
 			// Clear the session
 			sessionState.value = null;
@@ -532,6 +539,9 @@ export function createFfmpegRecorderService(): RecorderService {
 
 			// Clear the session and kill the process
 			await clearSession();
+
+			// Hide overlay
+			await overlayService.hide();
 
 			// Delete the output file if it exists
 			if (pathToCleanup) {
