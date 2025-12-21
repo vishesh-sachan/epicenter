@@ -7,6 +7,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use log::{debug, error, info};
+use tauri::{AppHandle, Manager};
+
+const NUM_BARS: usize = 9;
+const LEVEL_BUFFER_SIZE: usize = 512; // Samples to analyze for levels
+
+// Amplification constants for better waveform visibility
+const AMPLITUDE_MULTIPLIER: f32 = 8.0; // Boost small audio signals
+const MAX_AMPLITUDE: f32 = 1.0; // Clamp to prevent overflow
 
 /// Simple result type using String for errors
 pub type Result<T> = std::result::Result<T, String>;
@@ -39,6 +47,7 @@ pub struct RecorderState {
     sample_rate: u32,
     channels: u16,
     file_path: Option<PathBuf>,
+    app_handle: Option<AppHandle>,
 }
 
 impl RecorderState {
@@ -51,7 +60,13 @@ impl RecorderState {
             sample_rate: 0,
             channels: 0,
             file_path: None,
+            app_handle: None,
         }
+    }
+
+    /// Set the app handle for emitting events
+    pub fn set_app_handle(&mut self, app_handle: AppHandle) {
+        self.app_handle = Some(app_handle);
     }
 
     /// List available recording devices by name
@@ -112,6 +127,7 @@ impl RecorderState {
         // Clone for the worker thread
         let writer_clone = writer.clone();
         let is_recording_clone = is_recording.clone();
+        let app_handle_clone = self.app_handle.clone();
 
         // Create the worker thread that owns the stream
         let worker = thread::spawn(move || {
@@ -122,6 +138,7 @@ impl RecorderState {
                 sample_format,
                 is_recording_clone,
                 writer_clone,
+                app_handle_clone,
             ) {
                 Ok(s) => s,
                 Err(e) => {
@@ -418,56 +435,165 @@ fn build_input_stream(
     sample_format: SampleFormat,
     is_recording: Arc<AtomicBool>,
     writer: Arc<Mutex<WavWriter>>,
+    app_handle: Option<AppHandle>,
 ) -> Result<Stream> {
     let err_fn = |err| error!("Audio stream error: {}", err);
 
     let stream = match sample_format {
-        SampleFormat::F32 => device
-            .build_input_stream(
-                config,
-                move |data: &[f32], _: &_| {
-                    if is_recording.load(Ordering::Relaxed) {
-                        if let Ok(mut w) = writer.lock() {
-                            let _ = w.write_samples_f32(data);
+        SampleFormat::F32 => {
+            // Buffer for level calculation
+            let level_buffer = Arc::new(Mutex::new(Vec::<f32>::with_capacity(LEVEL_BUFFER_SIZE)));
+            let level_buffer_clone = level_buffer.clone();
+            let app_handle_clone = app_handle.clone();
+            
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[f32], _: &_| {
+                        if is_recording.load(Ordering::Relaxed) {
+                            // Write to file
+                            if let Ok(mut w) = writer.lock() {
+                                let _ = w.write_samples_f32(data);
+                            }
+
+                            // Compute and emit levels
+                            if let Ok(mut buffer) = level_buffer_clone.lock() {
+                                buffer.extend_from_slice(data);
+                                if buffer.len() >= LEVEL_BUFFER_SIZE {
+                                    if let Some(levels) = compute_audio_levels(&buffer) {
+                                        if let Some(app) = &app_handle_clone {
+                                            emit_levels(app, &levels);
+                                        }
+                                    }
+                                    buffer.clear();
+                                }
+                            }
                         }
-                    }
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|e| format!("Failed to build F32 stream: {}", e))?,
-        SampleFormat::I16 => device
-            .build_input_stream(
-                config,
-                move |data: &[i16], _: &_| {
-                    if is_recording.load(Ordering::Relaxed) {
-                        if let Ok(mut w) = writer.lock() {
-                            let _ = w.write_samples_i16(data);
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|e| format!("Failed to build F32 stream: {}", e))?
+        },
+        SampleFormat::I16 => {
+            let level_buffer = Arc::new(Mutex::new(Vec::<f32>::with_capacity(LEVEL_BUFFER_SIZE)));
+            let level_buffer_clone = level_buffer.clone();
+            let app_handle_clone = app_handle.clone();
+            
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[i16], _: &_| {
+                        if is_recording.load(Ordering::Relaxed) {
+                            // Write to file
+                            if let Ok(mut w) = writer.lock() {
+                                let _ = w.write_samples_i16(data);
+                            }
+
+                            // Convert to f32 and compute levels
+                            if let Ok(mut buffer) = level_buffer_clone.lock() {
+                                for &sample in data {
+                                    buffer.push(sample as f32 / 32768.0);
+                                }
+                                if buffer.len() >= LEVEL_BUFFER_SIZE {
+                                    if let Some(levels) = compute_audio_levels(&buffer) {
+                                        if let Some(app) = &app_handle_clone {
+                                            emit_levels(app, &levels);
+                                        }
+                                    }
+                                    buffer.clear();
+                                }
+                            }
                         }
-                    }
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|e| format!("Failed to build I16 stream: {}", e))?,
-        SampleFormat::U16 => device
-            .build_input_stream(
-                config,
-                move |data: &[u16], _: &_| {
-                    if is_recording.load(Ordering::Relaxed) {
-                        if let Ok(mut w) = writer.lock() {
-                            let _ = w.write_samples_u16(data);
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|e| format!("Failed to build I16 stream: {}", e))?
+        },
+        SampleFormat::U16 => {
+            let level_buffer = Arc::new(Mutex::new(Vec::<f32>::with_capacity(LEVEL_BUFFER_SIZE)));
+            let level_buffer_clone = level_buffer.clone();
+            let app_handle_clone = app_handle;
+            
+            device
+                .build_input_stream(
+                    config,
+                    move |data: &[u16], _: &_| {
+                        if is_recording.load(Ordering::Relaxed) {
+                            // Write to file
+                            if let Ok(mut w) = writer.lock() {
+                                let _ = w.write_samples_u16(data);
+                            }
+
+                            // Convert to f32 and compute levels
+                            if let Ok(mut buffer) = level_buffer_clone.lock() {
+                                for &sample in data {
+                                    buffer.push((sample as f32 - 32768.0) / 32768.0);
+                                }
+                                if buffer.len() >= LEVEL_BUFFER_SIZE {
+                                    if let Some(levels) = compute_audio_levels(&buffer) {
+                                        if let Some(app) = &app_handle_clone {
+                                            emit_levels(app, &levels);
+                                        }
+                                    }
+                                    buffer.clear();
+                                }
+                            }
                         }
-                    }
-                },
-                err_fn,
-                None,
-            )
-            .map_err(|e| format!("Failed to build U16 stream: {}", e))?,
+                    },
+                    err_fn,
+                    None,
+                )
+                .map_err(|e| format!("Failed to build U16 stream: {}", e))?
+        },
         _ => return Err(format!("Unsupported sample format: {:?}", sample_format)),
     };
 
     Ok(stream)
+}
+
+/// Compute audio levels from buffer (simple RMS-based approach)
+fn compute_audio_levels(buffer: &[f32]) -> Option<Vec<f32>> {
+    if buffer.is_empty() {
+        return None;
+    }
+
+    let chunk_size = buffer.len() / NUM_BARS;
+    if chunk_size == 0 {
+        return None;
+    }
+
+    let mut levels = Vec::with_capacity(NUM_BARS);
+    
+    for i in 0..NUM_BARS {
+        let start = i * chunk_size;
+        let end = ((i + 1) * chunk_size).min(buffer.len());
+        let chunk = &buffer[start..end];
+
+        // Calculate RMS (root mean square) for this chunk
+        let rms: f32 = (chunk.iter().map(|&s| s * s).sum::<f32>() / chunk.len() as f32).sqrt();
+        
+        // Apply amplification and clamp to max
+        let amplified = (rms * AMPLITUDE_MULTIPLIER).min(MAX_AMPLITUDE);
+        levels.push(amplified);
+    }
+
+    Some(levels)
+}
+
+/// Emit audio levels to the main window (which forwards to overlay service)
+fn emit_levels(app: &AppHandle, levels: &[f32]) {
+    debug!("[CPAL AUDIO] Emitting {} levels to main window: [{:.2}, {:.2}, {:.2}...]", 
+           levels.len(), 
+           levels.get(0).unwrap_or(&0.0),
+           levels.get(1).unwrap_or(&0.0),
+           levels.get(2).unwrap_or(&0.0));
+    
+    use tauri::Emitter;
+    if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.emit("audio-levels", levels);
+    }
 }
 
 impl Drop for RecorderState {

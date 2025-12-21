@@ -15,6 +15,8 @@ import type {
 	RecorderServiceError,
 } from './types';
 import { RecorderServiceErr } from './types';
+import { overlayService } from '../overlay';
+import { startCpalAudioForwarding, stopCpalAudioForwarding } from '../cpal-audio-forwarder';
 
 /**
  * Audio recording data returned from the Rust method
@@ -192,13 +194,28 @@ export function createCpalRecorderService(): RecorderService {
 				description:
 					'Recording session initialized, now starting to capture audio...',
 			});
+			
+			// Start forwarding CPAL audio levels to overlay
+			await startCpalAudioForwarding();
+			
+			// Show the overlay
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					await overlayService.showRecording();
+				} catch (error) {
+					console.error('[CPAL] Failed to show overlay:', error);
+				}
+			}
+			
 			const { error: startRecordingError } =
 				await invoke<void>('start_recording');
-			if (startRecordingError)
+			if (startRecordingError) {
+				stopCpalAudioForwarding();
 				return RecorderServiceErr({
 					message:
 						'Unable to start recording. Please check your microphone and try again.',
 				});
+			}
 
 			return Ok(deviceOutcome);
 		},
@@ -214,6 +231,18 @@ export function createCpalRecorderService(): RecorderService {
 		stopRecording: async ({
 			sendStatus,
 		}): Promise<Result<Blob, RecorderServiceError>> => {
+			// Stop audio forwarding
+			stopCpalAudioForwarding();
+			
+			// Show transcribing overlay
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					await overlayService.showTranscribing();
+				} catch (error) {
+					console.warn('[CPAL] Failed to show transcribing overlay:', error);
+				}
+			}
+			
 			const { data: audioRecording, error: stopRecordingError } =
 				await invoke<AudioRecording>('stop_recording');
 			if (stopRecordingError) {
@@ -270,6 +299,18 @@ export function createCpalRecorderService(): RecorderService {
 		cancelRecording: async ({
 			sendStatus,
 		}): Promise<Result<CancelRecordingResult, RecorderServiceError>> => {
+			// Stop audio forwarding
+			stopCpalAudioForwarding();
+			
+			// Hide overlay
+			if (window.__TAURI_INTERNALS__) {
+				try {
+					await overlayService.hide();
+				} catch (error) {
+					console.warn('[CPAL] Failed to hide overlay:', error);
+				}
+			}
+			
 			// Check current state first
 			const { data: recordingId, error: getRecordingIdError } = await invoke<
 				string | null
