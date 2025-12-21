@@ -30,47 +30,41 @@
 	onMount(() => {
 		(async () => {
 			// Listen for unified overlay-state event
-			console.log('[OVERLAY SVELTE] Setting up overlay-state listener');
 			unlistenState = await listen<OverlayState>('overlay-state', (event) => {
-				console.log('[OVERLAY SVELTE] Received overlay-state event:', event.payload);
 				const { mode: newMode, data } = event.payload;
 				mode = newMode;
 				isVisible = newMode !== 'hidden';
-				
+
 				if (data?.audioLevels) {
 					updateAudioLevels(data.audioLevels);
 				}
 			});
 
 			// Listen for data-only updates (audio levels from CPAL)
-			console.log('[OVERLAY SVELTE] Setting up overlay-data-update listener');
-			unlistenDataUpdate = await listen<OverlayData>('overlay-data-update', (event) => {
-				const data = event.payload;
-				if (data.audioLevels) {
-					updateAudioLevels(data.audioLevels);
-				}
-			});
+			unlistenDataUpdate = await listen<OverlayData>(
+				'overlay-data-update',
+				(event) => {
+					const data = event.payload;
+					if (data.audioLevels) {
+						updateAudioLevels(data.audioLevels);
+					}
+				},
+			);
 
-			// Listen for hide-overlay event from Rust
-			console.log('[OVERLAY SVELTE] Setting up hide-overlay listener');
+			// Listen for hide-overlay event
 			unlistenHide = await listen('hide-overlay', () => {
-				console.log('[OVERLAY SVELTE] Received hide-overlay event');
 				isVisible = false;
 				mode = 'hidden';
 			});
 
 			// Legacy mic-level support for backwards compatibility
-			console.log('[OVERLAY SVELTE] Setting up mic-level listener (legacy)');
 			unlistenLevel = await listen<number[]>('mic-level', (event) => {
 				updateAudioLevels(event.payload);
 			});
-			
-			console.log('[OVERLAY SVELTE] All event listeners set up successfully');
 		})();
 
 		// Cleanup function
 		return () => {
-			console.log('[OVERLAY SVELTE] Cleaning up event listeners');
 			unlistenState?.();
 			unlistenHide?.();
 			unlistenDataUpdate?.();
@@ -88,18 +82,6 @@
 		smoothedLevels = smoothed;
 		levels = smoothed.slice(0, 9);
 	}
-
-	// Log state changes
-	$effect(() => {
-		console.log(
-			'[OVERLAY SVELTE] State - isVisible:',
-			isVisible,
-			'mode:',
-			mode,
-			'levels:',
-			levels.slice(0, 3),
-		);
-	});
 
 	// Reset levels when not recording
 	$effect(() => {
@@ -126,15 +108,6 @@
 </script>
 
 <div class="recording-overlay" class:fade-in={isVisible}>
-	<!-- Debug info -->
-	<div
-		style="position: absolute; top: -20px; left: 0; color: white; font-size: 10px; background: rgba(0,0,0,0.8); padding: 2px 4px; white-space: nowrap;"
-	>
-		Mode: {mode} | Visible: {isVisible} | Levels: [{levels[0]?.toFixed(2)}, {levels[1]?.toFixed(
-			2,
-		)}, {levels[2]?.toFixed(2)}...]
-	</div>
-
 	<div class="overlay-left">
 		{@html getIcon()}
 	</div>
