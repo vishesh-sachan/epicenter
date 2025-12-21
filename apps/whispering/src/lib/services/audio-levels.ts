@@ -1,17 +1,22 @@
 /**
  * Audio level monitoring service using Web Audio API
- * Analyzes microphone input and provides frequency spectrum data for visualization
+ * Analyzes microphone input using time-domain RMS analysis for visualization
  */
 
 import { invoke } from '@tauri-apps/api/core';
 
-const FFT_SIZE = 512;
+// Time-domain analysis configuration
+const FFT_SIZE = 2048; // Larger size for better time-domain resolution
 const NUM_BARS = 9;
+
+// Amplification to make waveforms more visible
+const AMPLITUDE_MULTIPLIER = 5.0; // Boost small audio signals
+const MAX_AMPLITUDE = 1.0; // Clamp to prevent overflow
 
 export class AudioLevelMonitor {
 	private audioContext: AudioContext | null = null;
 	private analyser: AnalyserNode | null = null;
-	private dataArray: Uint8Array | null = null;
+	private dataArray: Uint8Array<ArrayBuffer> | null = null;
 	private rafId: number | null = null;
 	private source: MediaStreamAudioSourceNode | null = null;
 
@@ -24,22 +29,24 @@ export class AudioLevelMonitor {
 			this.source = this.audioContext.createMediaStreamSource(stream);
 			this.analyser = this.audioContext.createAnalyser();
 			this.analyser.fftSize = FFT_SIZE;
-			this.analyser.smoothingTimeConstant = 0.8;
+			this.analyser.smoothingTimeConstant = 0.3; // Less smoothing for more responsive visualization
 			this.source.connect(this.analyser);
-			this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+			// Use time-domain data (waveform) instead of frequency data
+			this.dataArray = new Uint8Array(this.analyser.fftSize);
 		} catch (error) {
 			console.error('Failed to connect audio monitor:', error);
 		}
 	}
 
 	/**
-	 * Start monitoring audio levels and call the callback with spectrum data
+	 * Start monitoring audio levels and call the callback with RMS amplitude data
 	 */
 	startMonitoring(callback: (levels: number[]) => void): void {
 		const update = () => {
 			if (this.analyser && this.dataArray) {
-				this.analyser.getByteFrequencyData(this.dataArray);
-				const levels = this.computeSpectrum(this.dataArray);
+				// Get time-domain data (waveform)
+				this.analyser.getByteTimeDomainData(this.dataArray);
+				const levels = this.computeRMSLevels(this.dataArray);
 				callback(levels);
 			}
 			this.rafId = requestAnimationFrame(update);
@@ -78,33 +85,38 @@ export class AudioLevelMonitor {
 	}
 
 	/**
-	 * Compute frequency spectrum divided into NUM_BARS buckets
-	 * Returns normalized values between 0 and 1
+	 * Compute RMS (Root Mean Square) amplitude for each bar
+	 * Uses time-domain waveform data, same approach as CPAL recorder
+	 * Returns normalized values between 0 and 1 with amplification
 	 */
-	private computeSpectrum(frequencyData: Uint8Array): number[] {
-		const buckets: number[] = [];
-		const bucketSize = Math.floor(frequencyData.length / NUM_BARS);
+	private computeRMSLevels(timeDomainData: Uint8Array<ArrayBuffer>): number[] {
+		const levels: number[] = [];
+		const chunkSize = Math.floor(timeDomainData.length / NUM_BARS);
 
 		for (let i = 0; i < NUM_BARS; i++) {
-			let sum = 0;
-			const start = i * bucketSize;
-			const end = start + bucketSize;
-
+			const start = i * chunkSize;
+			const end = Math.min(start + chunkSize, timeDomainData.length);
+			
+			// Convert byte values (0-255, centered at 128) to normalized values (-1 to 1)
+			let sumSquares = 0;
 			for (let j = start; j < end; j++) {
-				const value = frequencyData[j];
+				const value = timeDomainData[j];
 				if (value !== undefined) {
-					sum += value;
+					const normalized = (value - 128) / 128.0;
+					sumSquares += normalized * normalized;
 				}
 			}
 
-			// Average and normalize to 0-1 range
-			const average = sum / bucketSize;
-			const normalized = average / 255;
-
-			buckets.push(normalized);
+			// Calculate RMS
+			const rms = Math.sqrt(sumSquares / (end - start));
+			
+			// Apply amplification and clamp to max
+			const amplified = Math.min(rms * AMPLITUDE_MULTIPLIER, MAX_AMPLITUDE);
+			
+			levels.push(amplified);
 		}
 
-		return buckets;
+		return levels;
 	}
 }
 
@@ -121,7 +133,7 @@ export function createAudioLevelMonitor(): AudioLevelMonitor {
  */
 export async function emitMicLevels(levels: number[]): Promise<void> {
 	try {
-		console.log('[AUDIO LEVELS] Emitting levels:', levels.slice(0, 3), '...');
+		console.log('[AUDIO LEVELS] Emitting', levels.length, 'levels:', levels.map(l => l.toFixed(2)).join(', '));
 		await invoke('emit_mic_levels_command', { levels });
 	} catch (error) {
 		console.error('[AUDIO LEVELS] Failed to emit mic levels:', error);
