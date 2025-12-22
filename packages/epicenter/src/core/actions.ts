@@ -1,6 +1,34 @@
-import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
 import type { TaggedError } from 'wellcrafted/error';
 import type { Result } from 'wellcrafted/result';
+
+/**
+ * Combined props for schemas that implement both StandardSchema and StandardJSONSchema.
+ *
+ * StandardSchemaV1 and StandardJSONSchemaV1 are orthogonal specs:
+ * - StandardSchemaV1: Provides validation via `~standard.validate()`
+ * - StandardJSONSchemaV1: Provides JSON Schema conversion via `~standard.jsonSchema`
+ *
+ * Actions require both: validation for runtime safety, JSON Schema for MCP/CLI/OpenAPI.
+ *
+ * @see https://standardschema.dev/json-schema#what-if-i-want-to-accept-only-schemas-that-implement-both-standardschema-and-standardjsonschema
+ */
+type StandardSchemaWithJSONSchemaProps<TInput = unknown, TOutput = TInput> =
+	StandardSchemaV1.Props<TInput, TOutput> &
+		StandardJSONSchemaV1.Props<TInput, TOutput>;
+
+/**
+ * Schema type that implements both StandardSchema (validation) and StandardJSONSchema (conversion).
+ *
+ * This is required for action inputs because:
+ * 1. We need validation at runtime (StandardSchemaV1)
+ * 2. We need JSON Schema for MCP tools, CLI args, and OpenAPI docs (StandardJSONSchemaV1)
+ *
+ * ArkType, Zod (with adapter), and Valibot (with adapter) all implement both specs.
+ */
+export type StandardSchemaWithJSONSchema<TInput = unknown, TOutput = TInput> = {
+	'~standard': StandardSchemaWithJSONSchemaProps<TInput, TOutput>;
+};
 
 /**
  * Workspace exports - can include actions and any other utilities
@@ -69,11 +97,14 @@ export type WorkspaceActionMap = Record<string, Action<any, any>>;
 /**
  * Action type - callable function with metadata properties
  * Can be either a query or mutation
+ *
+ * Input schemas must implement both StandardSchemaV1 (validation) and
+ * StandardJSONSchemaV1 (JSON Schema conversion) for MCP/CLI/OpenAPI support.
  */
 export type Action<
 	TOutput = unknown,
 	TError extends TaggedError | never = TaggedError,
-	TInput extends StandardSchemaV1 | undefined = StandardSchemaV1 | undefined,
+	TInput extends StandardSchemaWithJSONSchema | undefined = StandardSchemaWithJSONSchema | undefined,
 	TAsync extends boolean = boolean,
 > =
 	| Query<TOutput, TError, TInput, TAsync>
@@ -84,11 +115,14 @@ export type Action<
  *
  * Returns TOutput directly when TError is never (handler can't fail)
  * Returns Result<TOutput, TError> when handler can fail
+ *
+ * Input schemas must implement both StandardSchemaV1 (validation) and
+ * StandardJSONSchemaV1 (JSON Schema conversion) for MCP/CLI/OpenAPI support.
  */
 export type Query<
 	TOutput = unknown,
 	TError extends TaggedError<string> | never = never,
-	TInput extends StandardSchemaV1 | undefined = StandardSchemaV1 | undefined,
+	TInput extends StandardSchemaWithJSONSchema | undefined = StandardSchemaWithJSONSchema | undefined,
 	TAsync extends boolean = boolean,
 > = {
 	/**
@@ -99,7 +133,7 @@ export type Query<
 	 * - TError = SomeError: Returns Result<TOutput, TError> (handler can fail)
 	 */
 	(
-		...args: TInput extends StandardSchemaV1
+		...args: TInput extends StandardSchemaWithJSONSchema
 			? [input: StandardSchemaV1.InferOutput<TInput>]
 			: []
 	): // Level 1: Async or Sync?
@@ -124,11 +158,14 @@ export type Query<
  *
  * Returns TOutput directly when TError is never (handler can't fail)
  * Returns Result<TOutput, TError> when handler can fail
+ *
+ * Input schemas must implement both StandardSchemaV1 (validation) and
+ * StandardJSONSchemaV1 (JSON Schema conversion) for MCP/CLI/OpenAPI support.
  */
 export type Mutation<
 	TOutput = unknown,
 	TError extends TaggedError<string> | never = never,
-	TInput extends StandardSchemaV1 | undefined = StandardSchemaV1 | undefined,
+	TInput extends StandardSchemaWithJSONSchema | undefined = StandardSchemaWithJSONSchema | undefined,
 	TAsync extends boolean = boolean,
 > = {
 	/**
@@ -139,7 +176,7 @@ export type Mutation<
 	 * - TError = SomeError: Returns Result<TOutput, TError> (handler can fail)
 	 */
 	(
-		...args: TInput extends StandardSchemaV1
+		...args: TInput extends StandardSchemaWithJSONSchema
 			? [input: StandardSchemaV1.InferOutput<TInput>]
 			: []
 	): // Level 1: Async or Sync?
@@ -183,7 +220,7 @@ export type Mutation<
 export function defineQuery<
 	TOutput,
 	TError extends TaggedError<string>,
-	TInput extends StandardSchemaV1,
+	TInput extends StandardSchemaWithJSONSchema,
 >(config: {
 	input: TInput;
 	handler: (
@@ -216,7 +253,7 @@ export function defineQuery<
 export function defineQuery<
 	TOutput,
 	TError extends TaggedError<string>,
-	TInput extends StandardSchemaV1,
+	TInput extends StandardSchemaWithJSONSchema,
 >(config: {
 	input: TInput;
 	handler: (
@@ -246,7 +283,7 @@ export function defineQuery<
  * - Valibot: https://www.npmjs.com/package/@valibot/to-json-schema
  * - ArkType: https://arktype.io/docs/configuration#fallback-codes
  */
-export function defineQuery<TOutput, TInput extends StandardSchemaV1>(config: {
+export function defineQuery<TOutput, TInput extends StandardSchemaWithJSONSchema>(config: {
 	input: TInput;
 	handler: (input: StandardSchemaV1.InferOutput<NoInfer<TInput>>) => TOutput;
 	description?: string;
@@ -273,7 +310,7 @@ export function defineQuery<TOutput, TInput extends StandardSchemaV1>(config: {
  * - Valibot: https://www.npmjs.com/package/@valibot/to-json-schema
  * - ArkType: https://arktype.io/docs/configuration#fallback-codes
  */
-export function defineQuery<TOutput, TInput extends StandardSchemaV1>(config: {
+export function defineQuery<TOutput, TInput extends StandardSchemaWithJSONSchema>(config: {
 	input: TInput;
 	handler: (
 		input: StandardSchemaV1.InferOutput<NoInfer<TInput>>,
@@ -371,7 +408,7 @@ export function defineQuery(config: ActionConfig): any {
 export function defineMutation<
 	TOutput,
 	TError extends TaggedError<string>,
-	TInput extends StandardSchemaV1,
+	TInput extends StandardSchemaWithJSONSchema,
 >(config: {
 	input: TInput;
 	handler: (
@@ -404,7 +441,7 @@ export function defineMutation<
 export function defineMutation<
 	TOutput,
 	TError extends TaggedError<string>,
-	TInput extends StandardSchemaV1,
+	TInput extends StandardSchemaWithJSONSchema,
 >(config: {
 	input: TInput;
 	handler: (
@@ -436,7 +473,7 @@ export function defineMutation<
  */
 export function defineMutation<
 	TOutput,
-	TInput extends StandardSchemaV1,
+	TInput extends StandardSchemaWithJSONSchema,
 >(config: {
 	input: TInput;
 	handler: (input: StandardSchemaV1.InferOutput<NoInfer<TInput>>) => TOutput;
@@ -466,7 +503,7 @@ export function defineMutation<
  */
 export function defineMutation<
 	TOutput,
-	TInput extends StandardSchemaV1,
+	TInput extends StandardSchemaWithJSONSchema,
 >(config: {
 	input: TInput;
 	handler: (
@@ -548,7 +585,7 @@ export function defineMutation(config: ActionConfig): any {
  * Raw values are implicitly wrapped in Ok() at runtime.
  */
 type ActionConfig = {
-	input?: StandardSchemaV1;
+	input?: StandardSchemaWithJSONSchema;
 	handler: // biome-ignore lint/suspicious/noExplicitAny: Handler return type uses `any` to support all combinations: raw values (T), Result types (Result<T,E>), sync, and async. Type safety is enforced through the overload signatures above, not this shared config type.
 		| (() => any | Promise<any>)
 		// biome-ignore lint/suspicious/noExplicitAny: Handler return type uses `any` to support all combinations: raw values (T), Result types (Result<T,E>), sync, and async. Type safety is enforced through the overload signatures above, not this shared config type.

@@ -14,7 +14,10 @@ export const RECORDING_COMPATIBILITY_MESSAGE =
 
 function isUsingLocalTranscription(): boolean {
 	const service = settings.value['transcription.selectedTranscriptionService'];
-	return service === 'whispercpp' || service === 'parakeet';
+	return (
+		// service === 'whispercpp' ||
+		service === 'parakeet' || service === 'moonshine'
+	);
 }
 
 /**
@@ -31,8 +34,9 @@ export function hasNavigatorLocalTranscriptionIssue({
 	const isUsingNavigator = settings.value['recording.method'] === 'navigator';
 	const isUsingLocalTranscription =
 		settings.value['transcription.selectedTranscriptionService'] ===
-			'whispercpp' ||
-		settings.value['transcription.selectedTranscriptionService'] === 'parakeet';
+			'parakeet' ||
+		settings.value['transcription.selectedTranscriptionService'] ===
+			'moonshine';
 
 	return isUsingNavigator && isUsingLocalTranscription && !isFFmpegInstalled;
 }

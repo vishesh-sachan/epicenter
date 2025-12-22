@@ -10,7 +10,7 @@ import type { ParakeetModelConfig } from './types';
  * Pre-built Parakeet models available for download from GitHub releases.
  * These are NVIDIA NeMo models consisting of multiple ONNX files.
  */
-export const PARAKEET_MODELS: readonly ParakeetModelConfig[] = [
+export const PARAKEET_MODELS = [
 	{
 		id: 'parakeet-tdt-0.6b-v3-int8',
 		name: 'Parakeet TDT 0.6B v3 (INT8)',
@@ -47,7 +47,7 @@ export const PARAKEET_MODELS: readonly ParakeetModelConfig[] = [
 			},
 		],
 	},
-] as const;
+] as const satisfies readonly ParakeetModelConfig[];
 
 const ParakeetErrorType = type({
 	name: "'AudioReadError' | 'FfmpegNotFoundError' | 'ModelLoadError' | 'TranscriptionError'",

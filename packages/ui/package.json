@@ -21,14 +21,14 @@
 	},
 	"dependencies": {
 		"@fontsource-variable/manrope": "^5.2.6",
-		"@lucide/svelte": "^0.544.0",
+		"@lucide/svelte": "catalog:",
 		"@tanstack/svelte-table": "catalog:",
-		"bits-ui": "^2.11.0",
+		"bits-ui": "catalog:",
 		"clsx": "catalog:",
 		"paneforge": "^1.0.2",
 		"svelte-check": "catalog:",
 		"tailwind-merge": "catalog:",
-		"tailwind-variants": "^3.1.1"
+		"tailwind-variants": "catalog:"
 	},
 	"peerDependencies": {
 		"svelte": ">=5.0.0"

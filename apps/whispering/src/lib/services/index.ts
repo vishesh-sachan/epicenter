@@ -1,4 +1,5 @@
 import { AnalyticsServiceLive } from './analytics';
+import { AutostartServiceLive } from './autostart';
 import { CommandServiceLive } from './command';
 import * as completions from './completion';
 import { DbServiceLive } from './db';
@@ -24,6 +25,7 @@ import { TrayIconServiceLive } from './tray';
  */
 export {
 	AnalyticsServiceLive as analytics,
+	AutostartServiceLive as autostart,
 	TextServiceLive as text,
 	CommandServiceLive as command,
 	completions,

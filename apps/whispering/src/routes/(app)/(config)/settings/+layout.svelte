@@ -72,9 +72,9 @@
 			onclick={() => {
 				confirmationDialog.open({
 					title: 'Reset All Settings',
-					subtitle:
+					description:
 						'This will reset all settings to their default values. This action cannot be undone.',
-					confirmText: 'Reset Settings',
+					confirm: { text: 'Reset Settings', variant: 'destructive' },
 					onConfirm: () => {
 						settings.reset();
 						rpc.notify.success.execute({

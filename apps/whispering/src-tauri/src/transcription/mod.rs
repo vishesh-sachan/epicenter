@@ -10,11 +10,13 @@ use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use transcribe_rs::{
     engines::{
+        moonshine::MoonshineModelParams,
         parakeet::{ParakeetInferenceParams, TimestampGranularity},
-        whisper::WhisperInferenceParams,
     },
     TranscriptionEngine,
 };
+#[cfg(feature = "whisper")]
+use transcribe_rs::engines::whisper::WhisperInferenceParams;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -485,6 +487,7 @@ fn extract_samples_from_wav(wav_data: Vec<u8>) -> Result<Vec<f32>, Transcription
     Ok(samples)
 }
 
+#[cfg(feature = "whisper")]
 #[tauri::command]
 pub async fn transcribe_audio_whisper(
     audio_data: Vec<u8>,
@@ -579,6 +582,20 @@ pub async fn transcribe_audio_whisper(
     Ok(transcript)
 }
 
+#[cfg(not(feature = "whisper"))]
+#[tauri::command]
+pub async fn transcribe_audio_whisper(
+    _audio_data: Vec<u8>,
+    _model_path: String,
+    _language: Option<String>,
+    _initial_prompt: Option<String>,
+    _model_manager: tauri::State<'_, ModelManager>,
+) -> Result<String, TranscriptionError> {
+    Err(TranscriptionError::TranscriptionError {
+        message: "Whisper C++ is temporarily unavailable due to upstream build issues. Please use Moonshine or Parakeet for local transcription, or a cloud provider.".to_string(),
+    })
+}
+
 #[tauri::command]
 pub async fn transcribe_audio_parakeet(
     audio_data: Vec<u8>,
@@ -659,6 +676,117 @@ pub async fn transcribe_audio_parakeet(
     let transcript = result.text.trim().to_string();
     info!(
         "[Transcription] Parakeet transcription complete: characters={}",
+        transcript.len()
+    );
+    Ok(transcript)
+}
+
+#[tauri::command]
+pub async fn transcribe_audio_moonshine(
+    audio_data: Vec<u8>,
+    model_path: String,
+    model_manager: tauri::State<'_, ModelManager>,
+) -> Result<String, TranscriptionError> {
+    info!(
+        "[Transcription] starting Moonshine transcription: audio_bytes={} model_path={}",
+        audio_data.len(),
+        model_path
+    );
+
+    // Convert audio to 16kHz mono format
+    let wav_data = convert_audio_for_whisper(audio_data)?;
+    debug!(
+        "[Transcription] audio conversion complete: wav_bytes={}",
+        wav_data.len()
+    );
+
+    // Extract samples from WAV
+    let samples = extract_samples_from_wav(wav_data)?;
+    debug!(
+        "[Transcription] extracted {} PCM samples for Moonshine engine",
+        samples.len()
+    );
+
+    // Return early if audio is empty
+    if samples.is_empty() {
+        warn!("[Transcription] no samples extracted, returning empty transcription");
+        return Ok(String::new());
+    }
+
+    // Extract variant from model path directory name
+    // Expected format: moonshine-{variant}-{lang} (e.g., "moonshine-tiny-en", "moonshine-base-en")
+    let model_params = {
+        let dir_name = std::path::Path::new(&model_path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        // Parse directory name: moonshine-{variant}-{lang}
+        let parts: Vec<&str> = dir_name.split('-').collect();
+        let variant = parts.get(1).copied().unwrap_or("tiny");
+
+        debug!(
+            "[Transcription] extracted Moonshine variant='{}' from path '{}'",
+            variant, dir_name
+        );
+
+        match variant {
+            "base" => MoonshineModelParams::base(),
+            "tiny" => MoonshineModelParams::tiny(),
+            _ => {
+                warn!(
+                    "[Transcription] unknown Moonshine variant '{}' in path '{}', defaulting to tiny",
+                    variant, dir_name
+                );
+                MoonshineModelParams::tiny()
+            }
+        }
+    };
+
+    // Get or load the model using the persistent model manager
+    let engine_arc = model_manager
+        .get_or_load_moonshine(PathBuf::from(&model_path), model_params)
+        .map_err(|e| TranscriptionError::ModelLoadError { message: e })?;
+    debug!("[Transcription] Moonshine model ready: {}", model_path);
+
+    // Run transcription with the persistent engine
+    // Use into_inner() to recover from poisoned mutex, but clear state to force fresh reload
+    let result = {
+        let mut engine_guard = engine_arc.lock().unwrap_or_else(|poisoned| {
+            warn!(
+                "[Transcription] Engine mutex was poisoned from previous panic, clearing state to force reload..."
+            );
+            let mut recovered = poisoned.into_inner();
+            *recovered = None; // Clear potentially corrupted state
+            recovered
+        });
+        let engine = engine_guard
+            .as_mut()
+            .ok_or_else(|| TranscriptionError::ModelLoadError {
+                message: "Model not loaded (may have been cleared after previous error). Please try again.".to_string(),
+            })?;
+
+        // Extract the MoonshineEngine from the enum
+        let moonshine_engine = match engine {
+            model_manager::Engine::Moonshine(e) => e,
+            _ => {
+                return Err(TranscriptionError::ModelLoadError {
+                    message: "Expected Moonshine engine but got different type".to_string(),
+                })
+            }
+        };
+
+        // Moonshine doesn't have inference params like Whisper, pass None
+        moonshine_engine
+            .transcribe_samples(samples, None)
+            .map_err(|e| TranscriptionError::TranscriptionError {
+                message: e.to_string(),
+            })?
+    };
+
+    let transcript = result.text.trim().to_string();
+    info!(
+        "[Transcription] Moonshine transcription complete: characters={}",
         transcript.len()
     );
     Ok(transcript)

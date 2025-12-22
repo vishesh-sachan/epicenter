@@ -32,14 +32,10 @@ type AudioRecording = {
  * Creates a CPAL recorder service that interfaces with Rust audio recording methods.
  * This service handles device enumeration, recording start/stop operations, and file management
  * for desktop audio recording using the CPAL library.
- *
- * @returns {RecorderService} A recorder service instance with methods for audio recording operations
  */
 export function createCpalRecorderService(): RecorderService {
 	/**
 	 * Enumerates available recording devices from the system.
-	 *
-	 * @returns {Promise<Result<Device[], RecorderServiceError>>} A promise that resolves to either a list of available devices or an error
 	 */
 	const enumerateDevices = async (): Promise<
 		Result<Device[], RecorderServiceError>
@@ -63,8 +59,6 @@ export function createCpalRecorderService(): RecorderService {
 	return {
 		/**
 		 * Gets the current state of the recorder.
-		 *
-		 * @returns {Promise<Result<WhisperingRecordingState, RecorderServiceError>>} A promise that resolves to either 'RECORDING' or 'IDLE' state, or an error
 		 */
 		getRecorderState: async (): Promise<
 			Result<WhisperingRecordingState, RecorderServiceError>
@@ -87,10 +81,8 @@ export function createCpalRecorderService(): RecorderService {
 		 * Starts a recording session with the specified parameters.
 		 * Handles device selection, fallback logic, and recording initialization.
 		 *
-		 * @param {CpalRecordingParams} params - Recording parameters including device ID, recording ID, output folder, and sample rate
-		 * @param {Object} callbacks - Callback functions for status updates
-		 * @param {Function} callbacks.sendStatus - Function to send status updates during the recording process
-		 * @returns {Promise<Result<DeviceAcquisitionOutcome, RecorderServiceError>>} A promise that resolves to device acquisition outcome or an error
+		 * @param params - Recording parameters including device ID, recording ID, output folder, and sample rate
+		 * @param callbacks - Callback functions for status updates
 		 */
 		startRecording: async (
 			{
@@ -106,8 +98,6 @@ export function createCpalRecorderService(): RecorderService {
 
 			/**
 			 * Acquires a recording device, either the selected one or a fallback.
-			 *
-			 * @returns {Result<DeviceAcquisitionOutcome, RecorderServiceError>} The device acquisition result
 			 */
 			const acquireDevice = (): Result<
 				DeviceAcquisitionOutcome,
@@ -224,9 +214,7 @@ export function createCpalRecorderService(): RecorderService {
 		 * Stops the current recording session and returns the recorded audio as a Blob.
 		 * Handles file reading, session cleanup, and resource management.
 		 *
-		 * @param {Object} callbacks - Callback functions for status updates
-		 * @param {Function} callbacks.sendStatus - Function to send status updates during the stop process
-		 * @returns {Promise<Result<Blob, RecorderServiceError>>} A promise that resolves to the recorded audio blob or an error
+		 * @param callbacks - Callback functions for status updates
 		 */
 		stopRecording: async ({
 			sendStatus,
@@ -292,9 +280,7 @@ export function createCpalRecorderService(): RecorderService {
 		 * Cancels the current recording session and cleans up resources.
 		 * Deletes any temporary recording files and closes the recording session.
 		 *
-		 * @param {Object} callbacks - Callback functions for status updates
-		 * @param {Function} callbacks.sendStatus - Function to send status updates during the cancel process
-		 * @returns {Promise<Result<CancelRecordingResult, RecorderServiceError>>} A promise that resolves to the cancellation result or an error
+		 * @param callbacks - Callback functions for status updates
 		 */
 		cancelRecording: async ({
 			sendStatus,
@@ -382,10 +368,8 @@ export const CpalRecorderServiceLive = createCpalRecorderService();
  * Wrapper function for Tauri invoke calls that handles errors consistently.
  * Converts Tauri invoke calls into Result types for better error handling.
  *
- * @template T - The expected return type from the Tauri command
- * @param {string} command - The Tauri command to invoke
- * @param {Record<string, unknown>} [args] - Optional arguments to pass to the command
- * @returns {Promise<Result<T, {name: 'TauriInvokeError', command: string, error: unknown}>>} A promise that resolves to either the command result or a structured error
+ * @param command - The Tauri command to invoke
+ * @param args - Optional arguments to pass to the command
  */
 async function invoke<T>(command: string, args?: Record<string, unknown>) {
 	return tryAsync({

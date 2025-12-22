@@ -15,14 +15,11 @@
 	import * as Card from '@epicenter/ui/card';
 	import { Label } from '@epicenter/ui/label';
 	import * as Table from '@epicenter/ui/table';
-	import { createMutation } from '@tanstack/svelte-query';
 	import { format } from 'date-fns';
 
 	let { runs }: { runs: TransformationRun[] } = $props();
 
 	let expandedRunId = $state<string | null>(null);
-
-	const deleteRunMutation = createMutation(() => rpc.db.runs.delete.options);
 
 	function toggleRunExpanded(runId: string) {
 		expandedRunId = expandedRunId === runId ? null : runId;
@@ -54,34 +51,27 @@
 				onclick={() => {
 					confirmationDialog.open({
 						title: 'Clear all transformation runs?',
-						subtitle: `This will permanently delete all ${runs.length} run${runs.length !== 1 ? 's' : ''} from this history. This action cannot be undone.`,
-						confirmText: 'Delete All',
-						onConfirm: () => {
-							deleteRunMutation.mutate(runs, {
-								onSuccess: () => {
-									rpc.notify.success.execute({
-										title: `${runs.length} run${runs.length !== 1 ? 's' : ''} deleted successfully`,
-										description: 'All transformation runs have been deleted.',
-									});
-								},
-								onError: (error) => {
-									rpc.notify.error.execute({
-										title: 'Failed to delete runs',
-										description: error.message,
-									});
-								},
+						description: `This will permanently delete all ${runs.length} run${runs.length !== 1 ? 's' : ''} from this history. This action cannot be undone.`,
+						confirm: { text: 'Delete All', variant: 'destructive' },
+						onConfirm: async () => {
+							const { error } = await rpc.db.runs.delete.execute(runs);
+							if (error) {
+								rpc.notify.error.execute({
+									title: 'Failed to delete runs',
+									description: error.message,
+								});
+								throw error;
+							}
+							rpc.notify.success.execute({
+								title: `${runs.length} run${runs.length !== 1 ? 's' : ''} deleted successfully`,
+								description: 'All transformation runs have been deleted.',
 							});
 						},
 					});
 				}}
-				disabled={deleteRunMutation.isPending}
 			>
 				<Trash2 class="size-4" />
-				{#if deleteRunMutation.isPending}
-					Deleting...
-				{:else}
-					Clear All Runs
-				{/if}
+				Clear All Runs
 			</Button>
 		</div>
 		<div class="h-full overflow-y-auto px-2">
@@ -131,28 +121,25 @@
 									onclick={() => {
 										confirmationDialog.open({
 											title: 'Delete transformation run?',
-											subtitle: `This will permanently delete the run from ${formatDate(run.startedAt)}. This action cannot be undone.`,
-											confirmText: 'Delete',
-											onConfirm: () => {
-												deleteRunMutation.mutate(run, {
-													onSuccess: () => {
-														rpc.notify.success.execute({
-															title: 'Run deleted successfully',
-															description:
-																'Your transformation run has been deleted.',
-														});
-													},
-													onError: (error) => {
-														rpc.notify.error.execute({
-															title: 'Failed to delete run',
-															description: error.message,
-														});
-													},
+											description: `This will permanently delete the run from ${formatDate(run.startedAt)}. This action cannot be undone.`,
+											confirm: { text: 'Delete', variant: 'destructive' },
+											onConfirm: async () => {
+												const { error } = await rpc.db.runs.delete.execute(run);
+												if (error) {
+													rpc.notify.error.execute({
+														title: 'Failed to delete run',
+														description: error.message,
+													});
+													throw error;
+												}
+												rpc.notify.success.execute({
+													title: 'Run deleted successfully',
+													description:
+														'Your transformation run has been deleted.',
 												});
 											},
 										});
 									}}
-									disabled={deleteRunMutation.isPending}
 								>
 									<Trash2 class="size-4" />
 								</Button>

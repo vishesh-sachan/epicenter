@@ -18,10 +18,6 @@
 		() => rpc.db.transformations.update.options,
 	);
 
-	const deleteTransformation = createMutation(
-		() => rpc.db.transformations.delete.options,
-	);
-
 	let {
 		transformation,
 		class: className,
@@ -79,8 +75,8 @@
 
 		confirmationDialog.open({
 			title: 'Unsaved changes',
-			subtitle: 'You have unsaved changes. Are you sure you want to leave?',
-			confirmText: 'Leave',
+			description: 'You have unsaved changes. Are you sure you want to leave?',
+			confirm: { text: 'Leave' },
 			onConfirm: () => {
 				// Reset working copy and dirty flag
 				workingCopy = transformation;
@@ -143,37 +139,32 @@
 				onclick={() => {
 					confirmationDialog.open({
 						title: 'Delete transformation',
-						subtitle: 'Are you sure? This action cannot be undone.',
-						confirmText: 'Delete',
-						onConfirm: () => {
-							deleteTransformation.mutate($state.snapshot(transformation), {
-								onSuccess: () => {
-									isDialogOpen = false;
-									rpc.notify.success.execute({
-										title: 'Deleted transformation!',
-										description:
-											'Your transformation has been deleted successfully.',
-									});
-								},
-								onError: (error) => {
-									rpc.notify.error.execute({
-										title: 'Failed to delete transformation!',
-										description: 'Your transformation could not be deleted.',
-										action: { type: 'more-details', error },
-									});
-								},
+						description: 'Are you sure? This action cannot be undone.',
+						confirm: { text: 'Delete', variant: 'destructive' },
+						onConfirm: async () => {
+							const { error } = await rpc.db.transformations.delete.execute(
+								$state.snapshot(transformation),
+							);
+							if (error) {
+								rpc.notify.error.execute({
+									title: 'Failed to delete transformation!',
+									description: 'Your transformation could not be deleted.',
+									action: { type: 'more-details', error },
+								});
+								throw error;
+							}
+							isDialogOpen = false;
+							rpc.notify.success.execute({
+								title: 'Deleted transformation!',
+								description:
+									'Your transformation has been deleted successfully.',
 							});
 						},
 					});
 				}}
 				variant="destructive"
-				disabled={deleteTransformation.isPending}
 			>
-				{#if deleteTransformation.isPending}
-					<Spinner />
-				{:else}
-					<TrashIcon class="size-4" />
-				{/if}
+				<TrashIcon class="size-4" />
 				Delete
 			</Button>
 			<div class="flex items-center gap-2">

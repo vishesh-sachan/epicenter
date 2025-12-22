@@ -11,7 +11,7 @@ import { isModelFileSizeValid, type WhisperModelConfig } from './types';
  * Pre-built Whisper models available for download from Hugging Face.
  * These are ggml-format models compatible with whisper.cpp.
  */
-export const WHISPER_MODELS: readonly WhisperModelConfig[] = [
+export const WHISPER_MODELS = [
 	{
 		id: 'tiny',
 		name: 'Tiny',
@@ -60,7 +60,7 @@ export const WHISPER_MODELS: readonly WhisperModelConfig[] = [
 			filename: 'ggml-large-v3-turbo.bin',
 		},
 	},
-] as const;
+] as const satisfies readonly WhisperModelConfig[];
 
 const WhisperCppErrorType = type({
 	name: "'AudioReadError' | 'FfmpegNotFoundError' | 'GpuError' | 'ModelLoadError' | 'TranscriptionError'",

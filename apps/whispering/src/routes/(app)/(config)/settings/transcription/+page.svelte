@@ -18,8 +18,9 @@
 	import { GROQ_MODELS } from '$lib/services/transcription/cloud/groq';
 	import { MISTRAL_TRANSCRIPTION_MODELS } from '$lib/services/transcription/cloud/mistral';
 	import { OPENAI_TRANSCRIPTION_MODELS } from '$lib/services/transcription/cloud/openai';
+	import { MOONSHINE_MODELS } from '$lib/services/transcription/local/moonshine';
 	import { PARAKEET_MODELS } from '$lib/services/transcription/local/parakeet';
-	import { WHISPER_MODELS } from '$lib/services/transcription/local/whispercpp';
+	// import { WHISPER_MODELS } from '$lib/services/transcription/local/whispercpp'; // Temporarily disabled
 	import { TRANSCRIPTION_SERVICE_CAPABILITIES } from '$lib/services/transcription/registry';
 	import { settings } from '$lib/stores/settings.svelte';
 	import InfoIcon from '@lucide/svelte/icons/info';
@@ -447,9 +448,10 @@
 				</CopyButton>
 			</Field.Description>
 		</Field.Field>
-	{:else if settings.value['transcription.selectedTranscriptionService'] === 'whispercpp'}
+	<!-- whispercpp UI temporarily disabled due to upstream build issues -->
+	<!-- {:else if settings.value['transcription.selectedTranscriptionService'] === 'whispercpp'}
 		<div class="space-y-4">
-			<!-- Whisper Model Selector Component -->
+			<! -- Whisper Model Selector Component -- >
 			{#if window.__TAURI_INTERNALS__}
 				<LocalModelSelector
 					models={WHISPER_MODELS}
@@ -540,7 +542,7 @@
 					</Alert.Root>
 				{/if}
 			{/if}
-		</div>
+		</div> -->
 	{:else if settings.value['transcription.selectedTranscriptionService'] === 'parakeet'}
 		<div class="space-y-4">
 			<!-- Parakeet Model Selector Component -->
@@ -648,6 +650,125 @@
 				{/if}
 			{/if}
 		</div>
+	{:else if settings.value['transcription.selectedTranscriptionService'] === 'moonshine'}
+		<div class="space-y-4">
+			<!-- Moonshine Model Selector Component -->
+			{#if window.__TAURI_INTERNALS__}
+				<LocalModelSelector
+					models={MOONSHINE_MODELS}
+					title="Moonshine Model"
+					description="Moonshine is an efficient ONNX model by UsefulSensors. English-only with fast inference and small model sizes (~30 MB)."
+					fileSelectionMode="directory"
+					bind:value={
+						() => settings.value['transcription.moonshine.modelPath'],
+						(v) => settings.updateKey('transcription.moonshine.modelPath', v)
+					}
+				>
+					{#snippet prebuiltFooter()}
+						<p class="text-sm text-muted-foreground">
+							Models are downloaded from{' '}
+							<Link
+								href="https://huggingface.co/UsefulSensors/moonshine"
+								target="_blank"
+								rel="noopener noreferrer"
+							>
+								Hugging Face
+							</Link>
+							{' '}and stored in your app data directory. Moonshine uses
+							quantized ONNX models for efficient local inference.
+						</p>
+					{/snippet}
+
+					{#snippet manualInstructions()}
+						<Card.Root class="bg-muted/50">
+							<Card.Content class="p-4">
+								<h4 class="mb-2 text-sm font-medium">
+									Getting Moonshine Models
+								</h4>
+								<ul class="space-y-2 text-sm text-muted-foreground">
+									<li class="flex items-start gap-2">
+										<span
+											class="mt-0.5 block size-1.5 rounded-full bg-muted-foreground/50"
+										/>
+										<span>
+											Download pre-built models from the "Pre-built Models" tab
+										</span>
+									</li>
+									<li class="flex items-start gap-2">
+										<span
+											class="mt-0.5 block size-1.5 rounded-full bg-muted-foreground/50"
+										/>
+										<span>
+											Or download from{' '}
+											<Link
+												href="https://huggingface.co/UsefulSensors/moonshine"
+												target="_blank"
+												rel="noopener noreferrer"
+											>
+												UsefulSensors on Hugging Face
+											</Link>
+										</span>
+									</li>
+									<li class="flex items-start gap-2">
+										<span
+											class="mt-0.5 block size-1.5 rounded-full bg-muted-foreground/50"
+										/>
+										<span>
+											Moonshine models are directories containing ONNX files
+											and tokenizer
+										</span>
+									</li>
+								</ul>
+								<div class="mt-3 rounded border border-amber-500/20 bg-amber-500/5 p-3">
+									<p class="text-xs font-medium text-amber-600 dark:text-amber-400">
+										Directory Naming Requirement
+									</p>
+									<p class="mt-1 text-xs text-muted-foreground">
+										The model directory must be named{' '}
+										<code class="rounded bg-muted px-1 py-0.5 font-mono">moonshine-&#123;variant&#125;-&#123;lang&#125;</code>
+										{' '}(e.g., <code class="rounded bg-muted px-1 py-0.5 font-mono">moonshine-tiny-en</code>,
+										{' '}<code class="rounded bg-muted px-1 py-0.5 font-mono">moonshine-base-en</code>).
+										The variant (tiny/base) determines model architecture.
+									</p>
+								</div>
+							</Card.Content>
+						</Card.Root>
+					{/snippet}
+				</LocalModelSelector>
+
+				{#if hasNavigatorLocalTranscriptionIssue( { isFFmpegInstalled: data.ffmpegInstalled ?? false }, )}
+					<Alert.Root class="border-red-500/20 bg-red-500/5">
+						<InfoIcon class="size-4 text-red-600 dark:text-red-400" />
+						<Alert.Title class="text-red-600 dark:text-red-400">
+							Browser API Recording Requires FFmpeg
+						</Alert.Title>
+						<Alert.Description>
+							You're using the Browser API recording method, which produces
+							compressed audio that requires FFmpeg for Moonshine transcription.
+							<div class="mt-3 space-y-3">
+								<div class="text-sm">
+									<strong>Option 1:</strong>
+									<Link href="/settings/recording"
+										>Switch to CPAL recording</Link
+									>
+									for direct compatibility with local transcription
+								</div>
+								<div class="text-sm">
+									<strong>Option 2:</strong>
+									<Link href="/install-ffmpeg">Install FFmpeg</Link>
+									to keep using Browser API recording
+								</div>
+								<div class="text-sm">
+									<strong>Option 3:</strong>
+									Switch to a cloud transcription service (OpenAI, Groq, Deepgram,
+									etc.) which work with all recording methods
+								</div>
+							</div>
+						</Alert.Description>
+					</Alert.Root>
+				{/if}
+			{/if}
+		</div>
 	{/if}
 
 	<!-- Audio Compression Settings -->
@@ -674,7 +795,9 @@
 		</Select.Root>
 		{#if !currentServiceCapabilities.supportsLanguage}
 			<Field.Description>
-				Parakeet automatically detects the language
+				{settings.value['transcription.selectedTranscriptionService'] === 'moonshine'
+					? 'Moonshine is English-only'
+					: 'Parakeet automatically detects the language'}
 			</Field.Description>
 		{/if}
 	</Field.Field>
@@ -717,7 +840,7 @@
 		<Field.Description>
 			{currentServiceCapabilities.supportsPrompt
 				? 'Helps transcription service (e.g., Whisper) better recognize specific terms, names, or context during initial transcription. Not for text transformations - use the Transformations tab for post-processing rules.'
-				: 'System prompt is not supported for Parakeet'}
+				: 'System prompt is not supported for local models (Parakeet, Moonshine)'}
 		</Field.Description>
 	</Field.Field>
 	</Field.Group>

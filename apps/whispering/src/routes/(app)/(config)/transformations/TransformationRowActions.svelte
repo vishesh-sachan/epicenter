@@ -4,14 +4,10 @@
 	import { TrashIcon } from '$lib/components/icons';
 	import { Skeleton } from '@epicenter/ui/skeleton';
 	import { rpc } from '$lib/query';
-	import { createMutation, createQuery } from '@tanstack/svelte-query';
+	import { createQuery } from '@tanstack/svelte-query';
 	import EditTransformationModal from './EditTransformationModal.svelte';
 
 	let { transformationId }: { transformationId: string } = $props();
-
-	const deleteTransformation = createMutation(
-		() => rpc.db.transformations.delete.options,
-	);
 
 	const transformationQuery = createQuery(
 		() => rpc.db.transformations.getById(() => transformationId).options,
@@ -31,25 +27,24 @@
 			onclick={() => {
 				confirmationDialog.open({
 					title: 'Delete transformation',
-					subtitle: 'Are you sure you want to delete this transformation?',
-					confirmText: 'Delete',
-					onConfirm: () =>
-						deleteTransformation.mutate(transformation, {
-							onSuccess: () => {
-								rpc.notify.success.execute({
-									title: 'Deleted transformation!',
-									description:
-										'Your transformation has been deleted successfully.',
-								});
-							},
-							onError: (error) => {
-								rpc.notify.error.execute({
-									title: 'Failed to delete transformation!',
-									description: 'Your transformation could not be deleted.',
-									action: { type: 'more-details', error },
-								});
-							},
-						}),
+					description: 'Are you sure you want to delete this transformation?',
+					confirm: { text: 'Delete', variant: 'destructive' },
+					onConfirm: async () => {
+						const { error } =
+							await rpc.db.transformations.delete.execute(transformation);
+						if (error) {
+							rpc.notify.error.execute({
+								title: 'Failed to delete transformation!',
+								description: 'Your transformation could not be deleted.',
+								action: { type: 'more-details', error },
+							});
+							throw error;
+						}
+						rpc.notify.success.execute({
+							title: 'Deleted transformation!',
+							description: 'Your transformation has been deleted successfully.',
+						});
+					},
 				});
 			}}
 			variant="ghost"

@@ -2,6 +2,7 @@
 
 import { commands } from './actions';
 import { analytics } from './analytics';
+import { autostart } from './autostart';
 import { db } from './db';
 import { delivery } from './delivery';
 import { download } from './download';
@@ -21,6 +22,7 @@ import { tray } from './tray';
  */
 export const rpc = {
 	analytics,
+	autostart,
 	text,
 	commands,
 	db,

@@ -1,19 +1,19 @@
 import { describe, expect, test } from 'bun:test';
 import { type } from 'arktype';
 import yargs from 'yargs';
-import { standardSchemaToYargs } from './standardschema-to-yargs';
+import { standardJsonSchemaToYargs } from './standard-json-schema-to-yargs';
 
-describe('standardSchemaToYargs', () => {
+describe('standardJsonSchemaToYargs', () => {
 	test('returns yargs unchanged when schema is undefined', async () => {
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(undefined, cli);
+		const result = await standardJsonSchemaToYargs(undefined, cli);
 		expect(result).toBe(cli);
 	});
 
 	test('converts simple string field', async () => {
 		const schema = type({ name: 'string' });
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(schema, cli);
+		const result = await standardJsonSchemaToYargs(schema, cli);
 
 		// Verify the option was added by checking internal state
 		const options = (result as any).getOptions();
@@ -23,7 +23,7 @@ describe('standardSchemaToYargs', () => {
 	test('converts optional string field', async () => {
 		const schema = type({ name: 'string?' });
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(schema, cli);
+		const result = await standardJsonSchemaToYargs(schema, cli);
 
 		const options = (result as any).getOptions();
 		expect(options.string).toContain('name');
@@ -34,7 +34,7 @@ describe('standardSchemaToYargs', () => {
 	test('converts required string field', async () => {
 		const schema = type({ name: 'string' });
 		const cli = yargs([]);
-		await standardSchemaToYargs(schema, cli);
+		await standardJsonSchemaToYargs(schema, cli);
 
 		const options = (cli as any).getOptions();
 		// Required fields should be in demandedOptions
@@ -44,7 +44,7 @@ describe('standardSchemaToYargs', () => {
 	test('converts number field', async () => {
 		const schema = type({ age: 'number' });
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(schema, cli);
+		const result = await standardJsonSchemaToYargs(schema, cli);
 
 		const options = (result as any).getOptions();
 		expect(options.number).toContain('age');
@@ -53,7 +53,7 @@ describe('standardSchemaToYargs', () => {
 	test('converts boolean field', async () => {
 		const schema = type({ active: 'boolean' });
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(schema, cli);
+		const result = await standardJsonSchemaToYargs(schema, cli);
 
 		const options = (result as any).getOptions();
 		expect(options.boolean).toContain('active');
@@ -62,7 +62,7 @@ describe('standardSchemaToYargs', () => {
 	test('converts string union as enum choices', async () => {
 		const schema = type({ role: "'admin' | 'user' | 'guest'" });
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(schema, cli);
+		const result = await standardJsonSchemaToYargs(schema, cli);
 
 		const options = (result as any).getOptions();
 		expect(options.string).toContain('role');
@@ -80,7 +80,7 @@ describe('standardSchemaToYargs', () => {
 			active: 'boolean?',
 		});
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(schema, cli);
+		const result = await standardJsonSchemaToYargs(schema, cli);
 
 		const options = (result as any).getOptions();
 		expect(options.string).toContain('name');
@@ -96,7 +96,7 @@ describe('standardSchemaToYargs', () => {
 			views: 'number?',
 		});
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(schema, cli);
+		const result = await standardJsonSchemaToYargs(schema, cli);
 
 		const options = (result as any).getOptions();
 		expect(options.string).toContain('title');
@@ -116,7 +116,7 @@ describe('standardSchemaToYargs', () => {
 			count: 'number',
 		});
 		const cli = yargs([]);
-		await standardSchemaToYargs(schema, cli);
+		await standardJsonSchemaToYargs(schema, cli);
 
 		const result = await cli.parse(['--name', 'test', '--count', '42']);
 		expect(result.name).toBe('test');
@@ -126,7 +126,7 @@ describe('standardSchemaToYargs', () => {
 	test('validates enum choices at runtime', async () => {
 		const schema = type({ role: "'admin' | 'user'" });
 		const cli = yargs([]);
-		await standardSchemaToYargs(schema, cli);
+		await standardJsonSchemaToYargs(schema, cli);
 
 		// Valid choice should work
 		const validResult = await cli.parse(['--role', 'admin']);
@@ -134,7 +134,7 @@ describe('standardSchemaToYargs', () => {
 
 		// Invalid choice should fail
 		const invalidCli = yargs([]);
-		await standardSchemaToYargs(schema, invalidCli);
+		await standardJsonSchemaToYargs(schema, invalidCli);
 		invalidCli.exitProcess(false); // Prevent process exit in tests
 
 		try {
@@ -149,7 +149,7 @@ describe('standardSchemaToYargs', () => {
 	test('handles arrays', async () => {
 		const schema = type({ tags: 'string[]' });
 		const cli = yargs([]);
-		const result = await standardSchemaToYargs(schema, cli);
+		const result = await standardJsonSchemaToYargs(schema, cli);
 
 		const options = (result as any).getOptions();
 		expect(options.array).toContain('tags');

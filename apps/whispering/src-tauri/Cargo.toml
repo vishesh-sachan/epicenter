@@ -1,6 +1,6 @@
 [package]
 name = "whispering"
-version = "7.10.0"
+version = "7.11.0"
 description = "A Tauri App"
 authors = ["you"]
 repository = "https://github.com/EpicenterHQ/epicenter"
@@ -37,6 +37,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-os = "2"
 tauri-plugin-process = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-autostart = "2"
 tauri-plugin-aptabase = "1"
 enigo = "0.5.0"
 cpal = "0.16.0"
@@ -48,7 +49,7 @@ tempfile = "3.8"
 rubato = "0.15"
 tauri-plugin-macos-permissions = "2.3.0"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
-transcribe-rs = "0.1.5"
+transcribe-rs = { version = "0.2.1", features = ["whisper", "parakeet", "moonshine"] }
 regex = "1"
 rayon = "1.10"
 log = "0.4"

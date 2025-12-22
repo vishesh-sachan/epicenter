@@ -10,7 +10,9 @@ use recorder::commands::{
 };
 
 pub mod transcription;
-use transcription::{transcribe_audio_parakeet, transcribe_audio_whisper, ModelManager};
+use transcription::{
+    transcribe_audio_moonshine, transcribe_audio_parakeet, transcribe_audio_whisper, ModelManager,
+};
 
 pub mod windows_path;
 use windows_path::fix_windows_path;
@@ -139,12 +141,17 @@ pub async fn run() {
 
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let _ = app
-                .get_webview_window("main")
-                .expect("no main window")
-                .set_focus();
-        }));
+        builder = builder
+            .plugin(tauri_plugin_autostart::init(
+                tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+                None,
+            ))
+            .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+                let _ = app
+                    .get_webview_window("main")
+                    .expect("no main window")
+                    .set_focus();
+            }));
     }
 
     // Register command handlers (same for all platforms now)
@@ -161,6 +168,7 @@ pub async fn run() {
         cancel_recording,
         transcribe_audio_whisper,
         transcribe_audio_parakeet,
+        transcribe_audio_moonshine,
         send_sigint,
         // Command execution (prevents console window flash on Windows)
         execute_command,

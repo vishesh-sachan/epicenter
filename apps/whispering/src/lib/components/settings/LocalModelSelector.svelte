@@ -71,6 +71,7 @@
 				case 'whispercpp':
 					return value.endsWith(m.file.filename);
 				case 'parakeet':
+				case 'moonshine':
 					return value.endsWith(m.directoryName);
 			}
 		}) ?? null,

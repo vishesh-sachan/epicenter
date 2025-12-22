@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { sep } from '@tauri-apps/api/path';
 	import { Button } from '@epicenter/ui/button';
 	import * as Command from '@epicenter/ui/command';
 	import * as Popover from '@epicenter/ui/popover';
@@ -156,7 +157,7 @@
 								<div class="font-medium text-sm">{service.name}</div>
 								{#if modelPath}
 									<div class="text-xs text-muted-foreground truncate">
-										{modelPath.split('/').pop() || modelPath}
+										{modelPath.split(sep()).pop() || modelPath}
 									</div>
 								{:else if !isConfigured}
 									<span class="text-xs text-warning">

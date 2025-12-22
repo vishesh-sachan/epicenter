@@ -1,5 +1,5 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
 	CallToolRequestSchema,
 	type CallToolResult,
@@ -7,12 +7,12 @@ import {
 	ListToolsRequestSchema,
 	McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import type { JSONSchema7 } from 'json-schema';
+import type { JsonSchema } from 'arktype';
 import type { TaggedError } from 'wellcrafted/error';
 import { isResult, type Result } from 'wellcrafted/result';
 import type { Action } from '../core/actions';
 import { type EpicenterClient, iterActions } from '../core/epicenter';
-import { safeToJsonSchema } from '../core/schema/safe-json-schema';
+import { generateJsonSchema } from '../core/schema/generate-json-schema';
 import type { AnyWorkspaceConfig } from '../core/workspace';
 
 /**
@@ -22,11 +22,11 @@ import type { AnyWorkspaceConfig } from '../core/workspace';
 export type McpToolEntry = {
 	action: Action;
 	/** Pre-computed JSON Schema for the action's input (guaranteed to be object type) */
-	inputSchema: JSONSchema7;
+	inputSchema: JsonSchema;
 };
 
 /** Default schema for actions without input: empty object */
-const EMPTY_OBJECT_SCHEMA: JSONSchema7 = { type: 'object', properties: {} };
+const EMPTY_OBJECT_SCHEMA: JsonSchema = { type: 'object', properties: {} };
 
 /**
  * Setup MCP tool handlers on an existing MCP server instance.
@@ -195,11 +195,11 @@ export function setupMcpTools(
  * // Nested export: { users: { crud: { create: defineMutation(...) } } }
  * // → MCP tool name: "workspace_users_crud_create"
  */
-export async function buildMcpToolRegistry<
+export function buildMcpToolRegistry<
 	TWorkspaces extends readonly AnyWorkspaceConfig[],
->(client: EpicenterClient<TWorkspaces>): Promise<Map<string, McpToolEntry>> {
-	const entries = await Promise.all(
-		iterActions(client).map(async ({ workspaceId, actionPath, action }) => {
+>(client: EpicenterClient<TWorkspaces>): Map<string, McpToolEntry> {
+	const entries = iterActions(client).map(
+		({ workspaceId, actionPath, action }) => {
 			const toolName = [workspaceId, ...actionPath].join('_');
 
 			// Build input schema - MCP requires object type at root
@@ -210,17 +210,18 @@ export async function buildMcpToolRegistry<
 				] as const;
 			}
 
-			const schema = await safeToJsonSchema(action.input);
-			if (schema.type !== 'object' && schema.type !== undefined) {
+			const schema = generateJsonSchema(action.input);
+			const schemaType = 'type' in schema ? schema.type : undefined;
+			if (schemaType !== 'object' && schemaType !== undefined) {
 				console.warn(
-					`[MCP] Skipping tool "${toolName}": input has type "${schema.type}" but MCP requires "object". ` +
+					`[MCP] Skipping tool "${toolName}": input has type "${schemaType}" but MCP requires "object". ` +
 						`This action will still work via HTTP and TypeScript clients.`,
 				);
 				return undefined;
 			}
 
 			return [toolName, { action, inputSchema: schema }] as const;
-		}),
+		},
 	);
 
 	return new Map(entries.filter((e) => e !== undefined));

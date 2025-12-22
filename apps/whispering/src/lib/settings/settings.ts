@@ -177,7 +177,7 @@ export const Settings = type({
 
 	'transcription.selectedTranscriptionService': type
 		.enumerated(...TRANSCRIPTION_SERVICE_IDS)
-		.default('whispercpp'),
+		.default('moonshine'),
 	// Shared settings in transcription
 	'transcription.outputLanguage': type
 		.enumerated(...SUPPORTED_LANGUAGES)
@@ -212,6 +212,7 @@ export const Settings = type({
 	),
 	'transcription.whispercpp.modelPath': "string = ''",
 	'transcription.parakeet.modelPath': "string = ''",
+	'transcription.moonshine.modelPath': "string = ''",
 
 	'transformations.selectedTransformationId': 'string | null = null',
 

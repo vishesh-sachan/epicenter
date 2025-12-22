@@ -1,12 +1,11 @@
 import type { TaggedError } from 'wellcrafted/error';
 import { isResult, type Result } from 'wellcrafted/result';
-import type { Argv } from 'yargs';
 import yargs from 'yargs';
 import { walkActions } from '../core/actions';
 import type { EpicenterConfig } from '../core/epicenter';
 import { createEpicenterClient } from '../core/epicenter';
 import { DEFAULT_PORT, startServer } from './server';
-import { standardSchemaToYargs } from './standardschema-to-yargs';
+import { standardJsonSchemaToYargs } from './standard-json-schema-to-yargs';
 
 /**
  * Create and run CLI from Epicenter config.
@@ -110,10 +109,9 @@ export async function createCLI({
 					workspaceCli = workspaceCli.command(
 						actionName,
 						action.description || `Execute ${actionName} ${action.type}`,
-						async (yargs) => {
-							// Convert input schema to yargs options
+						(yargs) => {
 							if (action.input) {
-								return await standardSchemaToYargs(action.input, yargs);
+								return standardJsonSchemaToYargs(action.input, yargs);
 							}
 							return yargs;
 						},

@@ -11,6 +11,7 @@ import mistralIcon from '$lib/constants/icons/mistral.svg?raw';
 import nvidiaIcon from '$lib/constants/icons/nvidia.svg?raw';
 import openaiIcon from '$lib/constants/icons/openai.svg?raw';
 import speachesIcon from '$lib/constants/icons/speaches.svg?raw';
+import moonshineIcon from '$lib/constants/icons/moonshine.svg?raw';
 import type { Settings } from '$lib/settings';
 import {
 	DEEPGRAM_TRANSCRIPTION_MODELS,
@@ -35,8 +36,9 @@ type TranscriptionModel =
 	| MistralModel;
 
 export const TRANSCRIPTION_SERVICE_IDS = [
-	'whispercpp',
+	// 'whispercpp', // Temporarily disabled due to upstream build issues
 	'parakeet',
+	'moonshine',
 	'Groq',
 	'OpenAI',
 	'ElevenLabs',
@@ -81,15 +83,15 @@ type SatisfiedTranscriptionService =
 
 export const TRANSCRIPTION_SERVICES = [
 	// Local services first (truly offline)
-	{
-		id: 'whispercpp',
-		name: 'Whisper C++',
-		icon: ggmlIcon,
-		invertInDarkMode: true,
-		description: 'Fast local transcription with no internet required',
-		modelPathField: 'transcription.whispercpp.modelPath',
-		location: 'local',
-	},
+	// {
+	// 	id: 'whispercpp',
+	// 	name: 'Whisper C++',
+	// 	icon: ggmlIcon,
+	// 	invertInDarkMode: true,
+	// 	description: 'Fast local transcription with no internet required',
+	// 	modelPathField: 'transcription.whispercpp.modelPath',
+	// 	location: 'local',
+	// }, // Temporarily disabled due to upstream build issues
 	{
 		id: 'parakeet',
 		name: 'Parakeet',
@@ -97,6 +99,15 @@ export const TRANSCRIPTION_SERVICES = [
 		invertInDarkMode: false,
 		description: 'NVIDIA NeMo model for fast local transcription',
 		modelPathField: 'transcription.parakeet.modelPath',
+		location: 'local',
+	},
+	{
+		id: 'moonshine',
+		name: 'Moonshine',
+		icon: moonshineIcon,
+		invertInDarkMode: false,
+		description: 'Efficient ONNX model by UsefulSensors (~30 MB)',
+		modelPathField: 'transcription.moonshine.modelPath',
 		location: 'local',
 	},
 	// Cloud services (API-based)
@@ -186,6 +197,10 @@ export const TRANSCRIPTION_SERVICE_OPTIONS = TRANSCRIPTION_SERVICES.map(
 	}),
 );
 
+export const TRANSCRIPTION_SERVICE_ID_TO_LABEL = Object.fromEntries(
+	TRANSCRIPTION_SERVICES.map((s) => [s.id, s.name]),
+) as Record<TranscriptionServiceId, string>;
+
 export type TranscriptionService = (typeof TRANSCRIPTION_SERVICES)[number];
 
 /**
@@ -225,8 +240,9 @@ type ServiceCapabilities = {
  * ```
  */
 export const TRANSCRIPTION_SERVICE_CAPABILITIES = {
-	whispercpp: { supportsPrompt: true, supportsTemperature: false, supportsLanguage: true },
+	// whispercpp: { supportsPrompt: true, supportsTemperature: false, supportsLanguage: true }, // Temporarily disabled
 	parakeet: { supportsPrompt: false, supportsTemperature: false, supportsLanguage: false },
+	moonshine: { supportsPrompt: false, supportsTemperature: false, supportsLanguage: false },
 	Groq: { supportsPrompt: true, supportsTemperature: true, supportsLanguage: true },
 	OpenAI: { supportsPrompt: true, supportsTemperature: true, supportsLanguage: true },
 	ElevenLabs: { supportsPrompt: true, supportsTemperature: true, supportsLanguage: true },

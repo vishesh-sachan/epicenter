@@ -25,8 +25,6 @@
 		() => rpc.transcription.transcribeRecording.options,
 	);
 
-	const deleteRecording = createMutation(() => rpc.db.recordings.delete.options);
-
 	const downloadRecording = createMutation(
 		() => rpc.download.downloadRecording.options,
 	);
@@ -185,24 +183,23 @@
 			onclick={() => {
 				confirmationDialog.open({
 					title: 'Delete recording',
-					subtitle: 'Are you sure you want to delete this recording?',
-					confirmText: 'Delete',
-					onConfirm: () =>
-						deleteRecording.mutate(recording, {
-							onSuccess: () => {
-								rpc.notify.success.execute({
-									title: 'Deleted recording!',
-									description: 'Your recording has been deleted.',
-								});
-							},
-							onError: (error) => {
-								rpc.notify.error.execute({
-									title: 'Failed to delete recording!',
-									description: 'Your recording could not be deleted.',
-									action: { type: 'more-details', error },
-								});
-							},
-						}),
+					description: 'Are you sure you want to delete this recording?',
+					confirm: { text: 'Delete', variant: 'destructive' },
+					onConfirm: async () => {
+						const { error } = await rpc.db.recordings.delete.execute(recording);
+						if (error) {
+							rpc.notify.error.execute({
+								title: 'Failed to delete recording!',
+								description: 'Your recording could not be deleted.',
+								action: { type: 'more-details', error },
+							});
+							throw error;
+						}
+						rpc.notify.success.execute({
+							title: 'Deleted recording!',
+							description: 'Your recording has been deleted.',
+						});
+					},
 				});
 			}}
 			variant="ghost"

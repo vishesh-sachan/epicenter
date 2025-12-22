@@ -4,10 +4,12 @@
 	import * as Select from '@epicenter/ui/select';
 	import { Switch } from '@epicenter/ui/switch';
 	import { Button } from '@epicenter/ui/button';
+	import { createMutation, createQuery } from '@tanstack/svelte-query';
 	import {
 		ALWAYS_ON_TOP_MODE_OPTIONS,
 		LAYOUT_MODE_OPTIONS,
 	} from '$lib/constants/ui';
+	import { rpc } from '$lib/query';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { invoke } from '@tauri-apps/api/core';
 
@@ -72,6 +74,13 @@
 			console.error('Failed to preview overlay:', err);
 		}
 	}
+	const autostartQuery = createQuery(() => rpc.autostart.isEnabled.options);
+	const enableAutostartMutation = createMutation(
+		() => rpc.autostart.enable.options,
+	);
+	const disableAutostartMutation = createMutation(
+		() => rpc.autostart.disable.options,
+	);
 </script>
 
 <svelte:head>
@@ -294,6 +303,56 @@
 						Preview Overlay (3s)
 					</Button>
 				{/if}
+			</Field.Field>
+		{/if}
+			</Field.Field>
+		{/if}
+
+		{#if window.__TAURI_INTERNALS__}
+			<Field.Field orientation="horizontal">
+				<Field.Content>
+					<Field.Label for="autostart">Launch on Startup</Field.Label>
+					<Field.Description>
+						Automatically open Whispering when you log in
+					</Field.Description>
+				</Field.Content>
+				<Switch
+					id="autostart"
+					checked={autostartQuery.data ?? false}
+					onCheckedChange={(checked) => {
+						if (checked) {
+							enableAutostartMutation.mutate(undefined, {
+								onError: (error) => rpc.notify.error.execute(error),
+							});
+						} else {
+							disableAutostartMutation.mutate(undefined, {
+								onError: (error) => rpc.notify.error.execute(error),
+							});
+						}
+					}}
+					disabled={autostartQuery.isPending ||
+						enableAutostartMutation.isPending ||
+						disableAutostartMutation.isPending}
+				/>
+			</Field.Field>
+			<Field.Field>
+				<Field.Label for="always-on-top">Always On Top</Field.Label>
+				<Select.Root
+					type="single"
+					bind:value={
+						() => settings.value['system.alwaysOnTop'],
+						(v) => settings.updateKey('system.alwaysOnTop', v)
+					}
+				>
+					<Select.Trigger id="always-on-top" class="w-full">
+						{alwaysOnTopLabel ?? 'Select always on top mode'}
+					</Select.Trigger>
+					<Select.Content>
+						{#each ALWAYS_ON_TOP_MODE_OPTIONS as item}
+							<Select.Item value={item.value} label={item.label} />
+						{/each}
+					</Select.Content>
+				</Select.Root>
 			</Field.Field>
 		{/if}
 

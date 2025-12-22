@@ -31,8 +31,7 @@
 	"dependencies": {
 		"mime": "catalog:",
 		"@elysiajs/openapi": "^1.4.11",
-		"@standard-community/standard-json": "^0.3.5",
-		"@standard-schema/spec": "^1.0.0",
+		"@standard-schema/spec": "^1.1.0",
 		"@tursodatabase/database": "^0.3.2",
 		"@types/bun": "catalog:",
 		"arktype": "catalog:",

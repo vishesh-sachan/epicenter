@@ -13,7 +13,7 @@
 	import { type Transformation } from '$lib/services/db';
 	import { createPersistedState } from '@epicenter/svelte-utils';
 	import { viewTransition } from '$lib/utils/viewTransitions';
-	import { createMutation, createQuery } from '@tanstack/svelte-query';
+	import { createQuery } from '@tanstack/svelte-query';
 	import {
 		FlexRender,
 		createTable as createSvelteTable,
@@ -43,9 +43,6 @@
 
 	const transformationsQuery = createQuery(
 		() => rpc.db.transformations.getAll.options,
-	);
-	const deleteTransformations = createMutation(
-		() => rpc.db.transformations.delete.options,
 	);
 
 	const columns: ColumnDef<Transformation>[] = [
@@ -222,28 +219,25 @@
 				onclick={() => {
 					confirmationDialog.open({
 						title: 'Delete transformations',
-						subtitle: 'Are you sure you want to delete these transformations?',
-						confirmText: 'Delete',
-						onConfirm: () => {
-							deleteTransformations.mutate(
+						description: 'Are you sure you want to delete these transformations?',
+						confirm: { text: 'Delete', variant: 'destructive' },
+						onConfirm: async () => {
+							const { error } = await rpc.db.transformations.delete.execute(
 								selectedTransformationRows.map(({ original }) => original),
-								{
-									onSuccess: () => {
-										rpc.notify.success.execute({
-											title: 'Deleted transformations!',
-											description:
-												'Your transformations have been deleted successfully.',
-										});
-									},
-									onError: (error) => {
-										rpc.notify.error.execute({
-											title: 'Failed to delete transformations!',
-											description: 'Your transformations could not be deleted.',
-											action: { type: 'more-details', error: error },
-										});
-									},
-								},
 							);
+							if (error) {
+								rpc.notify.error.execute({
+									title: 'Failed to delete transformations!',
+									description: 'Your transformations could not be deleted.',
+									action: { type: 'more-details', error },
+								});
+								throw error;
+							}
+							rpc.notify.success.execute({
+								title: 'Deleted transformations!',
+								description:
+									'Your transformations have been deleted successfully.',
+							});
 						},
 					});
 				}}
