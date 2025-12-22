@@ -305,8 +305,6 @@
 				{/if}
 			</Field.Field>
 		{/if}
-			</Field.Field>
-		{/if}
 
 		{#if window.__TAURI_INTERNALS__}
 			<Field.Field orientation="horizontal">

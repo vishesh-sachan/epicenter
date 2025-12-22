@@ -59,7 +59,11 @@
 			// Listen for hide-overlay event
 			unlistenHide = await listen('hide-overlay', () => {
 				isVisible = false;
-				mode = 'hidden';
+				// Don't change mode immediately to avoid flashing different icons
+				// Mode will be set to 'hidden' after fade-out completes
+				setTimeout(() => {
+					mode = 'hidden';
+				}, 300);
 			});
 
 			// Legacy mic-level support for backwards compatibility
