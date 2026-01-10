@@ -34,6 +34,8 @@
 	import * as Select from '@epicenter/ui/select';
 	import { Textarea } from '@epicenter/ui/textarea';
 	import { hasNavigatorLocalTranscriptionIssue } from '$routes/(app)/_layout-utils/check-ffmpeg';
+	import { debounce } from '@epicenter/svelte-utils';
+	import { onDestroy } from 'svelte';
 
 	const { data } = $props();
 
@@ -46,6 +48,24 @@
 			settings.value['transcription.selectedTranscriptionService']
 		],
 	);
+
+	// Local state for system prompt to enable debouncing
+	let transcriptionPrompt = $state(settings.value['transcription.prompt']);
+
+	// Debounced update for system prompt to prevent toast spam on every keystroke
+	const debouncedUpdatePrompt = debounce((value: string) => {
+		settings.updateKey('transcription.prompt', value);
+	}, 500);
+
+	// Sync local state with settings when it changes
+	$effect(() => {
+		debouncedUpdatePrompt(transcriptionPrompt);
+	});
+
+	// Cleanup debounce on component destroy
+	onDestroy(() => {
+		debouncedUpdatePrompt.cancel();
+	});
 
 	// Model options arrays
 	const openaiModelItems = OPENAI_TRANSCRIPTION_MODELS.map((model) => ({
@@ -848,10 +868,7 @@
 				id="transcription-prompt"
 				placeholder="e.g., This is an academic lecture about quantum physics with technical terms like 'eigenvalue' and 'Schrödinger'"
 				disabled={!currentServiceCapabilities.supportsPrompt}
-				bind:value={
-					() => settings.value['transcription.prompt'],
-					(value) => settings.updateKey('transcription.prompt', value)
-				}
+				bind:value={transcriptionPrompt}
 			/>
 			<Field.Description>
 				{currentServiceCapabilities.supportsPrompt
