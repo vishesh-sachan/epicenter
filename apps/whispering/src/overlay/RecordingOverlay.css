@@ -131,3 +131,8 @@
 	background-color: oklch(1 0 0 / 0.15);
 	transform: scale(0.95);
 }
+
+ /* Hide Svelte inspector in overlay window - it interferes with the small UI */
+#svelte-inspector-toggle {
+	display: none !important;
+}

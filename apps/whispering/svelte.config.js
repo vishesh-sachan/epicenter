@@ -24,7 +24,7 @@ const config = {
 	vitePlugin: {
 		inspector: {
 			holdMode: true,
-			showToggleButton: 'never',
+			showToggleButton: 'always',
 			// Using 'bottom-left' as base position, but CSS overrides in
 			// src/routes/+layout.svelte move it to bottom-center to avoid
 			// conflicts with devtools (bottom-left) and toasts (bottom-right)
