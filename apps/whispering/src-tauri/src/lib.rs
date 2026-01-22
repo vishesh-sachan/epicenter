@@ -194,6 +194,19 @@ pub async fn run() {
     create_recording_overlay(app.handle());
 
     app.run(|handler, event| {
+        match &event {
+            // Force exit when main window closes - prevents zombie state since overlay window keeps app alive (Cmd+Q works correctly via ExitRequested)
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { .. },
+                ..
+            } if label == "main" => {
+                info!("[APP] Main window close requested, exiting app");
+                handler.exit(0);
+            }
+            _ => {}
+        }
+
         // Only track events if Aptabase is enabled (key is not empty)
         if !aptabase_key.is_empty() {
             match event {
