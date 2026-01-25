@@ -679,6 +679,16 @@ async function processRecordingPipeline({
 	const { data: transcribedText, error: transcribeError } =
 		await transcription.transcribeRecording.execute(recording);
 
+	// Hide overlay after transcription attempt (whether success or error)
+	if (window.__TAURI_INTERNALS__) {
+		try {
+			const { overlayService } = await import('$lib/services/overlay');
+			await overlayService.hide();
+		} catch (error) {
+			console.warn('Failed to hide recording overlay:', error);
+		}
+	}
+
 	if (transcribeError) {
 		if (transcribeError.name === 'WhisperingError') {
 			notify.error.execute({ id: transcribeToastId, ...transcribeError });
@@ -699,16 +709,6 @@ async function processRecordingPipeline({
 		text: transcribedText,
 		toastId: transcribeToastId,
 	});
-
-	// Hide the overlay after transcription is delivered
-	if (window.__TAURI_INTERNALS__) {
-		try {
-			const { overlayService } = await import('$lib/services/overlay');
-			await overlayService.hide();
-		} catch (error) {
-			console.warn('Failed to hide recording overlay:', error);
-		}
-	}
 
 	// Determine if we need to chain to transformation
 	const transformationId =
