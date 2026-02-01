@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Overlay Service provides a centralized system for managing the recording overlay window in Whispering. It replaces the previous scattered overlay command calls with a unified TypeScript service that coordinates between the application's recorder services and Rust's overlay window management.
+The Overlay Service provides a centralized system for managing the recording overlay window in Whispering. It uses a unified TypeScript service that coordinates between the application's recorder services and Rust's overlay window management. The overlay UI is implemented as a SvelteKit route (`/overlay/recording`) for simplified build and development.
 
 ## Architecture Diagram
 
@@ -32,15 +32,17 @@ The Overlay Service provides a centralized system for managing the recording ove
 │  - Manages overlay window lifecycle                          │
 │  - Emits 'overlay-state' events                             │
 │  - Window positioning and visibility                         │
+│  - Opens WebviewUrl::App("/overlay/recording")              │
 └────────────────────────┬────────────────────────────────────┘
                          │
                          │ emit('overlay-state')
                          │
 ┌────────────────────────▼────────────────────────────────────┐
-│           RecordingOverlay.svelte                            │
+│      SvelteKit Route: /overlay/recording                     │
 │  - Listens for 'overlay-state' events                       │
 │  - Renders UI (bars, text, progress)                        │
 │  - Handles multiple modes                                    │
+│  - SSR disabled for Tauri API compatibility                 │
 └──────────────────────────────────────────────────────────────┘
 ```
 
