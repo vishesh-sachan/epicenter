@@ -9,9 +9,7 @@
 	"scripts": {
 		"dev:web": "vite dev",
 		"dev": "bun tauri dev --config '{\"identifier\": \"com.bradenwong.whispering.dev\"}'",
-		"build": "NODE_ENV=production vite build && bun run build:overlay && bun run copy:overlay",
-		"build:overlay": "vite build --config vite.overlay.config.ts",
-		"copy:overlay": "mkdir -p build/src/overlay && cp -r build/overlay/* build/src/overlay/",
+		"build": "NODE_ENV=production vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
