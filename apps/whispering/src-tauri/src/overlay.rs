@@ -144,9 +144,7 @@ fn calculate_overlay_position(app_handle: &AppHandle, position: OverlayPosition)
 
 /// Creates the recording overlay window and keeps it hidden by default
 pub fn create_recording_overlay(app_handle: &AppHandle) {
-    info!("[OVERLAY] Creating overlay window...");
     if let Some((x, y)) = calculate_overlay_position(app_handle, OverlayPosition::default()) {
-        info!("[OVERLAY] Calculated position: x={}, y={}", x, y);
         // Use SvelteKit route for overlay
         let overlay_url = tauri::WebviewUrl::App("/overlay/recording".into());
         
@@ -172,25 +170,17 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         .visible(false)
         .build()
         {
-            Ok(_window) => {
-                info!("[OVERLAY] ✓ Recording overlay window created successfully (hidden)");
-            }
+            Ok(_window) => {}
             Err(e) => {
-                info!("[OVERLAY] ✗ Failed to create recording overlay window: {}", e);
+                info!("[OVERLAY] Failed to create overlay window: {}", e);
             }
         }
-    } else {
-        info!("[OVERLAY] ✗ Failed to calculate overlay position");
     }
 }
 
 /// Shows the recording overlay window with fade-in animation
 pub fn show_recording_overlay(app_handle: &AppHandle, position: OverlayPosition) {
-    info!("[OVERLAY] show_recording_overlay called");
-    info!("[OVERLAY] Position setting: {:?}", position);
-    
     if position == OverlayPosition::None {
-        info!("[OVERLAY] Position is None, not showing overlay");
         return;
     }
 
@@ -203,7 +193,6 @@ pub fn show_recording_overlay(app_handle: &AppHandle, position: OverlayPosition)
         }
 
         let _ = overlay_window.show();
-        info!("[OVERLAY] Window shown");
 
         // On Windows, aggressively re-assert "topmost" in the native Z-order after showing
         #[cfg(target_os = "windows")]
@@ -211,9 +200,8 @@ pub fn show_recording_overlay(app_handle: &AppHandle, position: OverlayPosition)
 
         // Emit event to trigger fade-in animation with recording state
         let _ = overlay_window.emit("show-overlay", "recording");
-        info!("[OVERLAY] Emitted show-overlay event with state: recording");
     } else {
-        info!("[OVERLAY] ERROR: Overlay window 'recording_overlay' not found!");
+        info!("[OVERLAY] Overlay window not found");
     }
 }
 
@@ -290,12 +278,10 @@ pub async fn show_overlay_command(
     position: String,
     data: Option<OverlayData>,
 ) -> Result<(), String> {
-    info!("[OVERLAY] show_overlay_command: mode={}, position={:?}, data={:?}", mode, position, data);
     
     let pos = parse_position(&position)?;
     
     if pos == OverlayPosition::None {
-        info!("[OVERLAY] Position is None, not showing overlay");
         return Ok(());
     }
 
@@ -324,7 +310,6 @@ pub async fn show_overlay_command(
         };
         
         let _ = overlay_window.emit("overlay-state", &state);
-        info!("[OVERLAY] Emitted overlay-state event");
         
         Ok(())
     } else {
@@ -356,7 +341,6 @@ pub async fn hide_overlay_command(app: tauri::AppHandle) -> Result<(), String> {
 /// Update overlay position
 #[tauri::command]
 pub fn update_overlay_position_command(app: tauri::AppHandle, position: String) {
-    info!("[OVERLAY] update_overlay_position_command invoked with position: {}", position);
     if let Ok(pos) = parse_position(&position) {
         update_overlay_position(&app, pos);
     }

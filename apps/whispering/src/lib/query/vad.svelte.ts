@@ -170,11 +170,7 @@ function createVadRecorder() {
 
 			// Show the recording overlay in Tauri
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					await overlayService.showRecording();
-				} catch (error) {
-					console.error('[VAD] Failed to show recording overlay:', error);
-				}
+				await overlayService.showRecording();
 			}
 
 			// Start listening
@@ -223,11 +219,7 @@ function createVadRecorder() {
 
 			// Hide the overlay
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					await overlayService.hide();
-				} catch (error) {
-					console.warn('[VAD] Failed to hide recording overlay:', error);
-				}
+				await overlayService.hide();
 			}
 
 			const { error: destroyError } = trySync({

@@ -560,12 +560,8 @@ export const commands = {
 
 			// Show transforming overlay with indeterminate loader
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					const { overlayService } = await import('$lib/services/overlay');
-					await overlayService.showTransforming();
-				} catch (error) {
-					console.warn('Failed to show transforming overlay:', error);
-				}
+				const { overlayService } = await import('$lib/services/overlay');
+				await overlayService.showTransforming();
 			}
 
 			const { data: output, error: transformError } =
@@ -576,12 +572,8 @@ export const commands = {
 
 			// Hide overlay after transformation
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					const { overlayService } = await import('$lib/services/overlay');
-					await overlayService.hide();
-				} catch (error) {
-					console.warn('Failed to hide transforming overlay:', error);
-				}
+				const { overlayService } = await import('$lib/services/overlay');
+				await overlayService.hide();
 			}
 
 			if (transformError) {
@@ -681,12 +673,8 @@ async function processRecordingPipeline({
 
 	// Hide overlay after transcription attempt (whether success or error)
 	if (window.__TAURI_INTERNALS__) {
-		try {
-			const { overlayService } = await import('$lib/services/overlay');
-			await overlayService.hide();
-		} catch (error) {
-			console.warn('Failed to hide recording overlay:', error);
-		}
+		const { overlayService } = await import('$lib/services/overlay');
+		await overlayService.hide();
 	}
 
 	if (transcribeError) {
@@ -724,7 +712,7 @@ async function processRecordingPipeline({
 	if (getTransformationError) {
 		notify.error.execute({
 			title: '❌ Failed to get transformation',
-			serviceError: getTransformationError,
+			description: getTransformationError.message,
 		});
 		return;
 	}
@@ -770,12 +758,8 @@ async function processRecordingPipeline({
 
 	// Hide overlay after transformation (before checking for errors)
 	if (window.__TAURI_INTERNALS__) {
-		try {
-			const { overlayService } = await import('$lib/services/overlay');
-			await overlayService.hide();
-		} catch (error) {
-			console.warn('Failed to hide transforming overlay:', error);
-		}
+		const { overlayService } = await import('$lib/services/overlay');
+		await overlayService.hide();
 	}
 
 	if (transformError) {

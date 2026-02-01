@@ -28,11 +28,9 @@ class OverlayService {
 	 * Show overlay in recording mode with optional audio levels
 	 */
 	async showRecording(audioLevels?: number[]): Promise<void> {
-		console.log('[OVERLAY SERVICE] Showing recording mode');
 		const position = await this.getPosition();
 		
 		if (position === 'None') {
-			console.log('[OVERLAY SERVICE] Position is None, not showing overlay');
 			return;
 		}
 
@@ -45,10 +43,8 @@ class OverlayService {
 
 			this.currentMode = 'recording';
 			this.isVisible = true;
-			console.log('[OVERLAY SERVICE] Recording overlay shown');
 		} catch (error) {
 			console.error('[OVERLAY SERVICE] Failed to show recording overlay:', error);
-			throw error;
 		}
 	}
 
@@ -56,7 +52,6 @@ class OverlayService {
 	 * Show overlay in transcribing mode
 	 */
 	async showTranscribing(): Promise<void> {
-		console.log('[OVERLAY SERVICE] Showing transcribing mode');
 		const position = await this.getPosition();
 		
 		if (position === 'None') {
@@ -71,10 +66,8 @@ class OverlayService {
 
 			this.currentMode = 'transcribing';
 			this.isVisible = true;
-			console.log('[OVERLAY SERVICE] Transcribing overlay shown');
 		} catch (error) {
 			console.error('[OVERLAY SERVICE] Failed to show transcribing overlay:', error);
-			throw error;
 		}
 	}
 
@@ -82,7 +75,6 @@ class OverlayService {
 	 * Show overlay in transforming mode with pulsing text
 	 */
 	async showTransforming(): Promise<void> {
-		console.log('[OVERLAY SERVICE] Showing transforming mode');
 		const position = await this.getPosition();
 		
 		if (position === 'None') {
@@ -97,10 +89,8 @@ class OverlayService {
 
 			this.currentMode = 'transforming';
 			this.isVisible = true;
-			console.log('[OVERLAY SERVICE] Transforming overlay shown');
 		} catch (error) {
 			console.error('[OVERLAY SERVICE] Failed to show transforming overlay:', error);
-			throw error;
 		}
 	}
 
@@ -134,17 +124,13 @@ class OverlayService {
 		if (!this.isVisible) {
 			return;
 		}
-
-		console.log('[OVERLAY SERVICE] Hiding overlay');
 		
 		try {
 			await invoke('hide_overlay_command');
 			this.currentMode = 'hidden';
 			this.isVisible = false;
-			console.log('[OVERLAY SERVICE] Overlay hidden');
 		} catch (error) {
 			console.error('[OVERLAY SERVICE] Failed to hide overlay:', error);
-			throw error;
 		}
 	}
 

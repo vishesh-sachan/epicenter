@@ -190,11 +190,7 @@ export function createCpalRecorderService(): RecorderService {
 			
 			// Show the overlay
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					await overlayService.showRecording();
-				} catch (error) {
-					console.error('[CPAL] Failed to show overlay:', error);
-				}
+				await overlayService.showRecording();
 			}
 			
 			const { error: startRecordingError } =
@@ -224,11 +220,7 @@ export function createCpalRecorderService(): RecorderService {
 			
 			// Show transcribing overlay
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					await overlayService.showTranscribing();
-				} catch (error) {
-					console.warn('[CPAL] Failed to show transcribing overlay:', error);
-				}
+				await overlayService.showTranscribing();
 			}
 			
 			const { data: audioRecording, error: stopRecordingError } =
@@ -290,11 +282,7 @@ export function createCpalRecorderService(): RecorderService {
 			
 			// Hide overlay
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					await overlayService.hide();
-				} catch (error) {
-					console.warn('[CPAL] Failed to hide overlay:', error);
-				}
+				await overlayService.hide();
 			}
 			
 			// Check current state first

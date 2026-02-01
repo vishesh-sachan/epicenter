@@ -131,11 +131,7 @@ export function createNavigatorRecorderService(): RecorderService {
 
 			// Show the recording overlay in Tauri
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					await overlayService.showRecording();
-				} catch (error) {
-					console.error('[OVERLAY] Failed to show recording overlay:', error);
-				}
+				await overlayService.showRecording();
 			}
 
 			// Start recording
@@ -166,11 +162,7 @@ export function createNavigatorRecorderService(): RecorderService {
 
 			// Show transcribing state in overlay
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					await overlayService.showTranscribing();
-				} catch (error) {
-					console.warn('[OVERLAY] Failed to show transcribing overlay:', error);
-				}
+				await overlayService.showTranscribing();
 			}
 
 			sendStatus({
@@ -227,19 +219,14 @@ export function createNavigatorRecorderService(): RecorderService {
 
 			// Hide the overlay
 			if (window.__TAURI_INTERNALS__) {
-				try {
-					await overlayService.hide();
-				} catch (error) {
-					console.warn('[OVERLAY] Failed to hide recording overlay:', error);
-				}
-			}
+			const { overlayService } = await import('$lib/services/overlay');
+			await overlayService.hide();
+		}
 
-			sendStatus({
-				title: '🛑 Cancelling',
-				description: 'Discarding your recording...',
-			});
-
-			// Stop the recorder
+		sendStatus({
+			title: '🛑 Cancelling',
+			description: 'Discarding your recording...',
+		});
 			recording.mediaRecorder.stop();
 
 			// Clean up the stream
