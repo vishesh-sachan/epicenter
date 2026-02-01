@@ -147,12 +147,8 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
     info!("[OVERLAY] Creating overlay window...");
     if let Some((x, y)) = calculate_overlay_position(app_handle, OverlayPosition::default()) {
         info!("[OVERLAY] Calculated position: x={}, y={}", x, y);
-        // In dev mode, use external URL to Vite dev server
-        // In production, use bundled app assets
-        #[cfg(debug_assertions)]
-        let overlay_url = tauri::WebviewUrl::External("http://localhost:1420/src/overlay/index.html".parse().unwrap());
-        #[cfg(not(debug_assertions))]
-        let overlay_url = tauri::WebviewUrl::App("src/overlay/index.html".into());
+        // Use SvelteKit route for overlay
+        let overlay_url = tauri::WebviewUrl::App("/overlay/recording".into());
         
         match WebviewWindowBuilder::new(
             app_handle,
