@@ -318,4 +318,13 @@
 	:global(#svelte-inspector-toggle) {
 		display: none !important;
 	}
+
+	/* Make page background transparent for overlay window */
+	:global(html),
+	:global(body) {
+		background: transparent !important;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+	}
 </style>
