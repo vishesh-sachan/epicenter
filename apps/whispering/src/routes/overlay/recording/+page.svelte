@@ -314,17 +314,4 @@
 		transform: scale(0.95);
 	}
 
-	/* Hide Svelte inspector in overlay window - it interferes with the small UI */
-	:global(#svelte-inspector-toggle) {
-		display: none !important;
-	}
-
-	/* Make page background transparent for overlay window */
-	:global(html),
-	:global(body) {
-		background: transparent !important;
-		margin: 0;
-		padding: 0;
-		overflow: hidden;
-	}
 </style>
