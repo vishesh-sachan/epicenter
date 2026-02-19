@@ -1,6 +1,7 @@
 import { openapi } from '@elysiajs/openapi';
 import type { AnyWorkspaceClient } from '@epicenter/hq/static';
 import { Elysia } from 'elysia';
+import * as Y from 'yjs';
 import { collectActionPaths, createActionsRouter } from './actions';
 import { createSyncPlugin } from './sync';
 import { createTablesPlugin } from './tables';
@@ -40,6 +41,9 @@ export type ServerOptions = {
  * ```
  */
 function createServer(
+	options?: ServerOptions,
+): ReturnType<typeof createServerInternal>;
+function createServer(
 	client: AnyWorkspaceClient,
 	options?: ServerOptions,
 ): ReturnType<typeof createServerInternal>;
@@ -48,12 +52,27 @@ function createServer(
 	options?: ServerOptions,
 ): ReturnType<typeof createServerInternal>;
 function createServer(
-	clientOrClients: AnyWorkspaceClient | AnyWorkspaceClient[],
+	clientOrClientsOrOptions?:
+		| AnyWorkspaceClient
+		| AnyWorkspaceClient[]
+		| ServerOptions,
 	options?: ServerOptions,
 ): ReturnType<typeof createServerInternal> {
-	const clients = Array.isArray(clientOrClients)
-		? clientOrClients
-		: [clientOrClients];
+	// No args or just options
+	if (
+		!clientOrClientsOrOptions ||
+		(!Array.isArray(clientOrClientsOrOptions) &&
+			!('id' in clientOrClientsOrOptions))
+	) {
+		return createServerInternal(
+			[],
+			clientOrClientsOrOptions as ServerOptions | undefined,
+		);
+	}
+
+	const clients = Array.isArray(clientOrClientsOrOptions)
+		? clientOrClientsOrOptions
+		: [clientOrClientsOrOptions];
 	return createServerInternal(clients, options);
 }
 
@@ -66,6 +85,9 @@ function createServerInternal(
 	for (const client of clients) {
 		workspaces[client.id] = client;
 	}
+
+	/** Ephemeral Y.Docs for rooms with no pre-registered workspace client. */
+	const dynamicDocs = new Map<string, Y.Doc>();
 
 	// Collect action paths from all clients and mount per-client action routers
 	const allActionPaths: string[] = [];
@@ -97,7 +119,14 @@ function createServerInternal(
 		)
 		.use(
 			createSyncPlugin({
-				getDoc: (room) => workspaces[room]?.ydoc,
+				getDoc: (room) => {
+					if (workspaces[room]) return workspaces[room].ydoc;
+
+					if (!dynamicDocs.has(room)) {
+						dynamicDocs.set(room, new Y.Doc());
+					}
+					return dynamicDocs.get(room);
+				},
 			}),
 		)
 		.use(createTablesPlugin(workspaces));
@@ -177,6 +206,8 @@ function createServerInternal(
 
 		async destroy() {
 			await Promise.all(clients.map((c) => c.destroy()));
+			for (const doc of dynamicDocs.values()) doc.destroy();
+			dynamicDocs.clear();
 		},
 	};
 }

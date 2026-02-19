@@ -3,6 +3,9 @@
 	"version": "0.0.1",
 	"type": "module",
 	"private": true,
+	"exports": {
+		"./workspace": "./src/lib/workspace.ts"
+	},
 	"scripts": {
 		"dev": "wxt",
 		"dev:firefox": "wxt -b firefox",
