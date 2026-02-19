@@ -114,10 +114,12 @@ export function createMarkdownPersistenceExtension({
 
 		return {
 			exports: { flush },
-			whenReady,
-			async destroy() {
-				ydoc.off('update', scheduleExport);
-				await flush();
+			lifecycle: {
+				whenReady,
+				async destroy() {
+					ydoc.off('update', scheduleExport);
+					await flush();
+				},
 			},
 		};
 	};
