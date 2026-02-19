@@ -3,7 +3,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { cn } from '@epicenter/ui/utils';
 	import { browserState } from '$lib/state/browser-state.svelte';
-	import type { WindowCompositeId } from '$lib/device/composite-id';
+	import type { WindowCompositeId } from '$lib/workspace';
 	import TabItem from './TabItem.svelte';
 	import * as Empty from '@epicenter/ui/empty';
 	import { Badge } from '@epicenter/ui/badge';
