@@ -39,9 +39,7 @@ export function createSyncServer(config?: SyncServerConfig) {
 		// Standalone mode — no getDoc, rooms created on demand, default route
 	});
 
-	const app = new Elysia()
-		.use(new Elysia({ prefix: '/rooms' }).use(syncPlugin))
-		.get('/', () => ({ status: 'ok' }));
+	const app = new Elysia({ prefix: '/rooms' }).use(syncPlugin);
 
 	const port = config?.port ?? 3913;
 
