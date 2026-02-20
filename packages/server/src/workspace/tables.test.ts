@@ -123,7 +123,7 @@ describe('createTablesPlugin', () => {
 			id: string;
 			title: string;
 			content: string;
-			_v: number;
+			_v: 1;
 		});
 
 		const app = new Elysia().use(createTablesPlugin(client));
