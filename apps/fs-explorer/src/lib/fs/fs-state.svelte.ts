@@ -4,6 +4,7 @@ import {
 	type FileRow,
 	filesTable,
 } from '@epicenter/filesystem';
+import { indexeddbPersistence } from '@epicenter/hq/extensions/sync/web';
 import { createWorkspace } from '@epicenter/hq/static';
 import { SvelteSet } from 'svelte/reactivity';
 import { toast } from 'svelte-sonner';
@@ -33,16 +34,7 @@ function createFsState() {
 		id: 'fs-explorer',
 		tables: { files: filesTable },
 	})
-		.withExtension('persistence', ({ ydoc }) => {
-			const idb = new IndexeddbPersistence(ydoc.guid, ydoc);
-			return {
-				exports: { clearData: () => idb.clearData() },
-				lifecycle: {
-					whenReady: idb.whenSynced,
-					destroy: () => idb.destroy(),
-				},
-			};
-		})
+		.withExtension('persistence', indexeddbPersistence)
 		.withDocumentExtension(
 			'persistence',
 			({ ydoc: contentDoc }) => {

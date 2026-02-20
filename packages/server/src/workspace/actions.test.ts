@@ -23,7 +23,7 @@ describe('createActionsRouter', () => {
 			}),
 		};
 
-		const app = createActionsRouter({ actions });
+		const app = createActionsRouter(actions);
 		const response = await app.handle(new Request('http://test/actions/ping'));
 		const body = await response.json();
 
@@ -40,7 +40,7 @@ describe('createActionsRouter', () => {
 			},
 		};
 
-		const app = createActionsRouter({ actions });
+		const app = createActionsRouter(actions);
 		const response = await app.handle(
 			new Request('http://test/actions/posts/list'),
 		);
@@ -57,7 +57,7 @@ describe('createActionsRouter', () => {
 			}),
 		};
 
-		const app = createActionsRouter({ actions });
+		const app = createActionsRouter(actions);
 		const response = await app.handle(
 			new Request('http://test/actions/getStatus', { method: 'GET' }),
 		);
@@ -76,7 +76,7 @@ describe('createActionsRouter', () => {
 			}),
 		};
 
-		const app = createActionsRouter({ actions });
+		const app = createActionsRouter(actions);
 		const response = await app.handle(
 			new Request('http://test/actions/doSomething', { method: 'POST' }),
 		);
@@ -99,7 +99,7 @@ describe('createActionsRouter', () => {
 			}),
 		};
 
-		const app = createActionsRouter({ actions });
+		const app = createActionsRouter(actions);
 		const response = await app.handle(
 			new Request('http://test/actions/create', {
 				method: 'POST',
@@ -122,7 +122,7 @@ describe('createActionsRouter', () => {
 			}),
 		};
 
-		const app = createActionsRouter({ actions });
+		const app = createActionsRouter(actions);
 		const response = await app.handle(
 			new Request('http://test/actions/create', {
 				method: 'POST',
@@ -144,7 +144,7 @@ describe('createActionsRouter', () => {
 			}),
 		};
 
-		const app = createActionsRouter({ actions });
+		const app = createActionsRouter(actions);
 		const response = await app.handle(
 			new Request('http://test/actions/asyncQuery'),
 		);
@@ -154,17 +154,14 @@ describe('createActionsRouter', () => {
 		expect(body).toEqual({ data: { async: true } });
 	});
 
-	test('custom basePath prefixes generated action routes', async () => {
+	test('custom prefix overrides default /actions base path', async () => {
 		const actions = {
 			test: defineQuery({
 				handler: () => 'ok',
 			}),
 		};
 
-		const app = createActionsRouter({
-			actions,
-			basePath: '/api',
-		});
+		const app = createActionsRouter(actions, '/api');
 		const response = await app.handle(new Request('http://test/api/test'));
 		const body = await response.json();
 
@@ -185,7 +182,7 @@ describe('createActionsRouter', () => {
 			},
 		};
 
-		const app = createActionsRouter({ actions });
+		const app = createActionsRouter(actions);
 		const response = await app.handle(
 			new Request('http://test/actions/api/v1/users/list'),
 		);

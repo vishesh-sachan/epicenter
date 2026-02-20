@@ -63,19 +63,19 @@ export type SyncPluginConfig = {
  * code runs inside a DO class — only the WebSocket transport layer differs.
  * This plugin provides the Elysia/Bun adapter; the protocol layer is reusable.
  *
- * The plugin always registers the route `/:room/ws`. Use Elysia's native
+ * The plugin always registers the route `/:room/sync`. Use Elysia's native
  * `prefix` option to mount it under a different path:
  *
  * @example
  * ```typescript
  * // Standalone mode — rooms created on demand
- * // Route: /:room/ws
+ * // Route: /:room/sync
  * const app = new Elysia()
  *   .use(createSyncPlugin())
  *   .listen(3913);
  *
  * // Integrated mode — mount under /workspaces prefix
- * // Route: /workspaces/:room/ws
+ * // Route: /workspaces/:room/sync
  * const app = new Elysia()
  *   .use(
  *     new Elysia({ prefix: '/workspaces' })
@@ -119,7 +119,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 		}
 	>();
 
-	return new Elysia().ws('/:room/ws', {
+	return new Elysia().ws('/:room/sync', {
 		query: t.Object({
 			token: t.Optional(t.String()),
 		}),

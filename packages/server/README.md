@@ -154,7 +154,7 @@ The server package is designed for two deployment targets. The sync plugin is po
 
 ```
 createServer()
-├── Sync Plugin        → /workspaces/:room/ws        (WebSocket sync)
+├── Sync Plugin        → /workspaces/:room/sync      (WebSocket sync)
 ├── Workspace Plugin   → /workspaces/:id/tables/...   (REST CRUD)
 │                      → /workspaces/:id/actions/...  (Query/Mutation endpoints)
 └── OpenAPI + Discovery
@@ -207,7 +207,7 @@ Routes are namespaced by workspace ID:
 /                                              - API root/discovery
 /openapi                                       - Scalar UI documentation
 /openapi/json                                  - OpenAPI spec (JSON)
-/workspaces/{workspaceId}/ws                   - WebSocket sync (y-websocket protocol)
+/workspaces/{workspaceId}/sync                 - WebSocket sync (y-websocket protocol)
 /workspaces/{workspaceId}/tables/{table}       - RESTful table CRUD
 /workspaces/{workspaceId}/tables/{table}/{id}  - Single row operations
 /workspaces/{workspaceId}/actions/{action}     - Workspace action endpoints
@@ -222,7 +222,7 @@ The server's primary real-time feature is WebSocket-based Y.Doc synchronization.
 Clients connect to:
 
 ```
-ws://host:3913/workspaces/{workspaceId}/ws
+ws://host:3913/workspaces/{workspaceId}/sync
 ```
 
 The recommended client is `@epicenter/sync` (via `createSyncExtension` from `@epicenter/hq/extensions/sync`):
@@ -236,7 +236,7 @@ const client = createClient(definition.id)
 	.withExtension(
 		'sync',
 		createSyncExtension({
-			url: 'ws://localhost:3913/workspaces/{id}/ws',
+			url: 'ws://localhost:3913/workspaces/{id}/sync',
 		}),
 	);
 ```
@@ -275,14 +275,14 @@ The server exposes the WebSocket endpoint. `@epicenter/sync` is the client-side 
 // Server side
 const server = createServer(blogClient, { port: 3913 });
 server.start();
-// Exposes: ws://localhost:3913/workspaces/blog/ws
+// Exposes: ws://localhost:3913/workspaces/blog/sync
 
 // Client side
 import { createSyncProvider } from '@epicenter/sync';
 
 const provider = createSyncProvider({
 	doc: myDoc,
-	url: 'ws://localhost:3913/workspaces/blog/ws',
+	url: 'ws://localhost:3913/workspaces/blog/sync',
 });
 ```
 

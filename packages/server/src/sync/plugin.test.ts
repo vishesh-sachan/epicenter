@@ -14,7 +14,9 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import type { SyncProvider, SyncStatus } from '@epicenter/sync';
 import { createSyncProvider } from '@epicenter/sync';
+import { Elysia } from 'elysia';
 import * as Y from 'yjs';
+import { createSyncPlugin } from './plugin';
 import { createSyncServer, type SyncServerConfig } from './server';
 
 // ============================================================================
@@ -42,10 +44,28 @@ function startTestServer(config?: SyncServerConfig) {
 		server,
 		port,
 		wsUrl(room: string) {
-			return `ws://localhost:${port}/${room}/ws`;
+			return `ws://localhost:${port}/workspaces/${room}/sync`;
 		},
 		httpUrl(path = '/') {
 			return `http://localhost:${port}${path}`;
+		},
+	};
+}
+
+function startIntegratedTestServer({
+	getDoc,
+}: {
+	getDoc: (roomId: string) => Y.Doc | undefined;
+}) {
+	const syncPlugin = createSyncPlugin({ getDoc });
+	const app = new Elysia().use(syncPlugin).get('/', () => ({ status: 'ok' }));
+	app.listen(0);
+	const port = app.server!.port;
+	return {
+		app,
+		port,
+		wsUrl(room: string) {
+			return `ws://localhost:${port}/${room}/sync`;
 		},
 	};
 }
@@ -204,6 +224,30 @@ describe('sync plugin integration', () => {
 		}
 	});
 
+	test('sender does not receive its own updates', async () => {
+		const room = uniqueRoom();
+		const doc1 = new Y.Doc();
+		const doc2 = new Y.Doc();
+
+		const p1 = createSyncProvider({ doc: doc1, url: ctx.wsUrl(room) });
+		const p2 = createSyncProvider({ doc: doc2, url: ctx.wsUrl(room) });
+
+		try {
+			await waitForStatus(p1, 'connected');
+			await waitForStatus(p2, 'connected');
+
+			doc1.getMap('data').set('from-client-1', 'client-1-value');
+
+			const valueOnClient2 = await waitForMapKey(doc2, 'data', 'from-client-1');
+			expect(valueOnClient2).toBe('client-1-value');
+
+			expect(doc1.getMap('data').get('from-client-1')).toBe('client-1-value');
+		} finally {
+			p1.destroy();
+			p2.destroy();
+		}
+	});
+
 	test('bidirectional sync merges concurrent edits', async () => {
 		const room = uniqueRoom();
 		const doc1 = new Y.Doc();
@@ -316,6 +360,26 @@ describe('sync plugin integration', () => {
 			expect(provider.hasLocalChanges).toBe(false);
 		} finally {
 			provider.destroy();
+		}
+	});
+});
+
+describe('sync plugin integrated mode', () => {
+	test('closes with 4004 when getDoc returns undefined', async () => {
+		const ctx = startIntegratedTestServer({ getDoc: () => undefined });
+		const room = uniqueRoom();
+		const doc = new Y.Doc();
+		const provider = createSyncProvider({
+			doc,
+			url: ctx.wsUrl(room),
+		});
+
+		try {
+			await waitForStatus(provider, 'error');
+			expect(provider.status).toBe('error');
+		} finally {
+			provider.destroy();
+			ctx.app.stop();
 		}
 	});
 });
