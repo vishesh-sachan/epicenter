@@ -141,7 +141,10 @@ const plugin = createSyncPlugin({
 - **Token**: `{ token: 'secret' }` for simple shared secret validation.
 - **Verify**: `{ verify: (token) => boolean }` for custom logic (e.g., JWT).
 
-Auth applies to both WebSocket and REST endpoints. WebSocket uses `?token=` query param. REST endpoints accept both `?token=` and `Authorization: Bearer` header.
+Auth applies to both WebSocket and REST endpoints, each using the mechanism appropriate to its transport:
+
+- **WebSocket** (`/:room/sync`): `?token=xxx` query param (browser WebSocket API cannot set headers)
+- **REST** (`/:room/doc`, `/`): `Authorization: Bearer xxx` header (HTTP standard — keeps tokens out of logs)
 
 **REST Document Access:**
 

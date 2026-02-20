@@ -158,6 +158,59 @@ export function createRoomManager(config?: RoomManagerConfig) {
 			return [...rooms.keys()];
 		},
 
+		/** List active rooms with connection counts. */
+		roomInfo(): Array<{ id: string; connections: number }> {
+			return [...rooms.entries()].map(([id, room]) => ({
+				id,
+				connections: room.conns.size,
+			}));
+		},
+
+		/**
+		 * Get or create a doc for a room without a WebSocket connection.
+		 *
+		 * Used by REST endpoints (POST /:room/doc) that need to apply updates
+		 * to a room that may not have any active WS connections yet.
+		 *
+		 * - In standalone mode (no getDoc): creates a fresh Y.Doc on demand
+		 * - In integrated mode (getDoc provided): resolves via callback
+		 * - Returns undefined if getDoc rejects the room
+		 */
+		getOrCreateDoc(roomId: string): Y.Doc | undefined {
+			const existing = rooms.get(roomId);
+			if (existing) return existing.doc;
+
+			// Room doesn't exist — resolve or create
+			let doc: Y.Doc;
+			if (config?.getDoc) {
+				const resolved = config.getDoc(roomId);
+				if (!resolved) return undefined;
+				doc = resolved;
+			} else {
+				doc = new Y.Doc();
+				config?.onRoomCreated?.(roomId, doc);
+			}
+
+			const awareness = new Awareness(doc);
+			const room: Room = {
+				doc,
+				awareness,
+				conns: new Map(),
+			};
+			rooms.set(roomId, room);
+
+			// Start eviction timer since there are no connections
+			room.evictionTimer = setTimeout(() => {
+				const current = rooms.get(roomId);
+				if (!current || current.conns.size === 0) {
+					rooms.delete(roomId);
+					config?.onRoomEvicted?.(roomId, room.doc);
+				}
+			}, evictionTimeout);
+
+			return doc;
+		},
+
 		/** Destroy all rooms and clear timers. */
 		destroy(): void {
 			for (const room of rooms.values()) {
