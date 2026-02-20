@@ -224,8 +224,8 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'persistence',
 						factory: () => ({
-							exports: { clearData: () => {} },
-							lifecycle: { destroy: () => {} },
+							clearData: () => {},
+							destroy: () => {},
 						}),
 						tags: [],
 					},
@@ -238,13 +238,13 @@ describe('createDocumentBinding', () => {
 			expect(typeof handle.exports.persistence!.clearData).toBe('function');
 		});
 
-		test('returns empty exports when extension has no exports', async () => {
+		test('lifecycle-only extension is accessible with whenReady and destroy', async () => {
 			const { binding } = setupWithBinding({
 				documentExtensions: [
 					{
 						key: 'lifecycle-only',
 						factory: () => ({
-							lifecycle: { destroy: () => {} },
+							destroy: () => {},
 						}),
 						tags: [],
 					},
@@ -253,7 +253,10 @@ describe('createDocumentBinding', () => {
 
 			const handle = await binding.open('f1');
 			expect(handle.exports).toBeDefined();
-			expect(handle.exports['lifecycle-only']).toBeUndefined();
+			const ext = handle.exports['lifecycle-only'];
+			expect(ext).toBeDefined();
+			expect(ext!.whenReady).toBeInstanceOf(Promise);
+			expect(typeof ext!.destroy).toBe('function');
 		});
 
 		test('accepts a row object', async () => {
@@ -262,7 +265,7 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'test',
 						factory: () => ({
-							exports: { helper: () => 42 },
+							helper: () => 42,
 						}),
 						tags: [],
 					},
@@ -365,7 +368,7 @@ describe('createDocumentBinding', () => {
 						key: 'first',
 						factory: () => {
 							order.push(1);
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -373,7 +376,7 @@ describe('createDocumentBinding', () => {
 						key: 'second',
 						factory: () => {
 							order.push(2);
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -381,7 +384,7 @@ describe('createDocumentBinding', () => {
 						key: 'third',
 						factory: () => {
 							order.push(3);
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -400,10 +403,8 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'first',
 						factory: () => ({
-							lifecycle: {
-								whenReady: Promise.resolve(),
-								destroy: () => {},
-							},
+							whenReady: Promise.resolve(),
+							destroy: () => {},
 						}),
 						tags: [],
 					},
@@ -411,7 +412,7 @@ describe('createDocumentBinding', () => {
 						key: 'second',
 						factory: ({ whenReady }) => {
 							secondReceivedWhenReady = whenReady instanceof Promise;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -439,7 +440,7 @@ describe('createDocumentBinding', () => {
 						key: 'normal-hook',
 						factory: () => {
 							hooksCalled++;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -480,7 +481,7 @@ describe('createDocumentBinding', () => {
 						key: 'capture',
 						factory: (ctx) => {
 							capturedBinding = ctx.binding;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -503,7 +504,7 @@ describe('createDocumentBinding', () => {
 						key: 'universal',
 						factory: () => {
 							called = true;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [], // universal — no tags
 					},
@@ -523,7 +524,7 @@ describe('createDocumentBinding', () => {
 						key: 'sync-ext',
 						factory: () => {
 							called = true;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: ['synced'],
 					},
@@ -543,7 +544,7 @@ describe('createDocumentBinding', () => {
 						key: 'ephemeral-ext',
 						factory: () => {
 							called = true;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: ['ephemeral'],
 					},
@@ -563,7 +564,7 @@ describe('createDocumentBinding', () => {
 						key: 'tagged',
 						factory: () => {
 							calls.push('tagged');
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: ['persistent'],
 					},
@@ -571,7 +572,7 @@ describe('createDocumentBinding', () => {
 						key: 'universal',
 						factory: () => {
 							calls.push('universal');
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -584,31 +585,24 @@ describe('createDocumentBinding', () => {
 	});
 
 	describe('document extension whenReady and typed extensions', () => {
-		test('document extension receives extensions map with prior exports and whenReady', async () => {
-			let capturedFirstExtension:
-				| (Record<string, unknown> & { whenReady: Promise<void> })
-				| undefined;
+		test('document extension receives extensions map with flat exports', async () => {
+			let capturedFirstExtension: unknown;
 
 			const { binding } = setupWithBinding({
 				documentExtensions: [
 					{
 						key: 'first',
 						factory: () => ({
-							exports: { someValue: 42 },
-							lifecycle: { destroy: () => {} },
+							someValue: 42,
+							destroy: () => {},
 						}),
 						tags: [],
 					},
 					{
 						key: 'second',
 						factory: (context) => {
-							capturedFirstExtension = context.extensions.first as Record<
-								string,
-								unknown
-							> & {
-								whenReady: Promise<void>;
-							};
-							return { lifecycle: { destroy: () => {} } };
+							capturedFirstExtension = context.extensions.first;
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -617,11 +611,9 @@ describe('createDocumentBinding', () => {
 
 			await binding.open('f1');
 			expect(capturedFirstExtension).toBeDefined();
-			if (!capturedFirstExtension) {
-				throw new Error('Expected first extension in second extension context');
-			}
-			expect(capturedFirstExtension.someValue).toBe(42);
-			expect(capturedFirstExtension.whenReady).toBeInstanceOf(Promise);
+			expect(
+				(capturedFirstExtension as Record<string, unknown>).someValue,
+			).toBe(42);
 		});
 
 		test('document extension extensions map is optional (tag filtering may skip)', async () => {
@@ -634,8 +626,8 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'tagged',
 						factory: () => ({
-							exports: { label: 'tagged' },
-							lifecycle: { destroy: () => {} },
+							label: 'tagged',
+							destroy: () => {},
 						}),
 						tags: ['persistent'],
 					},
@@ -644,7 +636,7 @@ describe('createDocumentBinding', () => {
 						factory: (context) => {
 							taggedPresentForPersistentDoc =
 								context.extensions.tagged !== undefined;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -659,8 +651,8 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'tagged',
 						factory: () => ({
-							exports: { label: 'tagged' },
-							lifecycle: { destroy: () => {} },
+							label: 'tagged',
+							destroy: () => {},
 						}),
 						tags: ['persistent'],
 					},
@@ -669,7 +661,7 @@ describe('createDocumentBinding', () => {
 						factory: (context) => {
 							taggedPresentForEphemeralDoc =
 								context.extensions.tagged !== undefined;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -682,24 +674,23 @@ describe('createDocumentBinding', () => {
 			expect(taggedPresentForEphemeralDoc).toBe(false);
 		});
 
-		test('document extension with no exports still gets whenReady in map', async () => {
-			let firstWhenReadySeen = false;
+		test('document extension with no exports is still accessible', async () => {
+			let firstExtensionSeen = false;
 
 			const { binding } = setupWithBinding({
 				documentExtensions: [
 					{
 						key: 'first',
 						factory: () => ({
-							lifecycle: { destroy: () => {} },
+							destroy: () => {},
 						}),
 						tags: [],
 					},
 					{
 						key: 'second',
 						factory: (context) => {
-							firstWhenReadySeen =
-								context.extensions.first?.whenReady instanceof Promise;
-							return { lifecycle: { destroy: () => {} } };
+							firstExtensionSeen = context.extensions.first !== undefined;
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -707,17 +698,17 @@ describe('createDocumentBinding', () => {
 			});
 
 			await binding.open('f1');
-			expect(firstWhenReadySeen).toBe(true);
+			expect(firstExtensionSeen).toBe(true);
 		});
 
-		test("handle.exports includes whenReady on each extension's exports", async () => {
+		test('handle.exports includes flat exports from extensions', async () => {
 			const { binding } = setupWithBinding({
 				documentExtensions: [
 					{
 						key: 'test',
 						factory: () => ({
-							exports: { helper: () => 42 },
-							lifecycle: { destroy: () => {} },
+							helper: () => 42,
+							destroy: () => {},
 						}),
 						tags: [],
 					},
@@ -730,7 +721,6 @@ describe('createDocumentBinding', () => {
 				throw new Error('Expected exports for test extension');
 			}
 			expect(typeof handle.exports.test.helper).toBe('function');
-			expect(handle.exports.test.whenReady).toBeInstanceOf(Promise);
 		});
 	});
 });

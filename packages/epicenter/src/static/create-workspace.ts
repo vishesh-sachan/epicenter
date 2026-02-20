@@ -38,11 +38,8 @@
 
 import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
-import type {
-	DocumentContext,
-	Extension,
-	MaybePromise,
-} from '../shared/lifecycle.js';
+import type { DocumentContext } from '../shared/lifecycle.js';
+import { defineExtension, type MaybePromise } from '../shared/lifecycle.js';
 import { createAwareness } from './create-awareness.js';
 import { createDocumentBinding } from './create-document-binding.js';
 import { createKv } from './create-kv.js';
@@ -197,13 +194,8 @@ export function createWorkspace<
 			tables,
 			kv,
 			awareness,
-			// Cast: each extension entry has whenReady injected at runtime via Object.assign
-			// in withExtension(). The mapped type in WorkspaceClient declares this.
-			extensions: extensions as {
-				[K in keyof TExtensions]: TExtensions[K] & {
-					whenReady: Promise<void>;
-				};
-			},
+			// Each extension entry is the exports object stored by reference.
+			extensions,
 			batch(fn: () => void): void {
 				ydoc.transact(fn);
 			},
@@ -229,9 +221,12 @@ export function createWorkspace<
 						TAwarenessDefinitions,
 						TExtensions
 					>,
-				) => Extension<TExports>,
+				) => TExports & {
+					whenReady?: Promise<unknown>;
+					destroy?: () => MaybePromise<void>;
+				},
 			) {
-				const result = factory(
+				const raw = factory(
 					client as unknown as ExtensionContext<
 						TId,
 						TTableDefinitions,
@@ -240,23 +235,13 @@ export function createWorkspace<
 						TExtensions
 					>,
 				);
-				const destroy = result.lifecycle?.destroy;
-				if (destroy) extensionCleanups.push(destroy);
-
-				// Normalize whenReady to Promise<void> for both composite and per-extension use
-				const extWhenReady: Promise<void> = result.lifecycle?.whenReady
-					? result.lifecycle.whenReady.then(() => {})
-					: Promise.resolve();
-				whenReadyPromises.push(extWhenReady);
-
-				// Inject per-extension whenReady into the exports object (Option B: flat inject).
-				// Object.assign preserves the original exports reference (getters, identity).
-				const exports = result.exports ?? {};
-				Object.assign(exports, { whenReady: extWhenReady });
+				const resolved = defineExtension(raw ?? {});
+				extensionCleanups.push(resolved.destroy);
+				whenReadyPromises.push(resolved.whenReady);
 
 				const newExtensions = {
 					...extensions,
-					[key]: exports,
+					[key]: resolved,
 				} as TExtensions & Record<TKey, TExports>;
 
 				return buildClient(newExtensions);
@@ -264,9 +249,12 @@ export function createWorkspace<
 
 			withDocumentExtension(
 				key: string,
-				factory: (
-					context: DocumentContext,
-				) => Extension<Record<string, unknown>> | void,
+				factory: (context: DocumentContext) =>
+					| (Record<string, unknown> & {
+							whenReady?: Promise<unknown>;
+							destroy?: () => MaybePromise<void>;
+					  })
+					| void,
 				options?: { tags?: string[] },
 			) {
 				documentExtensionRegistrations.push({

@@ -32,7 +32,7 @@
  */
 
 import type * as Y from 'yjs';
-import type { Extension } from '../../shared/lifecycle';
+import type { Extension, MaybePromise } from '../../shared/lifecycle';
 import type { Kv } from '../kv/create-kv';
 import type { KvField, TableDefinition } from '../schema/fields/types';
 import type { Tables } from '../tables/create-tables';
@@ -76,11 +76,10 @@ export type ExtensionContext<
 > = WorkspaceClient<TTableDefinitions, TKvFields, TExtensions>;
 
 /**
- * Factory function that creates an extension with lifecycle hooks.
+ * Factory function that creates an extension.
  *
- * Returns a flat `{ exports?, whenReady?, destroy? }` object.
- * The framework normalizes defaults and stores `exports` by reference —
- * getters and object identity are preserved.
+ * Returns a flat object with custom exports + optional `whenReady` and `destroy`.
+ * The framework normalizes defaults via `defineExtension()`.
  *
  * @typeParam TExports - The consumer-facing exports object type
  *
@@ -89,7 +88,7 @@ export type ExtensionContext<
  * const persistence: ExtensionFactory = ({ ydoc }) => {
  *   const provider = new IndexeddbPersistence(ydoc.guid, ydoc);
  *   return {
- *     exports: { provider },
+ *     provider,
  *     whenReady: provider.whenReady,
  *     destroy: () => provider.destroy(),
  *   };
@@ -98,7 +97,10 @@ export type ExtensionContext<
  */
 export type ExtensionFactory<
 	TExports extends Record<string, unknown> = Record<string, unknown>,
-> = (context: ExtensionContext) => Extension<TExports>;
+> = (context: ExtensionContext) => TExports & {
+	whenReady?: Promise<unknown>;
+	destroy?: () => MaybePromise<void>;
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // WORKSPACE CLIENT TYPES
@@ -158,23 +160,22 @@ export type WorkspaceClientBuilder<
 	 * Add a single extension. Returns a new builder with the extension's
 	 * exports accumulated into the extensions type.
 	 *
-	 * The factory returns `{ exports?, lifecycle? }`.
-	 * The framework normalizes defaults and stores `exports` by reference —
-	 * getters and object identity are preserved.
+	 * The factory returns a flat object with custom exports + optional `whenReady`
+	 * and `destroy`. The framework normalizes defaults via `defineExtension()`.
 	 *
 	 * @param key - Unique name for this extension (used as the key in `.extensions`)
-	 * @param factory - Factory function receiving the client-so-far context, returns Extension
+	 * @param factory - Factory receiving the client-so-far context, returns flat exports
 	 * @returns A new builder with the extension's exports added to the type
 	 *
 	 * @example
 	 * ```typescript
 	 * const workspace = createWorkspace(definition)
 	 *   .withExtension('persistence', ({ ydoc }) => {
-	 *     return { lifecycle: { whenReady: loadFromDisk(), destroy: () => flush() } };
+	 *     return { whenReady: loadFromDisk(), destroy: () => flush() };
 	 *   })
 	 *   .withExtension('sync', ({ extensions }) => {
 	 *     // extensions.persistence is fully typed here!
-	 *     return { exports: { provider }, lifecycle: { whenReady, destroy: () => provider.destroy() } };
+	 *     return { provider, whenReady, destroy: () => provider.destroy() };
 	 *   });
 	 * ```
 	 */
@@ -182,11 +183,15 @@ export type WorkspaceClientBuilder<
 		key: TKey,
 		factory: (
 			context: ExtensionContext<TTableDefinitions, TKvFields, TExtensions>,
-		) => Extension<TExports>,
+		) => TExports & {
+			whenReady?: Promise<unknown>;
+			destroy?: () => MaybePromise<void>;
+		},
 	): WorkspaceClientBuilder<
 		TTableDefinitions,
 		TKvFields,
-		TExtensions & Record<TKey, TExports>
+		TExtensions &
+			Record<TKey, Extension<Omit<TExports, 'whenReady' | 'destroy'>>>
 	>;
 };
 

@@ -15,20 +15,16 @@ import { Awareness } from 'y-protocols/awareness';
 import * as Y from 'yjs';
 import { createSyncExtension } from './sync';
 
-/** The shape of the sync extension exports. */
-type SyncExtensionExports = {
+/** The shape returned by the extension factory (flat). */
+type SyncExtensionResult = {
 	provider: SyncProvider;
 	reconnect: (newConfig?: {
 		url?: string;
 		token?: string;
 		getToken?: () => Promise<string>;
 	}) => void;
-};
-
-/** The shape returned by the extension factory. */
-type SyncExtensionResult = {
-	exports: SyncExtensionExports;
-	lifecycle: { whenReady: Promise<unknown>; destroy: () => void };
+	whenReady: Promise<unknown>;
+	destroy: () => void;
 };
 
 type SyncExtensionFactoryClient = Parameters<
@@ -57,11 +53,11 @@ describe('createSyncExtension', () => {
 				createMockClient(ydoc),
 			) as unknown as SyncExtensionResult;
 
-			const oldProvider = result.exports.provider;
+			const oldProvider = result.provider;
 			expect(oldProvider).toBeDefined();
 
 			// Reconnect with a different URL
-			result.exports.reconnect({
+			result.reconnect({
 				url: 'ws://cloud.example.com/rooms/test-doc/sync',
 			});
 
@@ -69,12 +65,12 @@ describe('createSyncExtension', () => {
 			expect(oldProvider.status).toBe('offline');
 
 			// New provider should be a different instance
-			const newProvider = result.exports.provider;
+			const newProvider = result.provider;
 			expect(newProvider).not.toBe(oldProvider);
 			expect(newProvider).toBeDefined();
 
 			// Cleanup
-			result.lifecycle.destroy();
+			result.destroy();
 		});
 
 		test('provider getter returns current provider after reconnect', () => {
@@ -88,15 +84,15 @@ describe('createSyncExtension', () => {
 				createMockClient(ydoc),
 			) as unknown as SyncExtensionResult;
 
-			const firstProvider = result.exports.provider;
-			result.exports.reconnect({
+			const firstProvider = result.provider;
+			result.reconnect({
 				url: 'ws://server-2/rooms/test-doc-getter/sync',
 			});
-			const secondProvider = result.exports.provider;
-			result.exports.reconnect({
+			const secondProvider = result.provider;
+			result.reconnect({
 				url: 'ws://server-3/rooms/test-doc-getter/sync',
 			});
-			const thirdProvider = result.exports.provider;
+			const thirdProvider = result.provider;
 
 			// Each reconnect should yield a different provider
 			expect(firstProvider).not.toBe(secondProvider);
@@ -106,7 +102,7 @@ describe('createSyncExtension', () => {
 			expect(firstProvider.status).toBe('offline');
 			expect(secondProvider.status).toBe('offline');
 
-			result.lifecycle.destroy();
+			result.destroy();
 		});
 
 		test('destroy uses current provider after reconnect', () => {
@@ -119,12 +115,12 @@ describe('createSyncExtension', () => {
 			const result = factory(
 				createMockClient(ydoc),
 			) as unknown as SyncExtensionResult;
-			result.exports.reconnect({
+			result.reconnect({
 				url: 'ws://cloud.example.com/rooms/test-doc-destroy/sync',
 			});
 
-			const currentProvider = result.exports.provider;
-			result.lifecycle.destroy();
+			const currentProvider = result.provider;
+			result.destroy();
 
 			// The current (post-reconnect) provider should be destroyed
 			expect(currentProvider.status).toBe('offline');
@@ -144,10 +140,10 @@ describe('createSyncExtension', () => {
 		) as unknown as SyncExtensionResult;
 
 		// Provider should exist and be offline (not connected)
-		expect(result.exports.provider).toBeDefined();
-		expect(result.exports.provider.status).toBe('offline');
+		expect(result.provider).toBeDefined();
+		expect(result.provider.status).toBe('offline');
 
-		result.lifecycle.destroy();
+		result.destroy();
 	});
 
 	test('resolves URL when url config is a function', () => {
@@ -161,10 +157,10 @@ describe('createSyncExtension', () => {
 			createMockClient(ydoc),
 		) as unknown as SyncExtensionResult;
 
-		expect(result.exports.provider).toBeDefined();
-		expect(result.exports.provider.status).toBe('offline');
+		expect(result.provider).toBeDefined();
+		expect(result.provider.status).toBe('offline');
 
-		result.lifecycle.destroy();
+		result.destroy();
 	});
 
 	test('whenReady awaits client.whenReady before connecting', async () => {
@@ -190,7 +186,7 @@ describe('createSyncExtension', () => {
 
 		// whenReady should not have resolved yet
 		let resolved = false;
-		void result.lifecycle.whenReady.then(() => {
+		void result.whenReady.then(() => {
 			resolved = true;
 			order.push('sync-ready');
 		});
@@ -201,10 +197,10 @@ describe('createSyncExtension', () => {
 
 		// Resolve the client's whenReady
 		resolveClientReady();
-		await result.lifecycle.whenReady;
+		await result.whenReady;
 
 		expect(order).toEqual(['client-ready', 'sync-ready']);
 
-		result.lifecycle.destroy();
+		result.destroy();
 	});
 });

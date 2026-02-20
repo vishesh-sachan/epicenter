@@ -81,9 +81,7 @@ describe('defineWorkspace', () => {
 			tables: unknown;
 			kv: unknown;
 		}) => ({
-			exports: {
-				customMethod: () => 'hello',
-			},
+			customMethod: () => 'hello',
 		});
 
 		const client = createWorkspace({
@@ -100,22 +98,18 @@ describe('defineWorkspace', () => {
 	test('extension exports are fully typed', () => {
 		// Extension with rich exports
 		const persistenceExtension = () => ({
-			exports: {
-				db: {
-					query: (sql: string) => sql.toUpperCase(),
-					execute: (sql: string) => ({ rows: [sql] }),
-				},
-				stats: { writes: 0, reads: 0 },
+			db: {
+				query: (sql: string) => sql.toUpperCase(),
+				execute: (sql: string) => ({ rows: [sql] }),
 			},
+			stats: { writes: 0, reads: 0 },
 		});
 
 		// Another extension with different exports
 		const syncExtension = () => ({
-			exports: {
-				connect: (url: string) => `connected to ${url}`,
-				disconnect: () => 'disconnected',
-				status: 'idle' as 'idle' | 'syncing' | 'synced',
-			},
+			connect: (url: string) => `connected to ${url}`,
+			disconnect: () => 'disconnected',
+			status: 'idle' as 'idle' | 'syncing' | 'synced',
 		});
 
 		const client = createWorkspace({
@@ -156,10 +150,8 @@ describe('defineWorkspace', () => {
 	test('client.destroy() cleans up', async () => {
 		let destroyed = false;
 		const mockExtension = () => ({
-			lifecycle: {
-				destroy: async () => {
-					destroyed = true;
-				},
+			destroy: async () => {
+				destroyed = true;
 			},
 		});
 
@@ -245,22 +237,20 @@ describe('defineWorkspace', () => {
 			},
 		})
 			.withExtension('first', () => ({
-				exports: {
-					value: 42,
-					helper: () => 'from-first',
-				},
+				value: 42,
+				helper: () => 'from-first',
 			}))
 			.withExtension('second', ({ extensions }) => {
 				// extensions.first is fully typed here — no casts needed
 				const doubled = extensions.first.value * 2;
 				const msg = extensions.first.helper();
-				return { exports: { doubled, msg } };
+				return { doubled, msg };
 			})
 			.withExtension('third', ({ extensions }) => {
 				// extensions.first AND extensions.second are both fully typed
 				const tripled = extensions.first.value * 3;
 				const fromSecond = extensions.second.doubled;
-				return { exports: { tripled, fromSecond } };
+				return { tripled, fromSecond };
 			});
 
 		// All extensions accessible and typed on the final client
@@ -289,9 +279,7 @@ describe('defineWorkspace', () => {
 			},
 		})
 			.withExtension('analytics', () => ({
-				exports: {
-					getCount: () => 5,
-				},
+				getCount: () => 5,
 			}))
 			.withActions((c) => ({
 				getAnalyticsCount: defineQuery({
@@ -327,15 +315,13 @@ describe('defineWorkspace', () => {
 			},
 		})
 			.withExtension('slow', () => ({
-				exports: { tag: 'slow' },
-				lifecycle: {
-					whenReady: new Promise<void>((resolve) =>
-						setTimeout(() => {
-							order.push('slow-ready');
-							resolve();
-						}, 50),
-					),
-				},
+				tag: 'slow',
+				whenReady: new Promise<void>((resolve) =>
+					setTimeout(() => {
+						order.push('slow-ready');
+						resolve();
+					}, 50),
+				),
 			}))
 			.withExtension('dependent', (context) => {
 				// context.whenReady should be a promise representing all prior extensions
@@ -347,10 +333,8 @@ describe('defineWorkspace', () => {
 				})();
 
 				return {
-					exports: { tag: 'dependent' },
-					lifecycle: {
-						whenReady,
-					},
+					tag: 'dependent',
+					whenReady,
 				};
 			});
 
@@ -366,7 +350,7 @@ describe('defineWorkspace', () => {
 			id: 'first-ext-test',
 		}).withExtension('first', (context) => {
 			contextWhenReady = context.whenReady;
-			return { exports: { tag: 'first' } };
+			return { tag: 'first' };
 		});
 
 		// First extension's context.whenReady = Promise.all([]) which resolves immediately
@@ -405,24 +389,18 @@ describe('defineWorkspace', () => {
 			id: 'destroy-order',
 		})
 			.withExtension('a', () => ({
-				lifecycle: {
-					destroy: () => {
-						order.push('a');
-					},
+				destroy: () => {
+					order.push('a');
 				},
 			}))
 			.withExtension('b', () => ({
-				lifecycle: {
-					destroy: () => {
-						order.push('b');
-					},
+				destroy: () => {
+					order.push('b');
 				},
 			}))
 			.withExtension('c', () => ({
-				lifecycle: {
-					destroy: () => {
-						order.push('c');
-					},
+				destroy: () => {
+					order.push('c');
 				},
 			}));
 

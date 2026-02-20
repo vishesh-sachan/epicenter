@@ -55,6 +55,7 @@ export type { Id } from '../shared/id';
 export { generateId, Id as createId } from '../shared/id';
 // Lifecycle utilities (re-exported for extension authors)
 export type {
+	Extension,
 	Lifecycle,
 	MaybePromise,
 } from '../shared/lifecycle';

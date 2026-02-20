@@ -311,109 +311,106 @@ export async function localRevisionHistory<
 	);
 
 	return {
-		exports: {
-			/**
-			 * Save the current document state as a new version.
-			 * Only saves if changes detected since last snapshot.
-			 * Bypasses debounce for immediate save.
-			 */
-			save,
+		/**
+		 * Save the current document state as a new version.
+		 * Only saves if changes detected since last snapshot.
+		 * Bypasses debounce for immediate save.
+		 */
+		save,
 
-			/**
-			 * Get all saved versions, sorted by timestamp (oldest first).
-			 */
-			list,
+		/**
+		 * Get all saved versions, sorted by timestamp (oldest first).
+		 */
+		list,
 
-			/**
-			 * Get a read-only Y.Doc at a specific version index.
-			 *
-			 * The returned document is a snapshot view and should NOT be modified.
-			 * Use this for previewing historical states.
-			 *
-			 * @param index - Version index (0 = oldest)
-			 * @returns Read-only Y.Doc at that version
-			 */
-			async view(index: number): Promise<Y.Doc> {
-				const versions = await list();
+		/**
+		 * Get a read-only Y.Doc at a specific version index.
+		 *
+		 * The returned document is a snapshot view and should NOT be modified.
+		 * Use this for previewing historical states.
+		 *
+		 * @param index - Version index (0 = oldest)
+		 * @returns Read-only Y.Doc at that version
+		 */
+		async view(index: number): Promise<Y.Doc> {
+			const versions = await list();
 
-				if (index < 0 || index >= versions.length) {
-					throw new Error(
-						`[RevisionHistory] Version index ${index} out of range (0-${versions.length - 1})`,
-					);
-				}
-
-				// biome-ignore lint/style/noNonNullAssertion: Safe to use ! here - we've validated index is in bounds
-				const version = versions[index]!;
-				const filePath = path.join(snapshotDir, version.filename);
-
-				const encoded = await Bun.file(filePath).arrayBuffer();
-				const snapshot = Y.decodeSnapshot(new Uint8Array(encoded));
-
-				// Create read-only doc from snapshot
-				return Y.createDocFromSnapshot(ydoc, snapshot);
-			},
-
-			/**
-			 * Restore the document to a specific version.
-			 *
-			 * This creates a new Y.Doc from the snapshot and applies its state
-			 * to the current document. The restoration itself becomes a new
-			 * change that will sync to other clients.
-			 *
-			 * @param index - Version index (0 = oldest)
-			 */
-			async restore(index: number): Promise<void> {
-				const versions = await list();
-
-				if (index < 0 || index >= versions.length) {
-					throw new Error(
-						`[RevisionHistory] Version index ${index} out of range (0-${versions.length - 1})`,
-					);
-				}
-
-				// biome-ignore lint/style/noNonNullAssertion: Safe to use ! here - we've validated index is in bounds
-				const version = versions[index]!;
-				const filePath = path.join(snapshotDir, version.filename);
-
-				const encoded = await Bun.file(filePath).arrayBuffer();
-				const snapshot = Y.decodeSnapshot(new Uint8Array(encoded));
-
-				// Create a fresh doc from the snapshot
-				const restoredDoc = Y.createDocFromSnapshot(ydoc, snapshot);
-
-				// Get the state as an update and apply to current doc
-				const update = Y.encodeStateAsUpdate(restoredDoc);
-				Y.applyUpdate(ydoc, update);
-
-				console.log(
-					`[RevisionHistory] Restored to version: ${version.timestamp}`,
+			if (index < 0 || index >= versions.length) {
+				throw new Error(
+					`[RevisionHistory] Version index ${index} out of range (0-${versions.length - 1})`,
 				);
-			},
+			}
 
-			/**
-			 * Get the count of saved versions.
-			 */
-			async count(): Promise<number> {
-				const versions = await list();
-				return versions.length;
-			},
+			// biome-ignore lint/style/noNonNullAssertion: Safe to use ! here - we've validated index is in bounds
+			const version = versions[index]!;
+			const filePath = path.join(snapshotDir, version.filename);
 
-			/**
-			 * The directory where snapshots are stored.
-			 */
-			directory: snapshotDir,
+			const encoded = await Bun.file(filePath).arrayBuffer();
+			const snapshot = Y.decodeSnapshot(new Uint8Array(encoded));
+
+			// Create read-only doc from snapshot
+			return Y.createDocFromSnapshot(ydoc, snapshot);
 		},
-		lifecycle: {
-			/**
-			 * Cleanup: cancel pending debounce and remove Y.Doc listener.
-			 */
-			destroy() {
-				if (debounceTimer) {
-					clearTimeout(debounceTimer);
-					debounceTimer = null;
-				}
-				ydoc.off('update', updateHandler);
-			},
+
+		/**
+		 * Restore the document to a specific version.
+		 *
+		 * This creates a new Y.Doc from the snapshot and applies its state
+		 * to the current document. The restoration itself becomes a new
+		 * change that will sync to other clients.
+		 *
+		 * @param index - Version index (0 = oldest)
+		 */
+		async restore(index: number): Promise<void> {
+			const versions = await list();
+
+			if (index < 0 || index >= versions.length) {
+				throw new Error(
+					`[RevisionHistory] Version index ${index} out of range (0-${versions.length - 1})`,
+				);
+			}
+
+			// biome-ignore lint/style/noNonNullAssertion: Safe to use ! here - we've validated index is in bounds
+			const version = versions[index]!;
+			const filePath = path.join(snapshotDir, version.filename);
+
+			const encoded = await Bun.file(filePath).arrayBuffer();
+			const snapshot = Y.decodeSnapshot(new Uint8Array(encoded));
+
+			// Create a fresh doc from the snapshot
+			const restoredDoc = Y.createDocFromSnapshot(ydoc, snapshot);
+
+			// Get the state as an update and apply to current doc
+			const update = Y.encodeStateAsUpdate(restoredDoc);
+			Y.applyUpdate(ydoc, update);
+
+			console.log(
+				`[RevisionHistory] Restored to version: ${version.timestamp}`,
+			);
+		},
+
+		/**
+		 * Get the count of saved versions.
+		 */
+		async count(): Promise<number> {
+			const versions = await list();
+			return versions.length;
+		},
+
+		/**
+		 * The directory where snapshots are stored.
+		 */
+		directory: snapshotDir,
+
+		/**
+		 * Cleanup: cancel pending debounce and remove Y.Doc listener.
+		 */
+		destroy() {
+			if (debounceTimer) {
+				clearTimeout(debounceTimer);
+				debounceTimer = null;
+			}
+			ydoc.off('update', updateHandler);
 		},
 	};
 }

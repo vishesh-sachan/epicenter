@@ -7,7 +7,11 @@
 import type { Awareness } from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
-import type { DocumentContext, Extension } from '../shared/lifecycle.js';
+import type {
+	DocumentContext,
+	Extension,
+	MaybePromise,
+} from '../shared/lifecycle.js';
 import type {
 	CombinedStandardSchema,
 	StandardSchemaV1,
@@ -198,9 +202,12 @@ export type DocBinding<
  */
 export type DocumentExtensionRegistration = {
 	key: string;
-	factory: (
-		context: DocumentContext,
-	) => Extension<Record<string, unknown>> | void;
+	factory: (context: DocumentContext) =>
+		| (Record<string, unknown> & {
+				whenReady?: Promise<unknown>;
+				destroy?: () => MaybePromise<void>;
+		  })
+		| void;
 	tags: readonly string[];
 };
 
@@ -829,12 +836,11 @@ export type WorkspaceClientBuilder<
 	 * each factory receives the client-so-far (including all previously added extensions)
 	 * as typed context. This enables extension N+1 to access extension N's exports.
 	 *
-	 * The factory returns `{ exports?, lifecycle? }`.
-	 * The framework normalizes defaults and stores `exports` by reference —
-	 * getters and object identity are preserved.
+	 * The factory returns a flat object with custom exports + optional `whenReady`
+	 * and `destroy`. The framework normalizes defaults via `defineExtension()`.
 	 *
 	 * @param key - Unique name for this extension (used as the key in `.extensions`)
-	 * @param factory - Factory function receiving the client-so-far context, returns Extension
+	 * @param factory - Factory receiving the client-so-far context, returns flat exports
 	 * @returns A new builder with the extension's exports added to the type
 	 *
 	 * @example
@@ -842,11 +848,11 @@ export type WorkspaceClientBuilder<
 	 * const client = createWorkspace(definition)
 	 *   .withExtension('persistence', ({ ydoc }) => {
 	 *     const idb = new IndexeddbPersistence(ydoc.guid, ydoc);
-	 *     return { lifecycle: { whenReady: idb.whenReady, destroy: () => idb.destroy() } };
+	 *     return { clearData: () => idb.clearData(), whenReady: idb.whenSynced, destroy: () => idb.destroy() };
 	 *   })
 	 *   .withExtension('sync', ({ extensions }) => {
 	 *     // extensions.persistence is fully typed here!
-	 *     return { exports: { provider }, lifecycle: { whenReady, destroy: () => provider.destroy() } };
+	 *     return { provider, whenReady, destroy: () => provider.destroy() };
 	 *   });
 	 * ```
 	 */
@@ -860,13 +866,17 @@ export type WorkspaceClientBuilder<
 				TAwarenessDefinitions,
 				TExtensions
 			>,
-		) => Extension<TExports>,
+		) => TExports & {
+			whenReady?: Promise<unknown>;
+			destroy?: () => MaybePromise<void>;
+		},
 	): WorkspaceClientBuilder<
 		TId,
 		TTableDefinitions,
 		TKvDefinitions,
 		TAwarenessDefinitions,
-		TExtensions & Record<TKey, TExports>,
+		TExtensions &
+			Record<TKey, Extension<Omit<TExports, 'whenReady' | 'destroy'>>>,
 		TDocExtensions
 	>;
 
@@ -899,9 +909,12 @@ export type WorkspaceClientBuilder<
 		TDocExports extends Record<string, unknown>,
 	>(
 		key: K,
-		factory: (
-			context: DocumentContext<TDocExtensions>,
-		) => Extension<TDocExports> | void,
+		factory: (context: DocumentContext<TDocExtensions>) =>
+			| (TDocExports & {
+					whenReady?: Promise<unknown>;
+					destroy?: () => MaybePromise<void>;
+			  })
+			| void,
 		options?: { tags?: ExtractAllDocTags<TTableDefinitions>[] },
 	): WorkspaceClientBuilder<
 		TId,
@@ -909,7 +922,7 @@ export type WorkspaceClientBuilder<
 		TKvDefinitions,
 		TAwarenessDefinitions,
 		TExtensions,
-		TDocExtensions & Record<K, TDocExports>
+		TDocExtensions & Record<K, Omit<TDocExports, 'whenReady' | 'destroy'>>
 	>;
 
 	/**
@@ -956,16 +969,15 @@ export type { Extension } from '../shared/lifecycle.js';
  * type so factory-only additions don't leak to the consumer-facing client if they
  * diverge in the future.
  *
- * Each extension in `context.extensions` includes both the extension's exports AND
- * a per-extension `whenReady` promise. This enables surgical await:
+ * Each extension in `context.extensions` is the flat exports object from
+ * prior `.withExtension()` calls. Access exports directly:
  *
  * ```typescript
  * .withExtension('sync', (context) => {
- *   // Surgical: wait only for persistence, not everything
- *   await context.extensions.persistence.whenReady;
- *   context.extensions.persistence.clearData();  // typed exports
+ *   // Access prior extension exports directly
+ *   context.extensions.persistence.clearData();
  *
- *   // Composite: wait for ALL prior extensions (still available)
+ *   // Composite: wait for ALL prior extensions
  *   await context.whenReady;
  * })
  * ```
@@ -974,7 +986,7 @@ export type { Extension } from '../shared/lifecycle.js';
  * @typeParam TTableDefinitions - Map of table definitions for this workspace
  * @typeParam TKvDefinitions - Map of KV definitions for this workspace
  * @typeParam TAwarenessDefinitions - Map of awareness field definitions for this workspace
- * @typeParam TExtensions - Accumulated extension exports from previous `.withExtension()` calls
+ * @typeParam TExtensions - Accumulated extension outputs from previous `.withExtension()` calls
  */
 export type ExtensionContext<
 	TId extends string = string,
@@ -991,18 +1003,17 @@ export type ExtensionContext<
 >;
 
 /**
- * Factory function that creates an extension with lifecycle hooks.
+ * Factory function that creates an extension.
  *
- * Returns a flat `{ exports?, whenReady?, destroy? }` object.
- * The framework normalizes defaults and stores `exports` by reference —
- * getters and object identity are preserved.
+ * Returns a flat object with custom exports + optional `whenReady` and `destroy`.
+ * The framework normalizes defaults via `defineExtension()`.
  *
  * @example Simple extension (works with any workspace)
  * ```typescript
  * const persistence: ExtensionFactory = ({ ydoc }) => {
  *   const provider = new IndexeddbPersistence(ydoc.guid, ydoc);
  *   return {
- *     exports: { provider },
+ *     provider,
  *     whenReady: provider.whenReady,
  *     destroy: () => provider.destroy(),
  *   };
@@ -1013,7 +1024,10 @@ export type ExtensionContext<
  */
 export type ExtensionFactory<
 	TExports extends Record<string, unknown> = Record<string, unknown>,
-> = (context: ExtensionContext) => Extension<TExports>;
+> = (context: ExtensionContext) => TExports & {
+	whenReady?: Promise<unknown>;
+	destroy?: () => MaybePromise<void>;
+};
 
 /** The workspace client returned by createWorkspace() */
 export type WorkspaceClient<
@@ -1042,19 +1056,17 @@ export type WorkspaceClient<
 	/**
 	 * Extension exports (accumulated via `.withExtension()` calls).
 	 *
-	 * Each extension entry includes its exports AND a per-extension `whenReady`
-	 * promise injected by the framework. This enables surgical await:
+	 * Each entry is the exports object returned by the extension factory.
+	 * Access exports directly — no wrapper:
 	 *
 	 * ```typescript
-	 * await client.extensions.persistence.whenReady;  // just this one
-	 * client.extensions.persistence.clearData();       // typed exports
+	 * client.extensions.persistence.clearData();
+	 * client.extensions.sqlite.db.query('SELECT ...');
 	 * ```
 	 *
-	 * The composite `client.whenReady` still exists as a "wait for everything" shortcut.
+	 * Use `client.whenReady` to wait for all extensions to initialize.
 	 */
-	extensions: {
-		[K in keyof TExtensions]: TExtensions[K] & { whenReady: Promise<void> };
-	};
+	extensions: TExtensions;
 
 	/**
 	 * Execute multiple operations atomically in a single Y.js transaction.

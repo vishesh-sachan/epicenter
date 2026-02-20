@@ -120,47 +120,43 @@ export function createSyncExtension(
 		})();
 
 		return {
-			exports: {
-				get provider() {
-					return provider;
-				},
-				/**
-				 * Swap the sync rail (WebSocket target) without affecting other extensions.
-				 *
-				 * Destroys the current provider, creates a new `SyncProvider` on the same
-				 * `Y.Doc`, and connects it. Other extensions (persistence, etc.) are untouched —
-				 * only the sync provider changes.
-				 *
-				 * @example
-				 * ```typescript
-				 * workspace.extensions.sync.reconnect({
-				 *   url: 'wss://cloud.example.com/rooms/my-workspace/sync',
-				 * });
-				 * ```
-				 */
-				reconnect(
-					newConfig: {
-						url?: string;
-						token?: string;
-						getToken?: () => Promise<string>;
-					} = {},
-				) {
-					provider.destroy();
-					provider = createSyncProvider({
-						doc: ydoc,
-						url: newConfig.url ?? resolvedUrl,
-						token: newConfig.token,
-						getToken: newConfig.getToken,
-						connect: true,
-						awareness: awareness.raw,
-					});
-				},
+			get provider() {
+				return provider;
 			},
-			lifecycle: {
-				whenReady,
-				destroy() {
-					provider.destroy();
-				},
+			/**
+			 * Swap the sync rail (WebSocket target) without affecting other extensions.
+			 *
+			 * Destroys the current provider, creates a new `SyncProvider` on the same
+			 * `Y.Doc`, and connects it. Other extensions (persistence, etc.) are untouched —
+			 * only the sync provider changes.
+			 *
+			 * @example
+			 * ```typescript
+			 * workspace.extensions.sync.reconnect({
+			 *   url: 'wss://cloud.example.com/rooms/my-workspace/sync',
+			 * });
+			 * ```
+			 */
+			reconnect(
+				newConfig: {
+					url?: string;
+					token?: string;
+					getToken?: () => Promise<string>;
+				} = {},
+			) {
+				provider.destroy();
+				provider = createSyncProvider({
+					doc: ydoc,
+					url: newConfig.url ?? resolvedUrl,
+					token: newConfig.token,
+					getToken: newConfig.getToken,
+					connect: true,
+					awareness: awareness.raw,
+				});
+			},
+			whenReady,
+			destroy() {
+				provider.destroy();
 			},
 		};
 	};
