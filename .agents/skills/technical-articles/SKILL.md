@@ -15,6 +15,70 @@ Lead with a strong opening paragraph that states the key insight in plain langua
 
 Code speaks louder than prose. Show real examples from actual codebases, not abstract `foo`/`bar` illustrations. If the code is self-explanatory, don't over-explain.
 
+## Section Headings Are Arguments
+
+Section headings should make claims, not announce topics. The reader should know your position from the heading alone.
+
+Bad (topic headings):
+
+> ## What's in the binary
+>
+> ## How Go and Rust compare
+>
+> ## Why tree-shaking is difficult
+
+Good (argument headings):
+
+> ## Go and Rust: Your code IS the binary
+>
+> ## Bun (and Deno/Node): Your code rides on top of a VM
+>
+> ## Why tree-shaking the runtime is brutally hard
+
+The first set describes what the section is about. The second set tells you what the section argues. A reader who only skims headings should walk away with the article's core argument.
+
+This applies to the title too: "Bun Compile Is 57MB Because It's Not Your Code" is an argument. "Understanding Bun Compile Binary Size" is a topic.
+
+## Conversational Directness
+
+Write like you're explaining to a peer, not presenting to an audience. Short declarative sentences. Opinions stated plainly. Concessions acknowledged without hedging.
+
+Bad (formal article-speak):
+
+> The resulting bundle size of the `bun build --compile` command is notably large. With careful analysis, we can identify several contributing factors.
+
+Good (direct, conversational):
+
+> A `console.log("Hello World")` compiles to 57MB. Your code adds almost nothing. The binary is the entire Bun runtime.
+
+Parenthetical asides, dashes for emphasis, and sentence fragments are all fine when they serve clarity. "Stripping the JIT? Now your code runs 10-100x slower." reads better than a formally constructed alternative.
+
+## Numbered Bold Points for Multi-Part Arguments
+
+When explaining WHY something is the case and there are multiple independent reasons, use numbered bold points. Each point gets a bold heading, a short explanation, and optionally a code block.
+
+```
+**1. JavaScriptCore is monolithic (~40MB+ of the binary)**
+
+It's Apple's JS engine. Bun doesn't own it. You can't remove "the parts
+you don't use" because it's a tightly coupled C++ codebase.
+
+**2. `eval()` and dynamic imports break static analysis**
+
+Go and Rust know at compile time exactly what functions are called.
+JavaScript doesn't:
+
+\`\`\`js
+const module = await import(userInput)
+\`\`\`
+
+**3. Node.js compatibility is a massive surface area**
+
+Bun promises Node compat. That means all of node:fs, node:http, etc.
+```
+
+This pattern works because each reason stands alone. The reader can skim the bold lines and get the gist, or read deeply on the ones that interest them. Reserve this for 3-5 reasons; fewer than 3 should just be prose, more than 5 needs consolidation.
+
 ASCII diagrams for architecture or flow:
 
 ```
