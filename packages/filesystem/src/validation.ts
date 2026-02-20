@@ -14,8 +14,8 @@ type FsErrorCode =
 export function fsError(
 	code: FsErrorCode,
 	message: string,
-): Error & { code: string } {
-	const err = new Error(`${code}: ${message}`) as Error & { code: string };
+): Error & { code: FsErrorCode } {
+	const err = new Error(`${code}: ${message}`) as Error & { code: FsErrorCode };
 	err.code = code;
 	return err;
 }
