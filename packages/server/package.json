@@ -24,6 +24,7 @@
 		"yjs": "^13.6.27"
 	},
 	"devDependencies": {
+		"@epicenter/sync": "workspace:*",
 		"@types/bun": "catalog:",
 		"arktype": "catalog:",
 		"typescript": "catalog:"
