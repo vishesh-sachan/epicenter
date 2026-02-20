@@ -23,33 +23,24 @@ export function createActionsRouter(actions: Actions, prefix = '/actions') {
 			tags,
 		};
 
-		const handleRequest = async (input: unknown) => {
-			if (action.input) {
-				const result = await action.input['~standard'].validate(input);
-				if (result.issues) {
-					return {
-						error: { message: 'Validation failed', issues: result.issues },
-					};
-				}
-				const output = await action(result.value);
-				return { data: output };
-			}
-			const output = await action();
-			return { data: output };
-		};
-
 		switch (action.type) {
 			case 'query':
-				router.get(routePath, ({ query }) => handleRequest(query), {
-					query: action.input,
-					detail,
-				});
+				router.get(
+					routePath,
+					async ({ query }) => ({
+						data: await (action.input ? action(query) : action()),
+					}),
+					{ query: action.input, detail },
+				);
 				break;
 			case 'mutation':
-				router.post(routePath, ({ body }) => handleRequest(body), {
-					body: action.input,
-					detail,
-				});
+				router.post(
+					routePath,
+					async ({ body }) => ({
+						data: await (action.input ? action(body) : action()),
+					}),
+					{ body: action.input, detail },
+				);
 				break;
 			default: {
 				const _exhaustive: never = action;
