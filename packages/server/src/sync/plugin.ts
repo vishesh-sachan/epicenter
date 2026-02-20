@@ -1,7 +1,11 @@
 import { Elysia } from 'elysia';
 import * as decoding from 'lib0/decoding';
 import { Ok, trySync } from 'wellcrafted/result';
-import * as awarenessProtocol from 'y-protocols/awareness';
+import {
+	type Awareness,
+	applyAwarenessUpdate,
+	removeAwarenessStates,
+} from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import { type AuthConfig, CLOSE_UNAUTHORIZED, validateAuth } from './auth';
 import {
@@ -99,7 +103,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 		{
 			roomId: string;
 			doc: Y.Doc;
-			awareness: awarenessProtocol.Awareness;
+			awareness: Awareness;
 			/** Handler to broadcast doc updates to this client (stored for cleanup). */
 			updateHandler: (update: Uint8Array, origin: unknown) => void;
 			/** Client IDs this connection controls, for awareness cleanup on disconnect. */
@@ -250,7 +254,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 						catch: () => Ok(undefined),
 					});
 
-					awarenessProtocol.applyAwarenessUpdate(awareness, update, rawWs);
+					applyAwarenessUpdate(awareness, update, rawWs);
 
 					// Broadcast awareness to other clients via room manager
 					roomManager.broadcast(roomId, encodeAwareness({ update }), rawWs);
@@ -304,11 +308,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 
 			// Clean up awareness state for all client IDs this connection controlled
 			if (controlledClientIds.size > 0) {
-				awarenessProtocol.removeAwarenessStates(
-					awareness,
-					Array.from(controlledClientIds),
-					null,
-				);
+				removeAwarenessStates(awareness, Array.from(controlledClientIds), null);
 			}
 
 			// Remove connection from room (may start eviction timer)
