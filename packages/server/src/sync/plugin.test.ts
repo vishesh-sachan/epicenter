@@ -53,9 +53,9 @@ function startTestServer(config?: SyncServerConfig) {
 /**
  * Wait for a sync provider to reach a specific status.
  *
- * Resolves immediately if already at the target status.
- * Rejects after timeout to prevent hanging tests — the timeout
- * is a failure guard, not a correctness mechanism.
+ * Subscribes to changes BEFORE checking the current value to prevent
+ * a race where the status transitions between the check and subscription.
+ * Rejects after timeout to prevent hanging tests.
  */
 function waitForStatus(
 	provider: SyncProvider,
@@ -63,10 +63,6 @@ function waitForStatus(
 	timeoutMs = 5_000,
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
-		if (provider.status === target) {
-			resolve();
-			return;
-		}
 		const timer = setTimeout(() => {
 			unsub();
 			reject(
@@ -82,13 +78,20 @@ function waitForStatus(
 				resolve();
 			}
 		});
+		// Check AFTER subscribing to close the race window
+		if (provider.status === target) {
+			clearTimeout(timer);
+			unsub();
+			resolve();
+		}
 	});
 }
 
 /**
  * Wait for a Y.Map key to appear in a document.
  *
- * Resolves immediately if the key already exists.
+ * Subscribes to doc updates BEFORE checking the current value to prevent
+ * a race where the update arrives between the check and subscription.
  * Uses doc.on('update') to detect changes — event-driven, no polling.
  */
 function waitForMapKey(
@@ -98,11 +101,6 @@ function waitForMapKey(
 	timeoutMs = 5_000,
 ): Promise<unknown> {
 	return new Promise((resolve, reject) => {
-		const current = doc.getMap(mapName).get(key);
-		if (current !== undefined) {
-			resolve(current);
-			return;
-		}
 		const timer = setTimeout(() => {
 			doc.off('update', handler);
 			reject(new Error(`Timed out waiting for ${mapName}.${key}`));
@@ -115,14 +113,22 @@ function waitForMapKey(
 				resolve(val);
 			}
 		};
+		// Subscribe BEFORE checking to close the race window
 		doc.on('update', handler);
+		const current = doc.getMap(mapName).get(key);
+		if (current !== undefined) {
+			clearTimeout(timer);
+			doc.off('update', handler);
+			resolve(current);
+		}
 	});
 }
 
 /**
  * Wait for hasLocalChanges to reach an expected value.
  *
- * Resolves immediately if already at the expected value.
+ * Subscribes to changes BEFORE checking the current value to prevent
+ * a race where the value transitions between the check and subscription.
  * Uses the provider's onLocalChanges callback — event-driven.
  */
 function waitForLocalChanges(
@@ -131,10 +137,6 @@ function waitForLocalChanges(
 	timeoutMs = 5_000,
 ): Promise<void> {
 	return new Promise((resolve, reject) => {
-		if (provider.hasLocalChanges === expected) {
-			resolve();
-			return;
-		}
 		const timer = setTimeout(() => {
 			unsub();
 			reject(
@@ -150,6 +152,12 @@ function waitForLocalChanges(
 				resolve();
 			}
 		});
+		// Check AFTER subscribing to close the race window
+		if (provider.hasLocalChanges === expected) {
+			clearTimeout(timer);
+			unsub();
+			resolve();
+		}
 	});
 }
 
@@ -257,24 +265,31 @@ describe('sync plugin integration', () => {
 	test('rooms are isolated from each other', async () => {
 		const roomA = uniqueRoom();
 		const roomB = uniqueRoom();
-		const docA = new Y.Doc();
+		const docA1 = new Y.Doc();
+		const docA2 = new Y.Doc();
 		const docB = new Y.Doc();
 
-		const pA = createSyncProvider({ doc: docA, url: ctx.wsUrl(roomA) });
+		const pA1 = createSyncProvider({ doc: docA1, url: ctx.wsUrl(roomA) });
+		const pA2 = createSyncProvider({ doc: docA2, url: ctx.wsUrl(roomA) });
 		const pB = createSyncProvider({ doc: docB, url: ctx.wsUrl(roomB) });
 
 		try {
-			await waitForStatus(pA, 'connected');
+			await waitForStatus(pA1, 'connected');
+			await waitForStatus(pA2, 'connected');
 			await waitForStatus(pB, 'connected');
 
-			docA.getMap('data').set('secret', 'room-a-only');
+			docA1.getMap('data').set('secret', 'room-a-only');
 
-			// Allow time for any cross-contamination to surface
-			await new Promise((r) => setTimeout(r, 200));
+			// Positive: A2 (same room) MUST receive the update — proves relay works
+			const value = await waitForMapKey(docA2, 'data', 'secret');
+			expect(value).toBe('room-a-only');
 
+			// Negative: B (different room) must NOT have received it.
+			// Since A2 already got it, any cross-room leak would have arrived too.
 			expect(docB.getMap('data').get('secret')).toBeUndefined();
 		} finally {
-			pA.destroy();
+			pA1.destroy();
+			pA2.destroy();
 			pB.destroy();
 		}
 	});
@@ -310,6 +325,26 @@ describe('sync plugin integration', () => {
 // ============================================================================
 
 describe('sync plugin auth', () => {
+	/**
+	 * Helper to assert a provider never reaches 'connected'.
+	 *
+	 * Event-driven: waits for 'error' status (proving the attempt happened),
+	 * then records all subsequent statuses for a window to confirm 'connected'
+	 * never appears. Much faster and more reliable than a fixed sleep.
+	 */
+	async function expectAuthRejection(provider: SyncProvider): Promise<void> {
+		// Wait for at least one 'error' status (proves the server rejected us)
+		await waitForStatus(provider, 'error', 5_000);
+
+		// Collect statuses for a short window to catch any delayed 'connected'
+		const statuses: SyncStatus[] = [];
+		const unsub = provider.onStatusChange((s) => statuses.push(s));
+		await new Promise((r) => setTimeout(r, 500));
+		unsub();
+
+		expect(statuses).not.toContain('connected');
+	}
+
 	test('rejects connection without token when auth is required', async () => {
 		const ctx = startTestServer({ auth: { token: 'secret' } });
 
@@ -320,19 +355,33 @@ describe('sync plugin auth', () => {
 			const provider = createSyncProvider({
 				doc,
 				url: ctx.wsUrl(room),
-				connect: false,
 			});
 
-			const statuses: SyncStatus[] = [];
-			provider.onStatusChange((s) => statuses.push(s));
-			provider.connect();
+			try {
+				await expectAuthRejection(provider);
+			} finally {
+				provider.destroy();
+			}
+		} finally {
+			await ctx.server.stop();
+		}
+	});
+
+	test('rejects connection with wrong token', async () => {
+		const ctx = startTestServer({ auth: { token: 'correct-token' } });
+
+		try {
+			const room = uniqueRoom();
+			const doc = new Y.Doc();
+
+			const provider = createSyncProvider({
+				doc,
+				url: ctx.wsUrl(room),
+				token: 'wrong-token',
+			});
 
 			try {
-				// Provider retries on failure — wait long enough for 2+ attempts
-				await new Promise((r) => setTimeout(r, 1_500));
-
-				expect(statuses).not.toContain('connected');
-				expect(statuses).toContain('error');
+				await expectAuthRejection(provider);
 			} finally {
 				provider.destroy();
 			}
