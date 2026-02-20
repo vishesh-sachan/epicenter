@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import * as decoding from 'lib0/decoding';
 import { Ok, trySync } from 'wellcrafted/result';
 import {
@@ -110,6 +110,8 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 			controlledClientIds: Set<number>;
 			/** The raw WebSocket, used as origin for Yjs transactions to prevent echo. */
 			rawWs: object;
+			/** Send a ping frame to detect dead clients. Captured from ws.raw.ping for proper typing. */
+			sendPing: () => void;
 			/** Interval handle for server-side ping keepalive. */
 			pingInterval: ReturnType<typeof setInterval> | null;
 			/** Whether a pong was received since the last ping. */
@@ -118,12 +120,15 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 	>();
 
 	return new Elysia().ws('/:room/ws', {
+		query: t.Object({
+			token: t.Optional(t.String()),
+		}),
+
 		async open(ws) {
 			const roomId = ws.data.params.room;
 
 			// Auth check — extract ?token from query params
-			const token =
-				(ws.data.query as Record<string, string>).token ?? undefined;
+			const token = ws.data.query.token;
 			const authorized = await validateAuth(config?.auth, token);
 
 			if (!authorized) {
@@ -171,6 +176,9 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 			};
 			doc.on('update', updateHandler);
 
+			// Capture typed ping from ws.raw (stable reference) to avoid type assertions
+			const sendPing = () => ws.raw.ping();
+
 			// Server-side ping/pong keepalive to detect dead clients
 			const pingInterval = setInterval(() => {
 				const state = connectionState.get(rawWs);
@@ -185,7 +193,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 				}
 
 				state.pongReceived = false;
-				(rawWs as { ping?: () => void }).ping?.();
+				state.sendPing();
 			}, PING_INTERVAL_MS);
 
 			connectionState.set(rawWs, {
@@ -195,6 +203,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 				updateHandler,
 				controlledClientIds,
 				rawWs,
+				sendPing,
 				pingInterval,
 				pongReceived: true,
 			});
@@ -213,10 +222,11 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 
 			const { roomId, doc, awareness, controlledClientIds, rawWs } = state;
 
+			// Binary protocol — narrow the message to Uint8Array (Buffer extends Uint8Array)
+			if (!(message instanceof ArrayBuffer) && !(message instanceof Uint8Array))
+				return;
 			const data =
-				message instanceof ArrayBuffer
-					? new Uint8Array(message)
-					: (message as Uint8Array);
+				message instanceof ArrayBuffer ? new Uint8Array(message) : message;
 			const decoder = decoding.createDecoder(data);
 			const messageType = decoding.readVarUint(decoder);
 
