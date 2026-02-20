@@ -22,13 +22,13 @@ Yjs supports **multiple providers simultaneously**. Each provider connects to a 
 const doc = new Y.Doc();
 
 // Provider 1: Local desktop server
-new WebsocketProvider('ws://desktop.tailnet:3913/workspaces/blog/sync', 'blog', doc);
+new WebsocketProvider('ws://desktop.tailnet:3913/rooms/blog/sync', 'blog', doc);
 
 // Provider 2: Laptop server
-new WebsocketProvider('ws://laptop.tailnet:3913/workspaces/blog/sync', 'blog', doc);
+new WebsocketProvider('ws://laptop.tailnet:3913/rooms/blog/sync', 'blog', doc);
 
 // Provider 3: Cloud server
-new WebsocketProvider('wss://sync.myapp.com/workspaces/blog/sync', 'blog', doc);
+new WebsocketProvider('wss://sync.myapp.com/rooms/blog/sync', 'blog', doc);
 
 // Changes sync through ALL connected providers
 // Yjs deduplicates updates automatically
@@ -98,14 +98,14 @@ Define your sync nodes as a constant for easy reference:
  */
 export const SYNC_NODES = {
 	// Local devices via Tailscale
-	desktop: 'ws://desktop.my-tailnet.ts.net:3913/workspaces/{id}/sync',
-	laptop: 'ws://laptop.my-tailnet.ts.net:3913/workspaces/{id}/sync',
+	desktop: 'ws://desktop.my-tailnet.ts.net:3913/rooms/{id}/sync',
+	laptop: 'ws://laptop.my-tailnet.ts.net:3913/rooms/{id}/sync',
 
 	// Cloud server (optional, always-on)
-	cloud: 'wss://sync.myapp.com/workspaces/{id}/sync',
+	cloud: 'wss://sync.myapp.com/rooms/{id}/sync',
 
 	// Localhost (for browser connecting to local server)
-	localhost: 'ws://localhost:3913/workspaces/{id}/sync',
+	localhost: 'ws://localhost:3913/rooms/{id}/sync',
 } as const;
 
 export type SyncNodeId = keyof typeof SYNC_NODES;
@@ -338,9 +338,9 @@ When offline:
 ```typescript
 // With Tailscale, use hostnames instead of IPs
 const SYNC_NODES = {
-	desktop: 'ws://desktop.my-tailnet.ts.net:3913/workspaces/{id}/sync', // Tailscale hostname
-	laptop: 'ws://laptop.my-tailnet.ts.net:3913/workspaces/{id}/sync', // Tailscale hostname
-	cloud: 'wss://sync.myapp.com/workspaces/{id}/sync', // Public domain
+	desktop: 'ws://desktop.my-tailnet.ts.net:3913/rooms/{id}/sync', // Tailscale hostname
+	laptop: 'ws://laptop.my-tailnet.ts.net:3913/rooms/{id}/sync', // Tailscale hostname
+	cloud: 'wss://sync.myapp.com/rooms/{id}/sync', // Public domain
 } as const;
 ```
 

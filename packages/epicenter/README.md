@@ -319,7 +319,7 @@ const client = createClient(definition.id)
 	.withExtension(
 		'sync',
 		createSyncExtension({
-			url: 'ws://localhost:3913/workspaces/{id}/sync',
+			url: 'ws://localhost:3913/rooms/{id}/sync',
 		}),
 	);
 ```
@@ -886,7 +886,7 @@ The sync extension enables real-time Y.Doc synchronization using the y-websocket
 
 **Setup:**
 
-```typescript
+````typescript
 import { createClient } from '@epicenter/hq';
 import { createSyncExtension } from '@epicenter/hq/extensions/sync';
 
@@ -895,16 +895,15 @@ const client = createClient(definition.id)
 	.withExtension(
 		'sync',
 		createSyncExtension({
-			url: 'ws://localhost:3913/workspaces/{id}/sync',
+			url: 'ws://localhost:3913/rooms/{id}/sync',
 		}),
 	);
-```
 
 The `{id}` placeholder is replaced with the workspace ID automatically.
 
 **Server-side sync endpoint:**
 
-The Epicenter server (`@epicenter/server`) includes a sync endpoint at `/workspaces/{workspaceId}/sync`:
+The Epicenter server (`@epicenter/server`) includes a sync endpoint at `/rooms/{workspaceId}/sync`:
 
 ```typescript
 import { createServer } from '@epicenter/server';
@@ -912,12 +911,12 @@ import { createServer } from '@epicenter/server';
 const server = createServer(blogClient, { port: 3913 });
 server.start();
 
-// Clients connect to: ws://localhost:3913/workspaces/blog/sync
-```
+// Clients connect to: ws://localhost:3913/rooms/blog/sync
+````
 
 **How it works:**
 
-1. Client opens WebSocket to `/workspaces/{workspaceId}/sync`
+1. Client opens WebSocket to `/rooms/{workspaceId}/sync`
 2. Server sends initial sync state (sync step 1)
 3. Client and server exchange updates bidirectionally
 4. Server broadcasts updates to all connected clients
@@ -943,14 +942,14 @@ Epicenter supports a distributed sync architecture where Y.Doc instances can be 
 // src/config/sync-nodes.ts
 export const SYNC_NODES = {
 	// Local devices via Tailscale
-	desktop: 'ws://desktop.my-tailnet.ts.net:3913/workspaces/{id}/sync',
-	laptop: 'ws://laptop.my-tailnet.ts.net:3913/workspaces/{id}/sync',
+	desktop: 'ws://desktop.my-tailnet.ts.net:3913/rooms/{id}/sync',
+	laptop: 'ws://laptop.my-tailnet.ts.net:3913/rooms/{id}/sync',
 
 	// Cloud server (optional, always-on)
-	cloud: 'wss://sync.myapp.com/workspaces/{id}/sync',
+	cloud: 'wss://sync.myapp.com/rooms/{id}/sync',
 
 	// Localhost (for browser connecting to local server)
-	localhost: 'ws://localhost:3913/workspaces/{id}/sync',
+	localhost: 'ws://localhost:3913/rooms/{id}/sync',
 } as const;
 ```
 
@@ -974,14 +973,8 @@ const client = createClient(definition.id)
 		'syncDesktop',
 		createSyncExtension({ url: SYNC_NODES.desktop }),
 	)
-	.withExtension(
-		'syncLaptop',
-		createSyncExtension({ url: SYNC_NODES.laptop }),
-	)
-	.withExtension(
-		'syncCloud',
-		createSyncExtension({ url: SYNC_NODES.cloud }),
-	);
+	.withExtension('syncLaptop', createSyncExtension({ url: SYNC_NODES.laptop }))
+	.withExtension('syncCloud', createSyncExtension({ url: SYNC_NODES.cloud }));
 ```
 
 **Server-to-server sync:**
@@ -994,10 +987,7 @@ const client = createClient(definition.id)
 		'syncToLaptop',
 		createSyncExtension({ url: SYNC_NODES.laptop }),
 	)
-	.withExtension(
-		'syncToCloud',
-		createSyncExtension({ url: SYNC_NODES.cloud }),
-	);
+	.withExtension('syncToCloud', createSyncExtension({ url: SYNC_NODES.cloud }));
 ```
 
 Yjs supports multiple providers simultaneously. Changes merge automatically via CRDTs regardless of which provider delivers them first.
@@ -1237,7 +1227,7 @@ providers: {
 
   // WebSocket sync extension (y-websocket protocol via @epicenter/sync)
   sync: createSyncExtension({
-    url: 'ws://localhost:3913/workspaces/{id}/sync',
+    url: 'ws://localhost:3913/rooms/{id}/sync',
   }),
 
   // Custom provider
@@ -1726,7 +1716,7 @@ Create an HTTP server from workspace clients. Exposes:
 
 - REST endpoints for actions: `/workspaces/{id}/actions/{action}`
 - Table CRUD: `/workspaces/{id}/tables/{table}`
-- WebSocket sync: `/workspaces/{id}/sync`
+- WebSocket sync: `/rooms/{id}/sync`
 - OpenAPI documentation: `/openapi`
 
 ## MCP Integration

@@ -18,9 +18,11 @@ import { createTablesPlugin } from './tables';
  * import { createWorkspacePlugin } from '@epicenter/server';
  * import { createSyncPlugin } from '@epicenter/server/sync';
  *
- * const app = new Elysia({ prefix: '/workspaces' })
- *   .use(createSyncPlugin({ getDoc: (room) => workspaces[room]?.ydoc }))
- *   .use(createWorkspacePlugin(clients))
+ * const app = new Elysia()
+ *   .use(new Elysia({ prefix: '/rooms' })
+ *     .use(createSyncPlugin({ getDoc: (room) => workspaces[room]?.ydoc })))
+ *   .use(new Elysia({ prefix: '/workspaces' })
+ *     .use(createWorkspacePlugin(clients)))
  *   .listen(3913);
  * ```
  */

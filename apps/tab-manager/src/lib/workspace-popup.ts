@@ -27,7 +27,7 @@ export const popupWorkspace = createWorkspace(definition)
 	.withExtension(
 		'sync',
 		createSyncExtension({
-			url: 'ws://127.0.0.1:3913/workspaces/{id}/sync',
+			url: 'ws://127.0.0.1:3913/rooms/{id}/sync',
 		}),
 	);
 

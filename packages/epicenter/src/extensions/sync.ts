@@ -18,7 +18,7 @@ import type { ExtensionFactory } from '../static/types';
  * createWorkspace(definition)
  *   .withExtension('persistence', indexeddbPersistence)
  *   .withExtension('sync', createSyncExtension({
- *     url: 'ws://localhost:3913/workspaces/{id}/sync',
+ *     url: 'ws://localhost:3913/rooms/{id}/sync',
  *   }))
  * ```
  *
@@ -27,7 +27,7 @@ import type { ExtensionFactory } from '../static/types';
  * createWorkspace(definition)
  *   .withExtension('persistence', indexeddbPersistence)
  *   .withExtension('sync', createSyncExtension({
- *     url: 'ws://my-server:3913/workspaces/{id}/sync',
+ *     url: 'ws://my-server:3913/rooms/{id}/sync',
  *     token: 'my-shared-secret',
  *   }))
  * ```
@@ -37,7 +37,7 @@ import type { ExtensionFactory } from '../static/types';
  * createWorkspace(definition)
  *   .withExtension('persistence', indexeddbPersistence)
  *   .withExtension('sync', createSyncExtension({
- *     url: 'wss://sync.epicenter.so/workspaces/{id}/sync',
+ *     url: 'wss://sync.epicenter.so/rooms/{id}/sync',
  *     getToken: async (workspaceId) => {
  *       const res = await fetch('/api/sync/token', {
  *         method: 'POST',
@@ -82,7 +82,7 @@ export type SyncExtensionConfig = {
  * createWorkspace(definition)
  *   .withExtension('persistence', indexeddbPersistence)
  *   .withExtension('sync', createSyncExtension({
- *     url: 'ws://localhost:3913/workspaces/{id}/sync',
+ *     url: 'ws://localhost:3913/rooms/{id}/sync',
  *   }))
  * ```
  */
@@ -134,7 +134,7 @@ export function createSyncExtension(
 				 * @example
 				 * ```typescript
 				 * workspace.extensions.sync.reconnect({
-				 *   url: 'wss://cloud.example.com/workspaces/my-workspace/sync',
+				 *   url: 'wss://cloud.example.com/rooms/my-workspace/sync',
 				 * });
 				 * ```
 				 */

@@ -106,10 +106,10 @@ Phone has no local server, so it connects directly to all available servers:
 ```typescript
 providers: {
   syncToLaptopA: createSyncExtension({
-    url: 'ws://laptop-a.tailnet:3913/workspaces/{id}/sync'
+    url: 'ws://laptop-a.tailnet:3913/rooms/{id}/sync'
   }),
   syncToLaptopB: createSyncExtension({
-    url: 'ws://laptop-b.tailnet:3913/workspaces/{id}/sync'
+    url: 'ws://laptop-b.tailnet:3913/rooms/{id}/sync'
   }),
 }
 ```
@@ -121,7 +121,7 @@ Browser connects to its own local server:
 ```typescript
 providers: {
   sync: createSyncExtension({
-    url: 'ws://localhost:3913/workspaces/{id}/sync'
+    url: 'ws://localhost:3913/rooms/{id}/sync'
   }),
 }
 ```
@@ -134,7 +134,7 @@ Server accepts connections AND connects to other servers:
 // Laptop A server connects to Laptop B
 providers: {
   syncToLaptopB: createSyncExtension({
-    url: 'ws://laptop-b.tailnet:3913/workspaces/{id}/sync'
+    url: 'ws://laptop-b.tailnet:3913/rooms/{id}/sync'
   }),
 }
 
@@ -149,8 +149,14 @@ Yjs supports **multiple providers simultaneously**:
 const doc = new Y.Doc();
 
 // Connect to multiple servers via createSyncProvider from @epicenter/sync
-const provider1 = createSyncProvider({ doc, url: 'ws://laptop-a.tailnet:3913/workspaces/blog/sync' });
-const provider2 = createSyncProvider({ doc, url: 'ws://laptop-b.tailnet:3913/workspaces/blog/sync' });
+const provider1 = createSyncProvider({
+	doc,
+	url: 'ws://laptop-a.tailnet:3913/rooms/blog/sync',
+});
+const provider2 = createSyncProvider({
+	doc,
+	url: 'ws://laptop-b.tailnet:3913/rooms/blog/sync',
+});
 
 // Changes sync through ALL connected providers
 // Yjs deduplicates updates automatically (vector clocks)
@@ -173,7 +179,7 @@ providers: {
   persistence: setupPersistence,
 
   // Network sync (via @epicenter/sync)
-  sync: createSyncExtension({ url: 'ws://localhost:3913/workspaces/{id}/sync' }),
+  sync: createSyncExtension({ url: 'ws://localhost:3913/rooms/{id}/sync' }),
 }
 ```
 

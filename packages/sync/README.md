@@ -19,18 +19,18 @@ import * as Y from 'yjs';
 const doc = new Y.Doc();
 
 const provider = createSyncProvider({
-  doc,
-  url: 'ws://localhost:3913/workspaces/my-workspace/sync',
+	doc,
+	url: 'ws://localhost:3913/rooms/my-workspace/sync',
 });
 
 // Provider connects automatically. Check status:
 provider.onStatusChange((status) => {
-  console.log('Sync status:', status);
+	console.log('Sync status:', status);
 });
 
 // Track whether local changes have reached the server:
 provider.onLocalChanges((hasChanges) => {
-  console.log(hasChanges ? 'Saving...' : 'Saved');
+	console.log(hasChanges ? 'Saving...' : 'Saved');
 });
 
 // Clean up when done:
@@ -47,8 +47,8 @@ For localhost, Tailscale, LAN, or development:
 
 ```typescript
 const provider = createSyncProvider({
-  doc,
-  url: 'ws://localhost:3913/workspaces/blog/sync',
+	doc,
+	url: 'ws://localhost:3913/rooms/blog/sync',
 });
 ```
 
@@ -58,9 +58,9 @@ A shared secret passed as a query parameter:
 
 ```typescript
 const provider = createSyncProvider({
-  doc,
-  url: 'ws://my-server:3913/workspaces/blog/sync',
-  token: 'my-shared-secret',
+	doc,
+	url: 'ws://my-server:3913/rooms/blog/sync',
+	token: 'my-shared-secret',
 });
 ```
 
@@ -70,12 +70,12 @@ A function that fetches a fresh token on each connect/reconnect. Useful for JWTs
 
 ```typescript
 const provider = createSyncProvider({
-  doc,
-  url: 'wss://sync.epicenter.so/workspaces/blog/sync',
-  getToken: async () => {
-    const res = await fetch('/api/sync/token');
-    return (await res.json()).token;
-  },
+	doc,
+	url: 'wss://sync.epicenter.so/rooms/blog/sync',
+	getToken: async () => {
+		const res = await fetch('/api/sync/token');
+		return (await res.json()).token;
+	},
 });
 ```
 
@@ -91,28 +91,28 @@ function createSyncProvider(config: SyncProviderConfig): SyncProvider;
 
 **Config:**
 
-| Option                 | Type                        | Default              | Description                                              |
-| ---------------------- | --------------------------- | -------------------- | -------------------------------------------------------- |
-| `doc`                  | `Y.Doc`                     | (required)           | The Yjs document to sync                                 |
-| `url`                  | `string`                    | (required)           | WebSocket URL to connect to                              |
-| `token`                | `string`                    | —                    | Static auth token (Mode 2). Mutually exclusive with `getToken` |
-| `getToken`             | `() => Promise<string>`     | —                    | Dynamic token fetcher (Mode 3). Mutually exclusive with `token` |
-| `connect`              | `boolean`                   | `true`               | Whether to connect immediately                           |
-| `awareness`            | `Awareness`                 | `new Awareness(doc)` | External awareness instance for user presence            |
-| `WebSocketConstructor` | `WebSocketConstructor`      | `WebSocket`          | Override for testing or non-browser environments         |
+| Option                 | Type                    | Default              | Description                                                     |
+| ---------------------- | ----------------------- | -------------------- | --------------------------------------------------------------- |
+| `doc`                  | `Y.Doc`                 | (required)           | The Yjs document to sync                                        |
+| `url`                  | `string`                | (required)           | WebSocket URL to connect to                                     |
+| `token`                | `string`                | —                    | Static auth token (Mode 2). Mutually exclusive with `getToken`  |
+| `getToken`             | `() => Promise<string>` | —                    | Dynamic token fetcher (Mode 3). Mutually exclusive with `token` |
+| `connect`              | `boolean`               | `true`               | Whether to connect immediately                                  |
+| `awareness`            | `Awareness`             | `new Awareness(doc)` | External awareness instance for user presence                   |
+| `WebSocketConstructor` | `WebSocketConstructor`  | `WebSocket`          | Override for testing or non-browser environments                |
 
 **Returns `SyncProvider`:**
 
-| Property / Method    | Type                                              | Description                                      |
-| -------------------- | ------------------------------------------------- | ------------------------------------------------ |
-| `status`             | `SyncStatus` (readonly)                           | Current connection status                        |
-| `hasLocalChanges`    | `boolean` (readonly)                              | Whether unacknowledged local changes exist       |
-| `awareness`          | `Awareness` (readonly)                            | The awareness instance for user presence         |
-| `connect()`          | `() => void`                                      | Start connecting. Idempotent.                    |
-| `disconnect()`       | `() => void`                                      | Stop connecting and close the socket             |
-| `onStatusChange(fn)` | `(listener: (status: SyncStatus) => void) => () => void` | Subscribe to status changes. Returns unsubscribe. |
+| Property / Method    | Type                                                     | Description                                            |
+| -------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
+| `status`             | `SyncStatus` (readonly)                                  | Current connection status                              |
+| `hasLocalChanges`    | `boolean` (readonly)                                     | Whether unacknowledged local changes exist             |
+| `awareness`          | `Awareness` (readonly)                                   | The awareness instance for user presence               |
+| `connect()`          | `() => void`                                             | Start connecting. Idempotent.                          |
+| `disconnect()`       | `() => void`                                             | Stop connecting and close the socket                   |
+| `onStatusChange(fn)` | `(listener: (status: SyncStatus) => void) => () => void` | Subscribe to status changes. Returns unsubscribe.      |
 | `onLocalChanges(fn)` | `(listener: (has: boolean) => void) => () => void`       | Subscribe to local changes state. Returns unsubscribe. |
-| `destroy()`          | `() => void`                                      | Disconnect, remove all listeners, release resources |
+| `destroy()`          | `() => void`                                             | Disconnect, remove all listeners, release resources    |
 
 ## Connection Status Model
 
@@ -130,13 +130,13 @@ Five states (compared to y-websocket's three):
                               └─────────┘   ws.close    └───────────┘
 ```
 
-| Status         | Meaning                                              |
-| -------------- | ---------------------------------------------------- |
-| `offline`      | Not connected, not trying to connect                 |
-| `connecting`   | Opening a WebSocket (or fetching a token)            |
-| `handshaking`  | WebSocket open, Yjs sync step 1/2 in progress       |
-| `connected`    | Fully synced and communicating                       |
-| `error`        | Connection failed, will retry after exponential backoff |
+| Status        | Meaning                                                 |
+| ------------- | ------------------------------------------------------- |
+| `offline`     | Not connected, not trying to connect                    |
+| `connecting`  | Opening a WebSocket (or fetching a token)               |
+| `handshaking` | WebSocket open, Yjs sync step 1/2 in progress           |
+| `connected`   | Fully synced and communicating                          |
+| `error`       | Connection failed, will retry after exponential backoff |
 
 ## `hasLocalChanges`
 
@@ -148,13 +148,13 @@ This powers "Saving..." / "Saved" UI indicators and `beforeunload` warnings:
 
 ```typescript
 provider.onLocalChanges((hasChanges) => {
-  statusBar.text = hasChanges ? 'Saving...' : 'Saved';
+	statusBar.text = hasChanges ? 'Saving...' : 'Saved';
 });
 
 window.addEventListener('beforeunload', (e) => {
-  if (provider.hasLocalChanges) {
-    e.preventDefault();
-  }
+	if (provider.hasLocalChanges) {
+		e.preventDefault();
+	}
 });
 ```
 
@@ -198,5 +198,5 @@ This eliminates the race conditions common in event-driven WebSocket reconnectio
 ```
 
 - **`@epicenter/sync`** (this package): Raw sync provider. Connects a Y.Doc to a WebSocket.
-- **`@epicenter/server`**: The server that this provider connects to. Exposes `ws://host:port/workspaces/{id}/sync`.
+- **`@epicenter/server`**: The server that this provider connects to. Exposes `ws://host:port/rooms/{id}/sync`.
 - **`@epicenter/hq/extensions/sync`**: Workspace extension wrapper. Most consumers use this instead of the raw provider.
