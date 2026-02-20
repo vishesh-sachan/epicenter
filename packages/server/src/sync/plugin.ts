@@ -1,4 +1,4 @@
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import * as decoding from 'lib0/decoding';
 import { Ok, trySync } from 'wellcrafted/result';
 import {
@@ -24,17 +24,6 @@ const CLOSE_ROOM_NOT_FOUND = 4004;
 
 /** Interval between server-initiated ping frames (ms). Detects dead clients. */
 const PING_INTERVAL_MS = 30_000;
-
-/**
- * Convert Uint8Array to Buffer for WebSocket transmission.
- *
- * Elysia's WebSocket (via Bun) serializes Uint8Array to JSON by default,
- * but sends Buffer as raw binary. This wrapper ensures protocol messages
- * are transmitted as proper binary data.
- */
-function toBuffer(data: Uint8Array): Buffer {
-	return Buffer.from(data);
-}
 
 export type SyncPluginConfig = {
 	/**
@@ -121,6 +110,8 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 			controlledClientIds: Set<number>;
 			/** The raw WebSocket, used as origin for Yjs transactions to prevent echo. */
 			rawWs: object;
+			/** Send a ping frame to detect dead clients. Captured from ws.raw.ping for proper typing. */
+			sendPing: () => void;
 			/** Interval handle for server-side ping keepalive. */
 			pingInterval: ReturnType<typeof setInterval> | null;
 			/** Whether a pong was received since the last ping. */
@@ -129,12 +120,15 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 	>();
 
 	return new Elysia().ws('/:room/ws', {
+		query: t.Object({
+			token: t.Optional(t.String()),
+		}),
+
 		async open(ws) {
 			const roomId = ws.data.params.room;
 
 			// Auth check — extract ?token from query params
-			const token =
-				(ws.data.query as Record<string, string>).token ?? undefined;
+			const token = ws.data.query.token;
 			const authorized = await validateAuth(config?.auth, token);
 
 			if (!authorized) {
@@ -148,7 +142,9 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 			const rawWs = ws.raw;
 
 			// Join room via room manager (handles doc creation/resolution + eviction cancellation)
-			const result = roomManager.join(roomId, rawWs, (data) => ws.send(data));
+			const result = roomManager.join(roomId, rawWs, (data) =>
+				ws.sendBinary(data),
+			);
 			if (!result) {
 				console.log(`[Sync] Room not found: ${roomId}`);
 				ws.close(CLOSE_ROOM_NOT_FOUND, `Room not found: ${roomId}`);
@@ -160,17 +156,15 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 
 			// Defer initial sync to next tick to ensure WebSocket is fully ready
 			queueMicrotask(() => {
-				ws.send(toBuffer(encodeSyncStep1({ doc })));
+				ws.sendBinary(encodeSyncStep1({ doc }));
 
 				const awarenessStates = awareness.getStates();
 				if (awarenessStates.size > 0) {
-					ws.send(
-						toBuffer(
-							encodeAwarenessStates({
-								awareness,
-								clients: Array.from(awarenessStates.keys()),
-							}),
-						),
+					ws.sendBinary(
+						encodeAwarenessStates({
+							awareness,
+							clients: Array.from(awarenessStates.keys()),
+						}),
 					);
 				}
 			});
@@ -178,9 +172,12 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 			// Listen for doc updates to broadcast to this client
 			const updateHandler = (update: Uint8Array, origin: unknown) => {
 				if (origin === rawWs) return; // Don't echo back to sender
-				ws.send(toBuffer(encodeSyncUpdate({ update })));
+				ws.sendBinary(encodeSyncUpdate({ update }));
 			};
 			doc.on('update', updateHandler);
+
+			// Capture typed ping from ws.raw (stable reference) to avoid type assertions
+			const sendPing = () => ws.raw.ping();
 
 			// Server-side ping/pong keepalive to detect dead clients
 			const pingInterval = setInterval(() => {
@@ -196,7 +193,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 				}
 
 				state.pongReceived = false;
-				(rawWs as { ping?: () => void }).ping?.();
+				state.sendPing();
 			}, PING_INTERVAL_MS);
 
 			connectionState.set(rawWs, {
@@ -206,6 +203,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 				updateHandler,
 				controlledClientIds,
 				rawWs,
+				sendPing,
 				pingInterval,
 				pongReceived: true,
 			});
@@ -224,10 +222,11 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 
 			const { roomId, doc, awareness, controlledClientIds, rawWs } = state;
 
+			// Binary protocol — narrow the message to Uint8Array (Buffer extends Uint8Array)
+			if (!(message instanceof ArrayBuffer) && !(message instanceof Uint8Array))
+				return;
 			const data =
-				message instanceof ArrayBuffer
-					? new Uint8Array(message)
-					: (message as Uint8Array);
+				message instanceof ArrayBuffer ? new Uint8Array(message) : message;
 			const decoder = decoding.createDecoder(data);
 			const messageType = decoding.readVarUint(decoder);
 
@@ -235,7 +234,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 				case MESSAGE_TYPE.SYNC: {
 					const response = handleSyncMessage({ decoder, doc, origin: rawWs });
 					if (response) {
-						ws.send(toBuffer(response));
+						ws.sendBinary(response);
 					}
 					break;
 				}
@@ -268,24 +267,18 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 					applyAwarenessUpdate(awareness, update, rawWs);
 
 					// Broadcast awareness to other clients via room manager
-					roomManager.broadcast(
-						roomId,
-						toBuffer(encodeAwareness({ update })),
-						rawWs,
-					);
+					roomManager.broadcast(roomId, encodeAwareness({ update }), rawWs);
 					break;
 				}
 
 				case MESSAGE_TYPE.QUERY_AWARENESS: {
 					const awarenessStates = awareness.getStates();
 					if (awarenessStates.size > 0) {
-						ws.send(
-							toBuffer(
-								encodeAwarenessStates({
-									awareness,
-									clients: Array.from(awarenessStates.keys()),
-								}),
-							),
+						ws.sendBinary(
+							encodeAwarenessStates({
+								awareness,
+								clients: Array.from(awarenessStates.keys()),
+							}),
 						);
 					}
 					break;
@@ -294,7 +287,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 				case MESSAGE_TYPE.SYNC_STATUS: {
 					// Echo the payload back unchanged — the client uses this for hasLocalChanges and heartbeat.
 					const payload = decoding.readVarUint8Array(decoder);
-					ws.send(toBuffer(encodeSyncStatus({ payload })));
+					ws.sendBinary(encodeSyncStatus({ payload }));
 					break;
 				}
 			}
