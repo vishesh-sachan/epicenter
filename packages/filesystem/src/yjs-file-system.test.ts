@@ -389,13 +389,13 @@ describe('mv preserves content (no conversion)', () => {
 
 async function getTimelineLength(
 	fs: YjsFileSystem,
-	binding: { open(input: string): Promise<import('yjs').Doc> },
+	binding: { open(input: string): Promise<{ ydoc: import('yjs').Doc }> },
 	path: string,
 ): Promise<number> {
 	const id = fs.lookupId(path);
 	if (!id) throw new Error(`No file at ${path}`);
-	const ydoc = await binding.open(id);
-	return createTimeline(ydoc).length;
+	const handle = await binding.open(id);
+	return createTimeline(handle.ydoc).length;
 }
 
 describe('timeline content storage', () => {
@@ -510,11 +510,11 @@ describe('sheet file support', () => {
 		// Accessing internals to seed sheet mode for behavior coverage.
 		await fs.writeFile('/data.csv', 'placeholder');
 		const fileId = fs.lookupId('/data.csv')!;
-		const ydoc = await binding.open(fileId);
+		const handle = await binding.open(fileId);
 		const { createTimeline } = await import('./timeline-helpers.js');
 		// Replace text entry with sheet entry
-		ydoc.transact(() => {
-			createTimeline(ydoc).pushSheetFromCsv('Name,Age\nAlice,30\n');
+		handle.ydoc.transact(() => {
+			createTimeline(handle.ydoc).pushSheetFromCsv('Name,Age\nAlice,30\n');
 		});
 		expect(await fs.readFile('/data.csv')).toBe('Name,Age\nAlice,30\n');
 	});
@@ -524,10 +524,10 @@ describe('sheet file support', () => {
 		const binding = ws.tables.files.docs.content;
 		await fs.writeFile('/data.csv', 'placeholder');
 		const fileId = fs.lookupId('/data.csv')!;
-		const ydoc = await binding.open(fileId);
+		const handle = await binding.open(fileId);
 		const { createTimeline } = await import('./timeline-helpers.js');
-		ydoc.transact(() => {
-			createTimeline(ydoc).pushSheetFromCsv('A,B\n1,2\n');
+		handle.ydoc.transact(() => {
+			createTimeline(handle.ydoc).pushSheetFromCsv('A,B\n1,2\n');
 		});
 		await fs.writeFile('/data.csv', 'X,Y\n3,4\n');
 		expect(await fs.readFile('/data.csv')).toBe('X,Y\n3,4\n');
@@ -614,17 +614,17 @@ describe('document binding integration', () => {
 		await fs.writeFile('/test.txt', 'hello world');
 		const fileId = fs.lookupId('/test.txt')!;
 
-		// Open the content doc — should get a Y.Doc instance
-		const doc1 = await binding.open(fileId);
-		expect(doc1.guid).toBe(fileId);
+		// Open the content doc — should get a handle
+		const handle1 = await binding.open(fileId);
+		expect(handle1.ydoc.guid).toBe(fileId);
 
 		// Hard-delete the row directly from the table.
-		// The binding's table observer should automatically destroy the content doc.
+		// The binding's table observer should automatically close the content doc.
 		ws.tables.files.delete(fileId);
 
 		// Re-opening should create a FRESH Y.Doc (different instance)
-		// because the binding's row-deletion observer called destroy()
-		const doc2 = await binding.open(fileId);
-		expect(doc2).not.toBe(doc1);
+		// because the binding's row-deletion observer called close()
+		const handle2 = await binding.open(fileId);
+		expect(handle2.ydoc).not.toBe(handle1.ydoc);
 	});
 });

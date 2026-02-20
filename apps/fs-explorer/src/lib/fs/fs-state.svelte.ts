@@ -229,12 +229,13 @@ function createFsState() {
 			/**
 			 * Read file content as string via the document binding.
 			 *
-			 * Uses the workspace's document binding directly — the binding
-			 * opens (or reuses) the per-file Y.Doc and reads `getText('content')`.
+			 * Opens (or reuses) the per-file Y.Doc via the document handle,
+			 * then reads the text content synchronously.
 			 */
 			async readContent(id: FileId): Promise<string | null> {
 				try {
-					return await ws.tables.files.docs.content.read(id);
+					const handle = await ws.tables.files.docs.content.open(id);
+					return handle.read();
 				} catch (err) {
 					console.error('Failed to read content:', err);
 					return null;
@@ -249,7 +250,8 @@ function createFsState() {
 			 */
 			async writeContent(id: FileId, data: string): Promise<void> {
 				try {
-					await ws.tables.files.docs.content.write(id, data);
+					const handle = await ws.tables.files.docs.content.open(id);
+					handle.write(data);
 				} catch (err) {
 					toast.error(
 						err instanceof Error ? err.message : 'Failed to save file',
