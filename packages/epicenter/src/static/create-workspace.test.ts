@@ -291,14 +291,13 @@ describe('createWorkspace', () => {
 			});
 
 			expect(client.extensions.myExt.someValue).toBe(42);
-			expect(client.extensions.myExt.whenReady).toBeInstanceOf(Promise);
 		});
 
-		test('extension factory receives prior extensions with per-key whenReady', () => {
+		test('extension factory receives prior extensions', () => {
 			const filesTable = defineTable(
 				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
 			);
-			let receivedFirstWhenReady = false;
+			let receivedFirstExtension = false;
 
 			createWorkspace({
 				id: 'ext-await-test-2',
@@ -307,19 +306,18 @@ describe('createWorkspace', () => {
 				.withExtension('first', () => {
 					return {
 						exports: { value: 'first' },
-						lifecycle: { whenReady: Promise.resolve(), destroy: () => {} },
+						lifecycle: { destroy: () => {} },
 					};
 				})
 				.withExtension('second', (context) => {
-					receivedFirstWhenReady =
-						context.extensions.first.whenReady instanceof Promise;
+					receivedFirstExtension = context.extensions.first.value === 'first';
 					return { lifecycle: { destroy: () => {} } };
 				});
 
-			expect(receivedFirstWhenReady).toBe(true);
+			expect(receivedFirstExtension).toBe(true);
 		});
 
-		test('per-extension whenReady resolves independently', async () => {
+		test('composite whenReady waits for all extensions to resolve', async () => {
 			const filesTable = defineTable(
 				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
 			);
@@ -346,22 +344,17 @@ describe('createWorkspace', () => {
 					};
 				});
 
-			let secondResolved = false;
-			let firstResolved = false;
-			client.extensions.second.whenReady.then(() => {
-				secondResolved = true;
-			});
-			client.extensions.first.whenReady.then(() => {
-				firstResolved = true;
+			let compositeResolved = false;
+			client.whenReady.then(() => {
+				compositeResolved = true;
 			});
 
-			await client.extensions.second.whenReady;
-			expect(secondResolved).toBe(true);
-			expect(firstResolved).toBe(false);
+			await Promise.resolve();
+			expect(compositeResolved).toBe(false);
 
 			resolveFirstWhenReady?.();
-			await client.extensions.first.whenReady;
-			expect(firstResolved).toBe(true);
+			await client.whenReady;
+			expect(compositeResolved).toBe(true);
 		});
 
 		test('composite whenReady waits for all extensions', async () => {
@@ -410,7 +403,7 @@ describe('createWorkspace', () => {
 			expect(compositeResolved).toBe(true);
 		});
 
-		test('extension with no lifecycle gets resolved whenReady', async () => {
+		test('extension exports are accessible', async () => {
 			const filesTable = defineTable(
 				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
 			);
@@ -423,8 +416,6 @@ describe('createWorkspace', () => {
 			});
 
 			expect(client.extensions.myExt.foo).toBe(42);
-			const value = await client.extensions.myExt.whenReady;
-			expect(value).toBeUndefined();
 		});
 	});
 

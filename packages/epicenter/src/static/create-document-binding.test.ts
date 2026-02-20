@@ -584,10 +584,8 @@ describe('createDocumentBinding', () => {
 	});
 
 	describe('document extension whenReady and typed extensions', () => {
-		test('document extension receives extensions map with prior exports and whenReady', async () => {
-			let capturedFirstExtension:
-				| (Record<string, unknown> & { whenReady: Promise<void> })
-				| undefined;
+		test('document extension receives extensions map with flat exports', async () => {
+			let capturedFirstExtension: unknown;
 
 			const { binding } = setupWithBinding({
 				documentExtensions: [
@@ -602,12 +600,7 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'second',
 						factory: (context) => {
-							capturedFirstExtension = context.extensions.first as Record<
-								string,
-								unknown
-							> & {
-								whenReady: Promise<void>;
-							};
+							capturedFirstExtension = context.extensions.first;
 							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
@@ -617,11 +610,9 @@ describe('createDocumentBinding', () => {
 
 			await binding.open('f1');
 			expect(capturedFirstExtension).toBeDefined();
-			if (!capturedFirstExtension) {
-				throw new Error('Expected first extension in second extension context');
-			}
-			expect(capturedFirstExtension.someValue).toBe(42);
-			expect(capturedFirstExtension.whenReady).toBeInstanceOf(Promise);
+			expect(
+				(capturedFirstExtension as Record<string, unknown>).someValue,
+			).toBe(42);
 		});
 
 		test('document extension extensions map is optional (tag filtering may skip)', async () => {
@@ -682,8 +673,8 @@ describe('createDocumentBinding', () => {
 			expect(taggedPresentForEphemeralDoc).toBe(false);
 		});
 
-		test('document extension with no exports still gets whenReady in map', async () => {
-			let firstWhenReadySeen = false;
+		test('document extension with no exports is still accessible', async () => {
+			let firstExtensionSeen = false;
 
 			const { binding } = setupWithBinding({
 				documentExtensions: [
@@ -697,8 +688,7 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'second',
 						factory: (context) => {
-							firstWhenReadySeen =
-								context.extensions.first?.whenReady instanceof Promise;
+							firstExtensionSeen = context.extensions.first !== undefined;
 							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
@@ -707,10 +697,10 @@ describe('createDocumentBinding', () => {
 			});
 
 			await binding.open('f1');
-			expect(firstWhenReadySeen).toBe(true);
+			expect(firstExtensionSeen).toBe(true);
 		});
 
-		test("handle.exports includes whenReady on each extension's exports", async () => {
+		test('handle.exports includes flat exports from extensions', async () => {
 			const { binding } = setupWithBinding({
 				documentExtensions: [
 					{
@@ -730,7 +720,6 @@ describe('createDocumentBinding', () => {
 				throw new Error('Expected exports for test extension');
 			}
 			expect(typeof handle.exports.test.helper).toBe('function');
-			expect(handle.exports.test.whenReady).toBeInstanceOf(Promise);
 		});
 	});
 });

@@ -956,16 +956,15 @@ export type { Extension } from '../shared/lifecycle.js';
  * type so factory-only additions don't leak to the consumer-facing client if they
  * diverge in the future.
  *
- * Each extension in `context.extensions` includes both the extension's exports AND
- * a per-extension `whenReady` promise. This enables surgical await:
+ * Each extension in `context.extensions` is the flat exports object from
+ * prior `.withExtension()` calls. Access exports directly:
  *
  * ```typescript
  * .withExtension('sync', (context) => {
- *   // Surgical: wait only for persistence, not everything
- *   await context.extensions.persistence.whenReady;
- *   context.extensions.persistence.clearData();  // typed exports
+ *   // Access prior extension exports directly
+ *   context.extensions.persistence.clearData();
  *
- *   // Composite: wait for ALL prior extensions (still available)
+ *   // Composite: wait for ALL prior extensions
  *   await context.whenReady;
  * })
  * ```
@@ -974,7 +973,7 @@ export type { Extension } from '../shared/lifecycle.js';
  * @typeParam TTableDefinitions - Map of table definitions for this workspace
  * @typeParam TKvDefinitions - Map of KV definitions for this workspace
  * @typeParam TAwarenessDefinitions - Map of awareness field definitions for this workspace
- * @typeParam TExtensions - Accumulated extension exports from previous `.withExtension()` calls
+ * @typeParam TExtensions - Accumulated extension outputs from previous `.withExtension()` calls
  */
 export type ExtensionContext<
 	TId extends string = string,
@@ -1042,19 +1041,17 @@ export type WorkspaceClient<
 	/**
 	 * Extension exports (accumulated via `.withExtension()` calls).
 	 *
-	 * Each extension entry includes its exports AND a per-extension `whenReady`
-	 * promise injected by the framework. This enables surgical await:
+	 * Each entry is the exports object returned by the extension factory.
+	 * Access exports directly — no wrapper:
 	 *
 	 * ```typescript
-	 * await client.extensions.persistence.whenReady;  // just this one
-	 * client.extensions.persistence.clearData();       // typed exports
+	 * client.extensions.persistence.clearData();
+	 * client.extensions.sqlite.db.query('SELECT ...');
 	 * ```
 	 *
-	 * The composite `client.whenReady` still exists as a "wait for everything" shortcut.
+	 * Use `client.whenReady` to wait for all extensions to initialize.
 	 */
-	extensions: {
-		[K in keyof TExtensions]: TExtensions[K] & { whenReady: Promise<void> };
-	};
+	extensions: TExtensions;
 
 	/**
 	 * Execute multiple operations atomically in a single Y.js transaction.

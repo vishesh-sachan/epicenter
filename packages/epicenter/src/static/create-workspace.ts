@@ -197,13 +197,8 @@ export function createWorkspace<
 			tables,
 			kv,
 			awareness,
-			// Cast: each extension entry has whenReady injected at runtime via Object.assign
-			// in withExtension(). The mapped type in WorkspaceClient declares this.
-			extensions: extensions as {
-				[K in keyof TExtensions]: TExtensions[K] & {
-					whenReady: Promise<void>;
-				};
-			},
+			// Each extension entry is the exports object stored by reference.
+			extensions,
 			batch(fn: () => void): void {
 				ydoc.transact(fn);
 			},
@@ -243,20 +238,15 @@ export function createWorkspace<
 				const destroy = result.lifecycle?.destroy;
 				if (destroy) extensionCleanups.push(destroy);
 
-				// Normalize whenReady to Promise<void> for both composite and per-extension use
 				const extWhenReady: Promise<void> = result.lifecycle?.whenReady
 					? result.lifecycle.whenReady.then(() => {})
 					: Promise.resolve();
 				whenReadyPromises.push(extWhenReady);
 
-				// Inject per-extension whenReady into the exports object (Option B: flat inject).
-				// Object.assign preserves the original exports reference (getters, identity).
-				const exports = result.exports ?? {};
-				Object.assign(exports, { whenReady: extWhenReady });
-
+				// Store exports by reference — no wrapper.
 				const newExtensions = {
 					...extensions,
-					[key]: exports,
+					[key]: result.exports ?? {},
 				} as TExtensions & Record<TKey, TExports>;
 
 				return buildClient(newExtensions);

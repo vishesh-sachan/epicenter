@@ -253,11 +253,8 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			// IMPORTANT: No await between docs.get() and docs.set() — ensures
 			// concurrent open() calls for the same guid are safe.
 			// Build the extensions map incrementally so each factory sees prior
-			// extensions' exports + per-extension whenReady.
-			const docExtensionsMap: Record<
-				string,
-				Record<string, unknown> & { whenReady: Promise<void> }
-			> = {};
+			// extensions' exports.
+			const docExtensionsMap: Record<string, Record<string, unknown>> = {};
 
 			try {
 				for (const reg of applicableExtensions) {
@@ -279,25 +276,12 @@ export function createDocumentBinding<TRow extends BaseRow>(
 						const lifecycle = result.lifecycle ?? {};
 						lifecycles.push(lifecycle);
 
-						// Normalize per-extension whenReady to Promise<void>
-						const extWhenReady: Promise<void> = lifecycle.whenReady
-							? lifecycle.whenReady.then(() => {})
-							: Promise.resolve();
-
+						const exports = result.exports ?? {};
 						if (result.exports) {
-							docExports[reg.key] = result.exports;
-							// Inject whenReady into exports (Option B: flat inject)
-							Object.assign(result.exports, {
-								whenReady: extWhenReady,
-							});
-							docExtensionsMap[reg.key] = result.exports as Record<
-								string,
-								unknown
-							> & { whenReady: Promise<void> };
-						} else {
-							// Extension with no exports still gets an entry for whenReady
-							docExtensionsMap[reg.key] = { whenReady: extWhenReady };
+							docExports[reg.key] = exports;
 						}
+						// Store exports directly — no wrapper.
+						docExtensionsMap[reg.key] = exports;
 					}
 				}
 			} catch (err) {

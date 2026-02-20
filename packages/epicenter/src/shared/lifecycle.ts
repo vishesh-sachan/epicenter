@@ -203,21 +203,30 @@ export type Extension<
  * Context passed to document extension factories registered via `withDocumentExtension()`.
  *
  * Provides the content Y.Doc being created, a composite `whenReady` from
- * prior document extensions, and metadata about which table/binding this doc belongs to.
+ * prior document extensions, metadata about which table/binding this doc belongs to,
+ * and typed access to prior document extensions' exports + per-extension whenReady.
+ *
+ * Extensions are optional because tag-filtered extensions may be skipped for certain
+ * document types. Factories should guard access with optional chaining.
+ *
+ * @typeParam TDocExtensions - Accumulated document extension exports from prior
+ *   `.withDocumentExtension()` calls. Defaults to `Record<string, unknown>` so
+ *   `DocumentExtensionRegistration` can store factories with the wide type.
  *
  * @example
  * ```typescript
- * .withDocumentExtension('persistence', ({ ydoc, whenReady, binding }) => {
- *   const idb = new IndexeddbPersistence(ydoc.guid, ydoc);
- *   return {
- *     whenReady: idb.whenSynced,
- *     destroy: () => idb.destroy(),
- *     clearData: () => idb.clearData(),
- *   };
+ * .withDocumentExtension('sync', (context) => {
+ *   // Access prior document extension exports directly
+ *   context.extensions.persistence?.clearData();
+ *
+ *   // Composite: await ALL prior doc extensions
+ *   await context.whenReady;
  * })
  * ```
  */
-export type DocumentContext = {
+export type DocumentContext<
+	TDocExtensions extends Record<string, unknown> = Record<string, unknown>,
+> = {
 	/** The content Y.Doc being created. */
 	ydoc: Y.Doc;
 	/**
@@ -234,5 +243,19 @@ export type DocumentContext = {
 		documentName: string;
 		/** The document's tags (from withDocument config). Empty if no tags declared. */
 		tags: readonly string[];
+	};
+	/**
+	 * Typed access to prior document extensions' exports.
+	 *
+	 * Each entry is optional because tag-filtered extensions may be skipped.
+	 * Factories should guard access with optional chaining.
+	 *
+	 * @example
+	 * ```typescript
+	 * context.extensions.persistence?.clearData();
+	 * ```
+	 */
+	extensions: {
+		[K in keyof TDocExtensions]?: TDocExtensions[K];
 	};
 };

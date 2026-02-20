@@ -129,6 +129,7 @@ export function createWorkspace<
 				const result = factory(client);
 				const destroy = result.lifecycle?.destroy;
 				if (destroy) extensionCleanups.push(destroy);
+
 				whenReadyPromises.push(
 					result.lifecycle?.whenReady ?? Promise.resolve(),
 				);
