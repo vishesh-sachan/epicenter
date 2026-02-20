@@ -21,17 +21,6 @@ const CLOSE_ROOM_NOT_FOUND = 4004;
 /** Interval between server-initiated ping frames (ms). Detects dead clients. */
 const PING_INTERVAL_MS = 30_000;
 
-/**
- * Convert Uint8Array to Buffer for WebSocket transmission.
- *
- * Elysia's WebSocket (via Bun) serializes Uint8Array to JSON by default,
- * but sends Buffer as raw binary. This wrapper ensures protocol messages
- * are transmitted as proper binary data.
- */
-function toBuffer(data: Uint8Array): Buffer {
-	return Buffer.from(data);
-}
-
 export type SyncPluginConfig = {
 	/**
 	 * Resolve a Y.Doc for a room. Called when a client connects.
@@ -144,7 +133,9 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 			const rawWs = ws.raw;
 
 			// Join room via room manager (handles doc creation/resolution + eviction cancellation)
-			const result = roomManager.join(roomId, rawWs, (data) => ws.send(data));
+			const result = roomManager.join(roomId, rawWs, (data) =>
+				ws.sendBinary(data),
+			);
 			if (!result) {
 				console.log(`[Sync] Room not found: ${roomId}`);
 				ws.close(CLOSE_ROOM_NOT_FOUND, `Room not found: ${roomId}`);
@@ -156,17 +147,15 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 
 			// Defer initial sync to next tick to ensure WebSocket is fully ready
 			queueMicrotask(() => {
-				ws.send(toBuffer(encodeSyncStep1({ doc })));
+				ws.sendBinary(encodeSyncStep1({ doc }));
 
 				const awarenessStates = awareness.getStates();
 				if (awarenessStates.size > 0) {
-					ws.send(
-						toBuffer(
-							encodeAwarenessStates({
-								awareness,
-								clients: Array.from(awarenessStates.keys()),
-							}),
-						),
+					ws.sendBinary(
+						encodeAwarenessStates({
+							awareness,
+							clients: Array.from(awarenessStates.keys()),
+						}),
 					);
 				}
 			});
@@ -174,7 +163,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 			// Listen for doc updates to broadcast to this client
 			const updateHandler = (update: Uint8Array, origin: unknown) => {
 				if (origin === rawWs) return; // Don't echo back to sender
-				ws.send(toBuffer(encodeSyncUpdate({ update })));
+				ws.sendBinary(encodeSyncUpdate({ update }));
 			};
 			doc.on('update', updateHandler);
 
@@ -231,7 +220,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 				case MESSAGE_TYPE.SYNC: {
 					const response = handleSyncMessage({ decoder, doc, origin: rawWs });
 					if (response) {
-						ws.send(toBuffer(response));
+						ws.sendBinary(response);
 					}
 					break;
 				}
@@ -264,24 +253,18 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 					awarenessProtocol.applyAwarenessUpdate(awareness, update, rawWs);
 
 					// Broadcast awareness to other clients via room manager
-					roomManager.broadcast(
-						roomId,
-						toBuffer(encodeAwareness({ update })),
-						rawWs,
-					);
+					roomManager.broadcast(roomId, encodeAwareness({ update }), rawWs);
 					break;
 				}
 
 				case MESSAGE_TYPE.QUERY_AWARENESS: {
 					const awarenessStates = awareness.getStates();
 					if (awarenessStates.size > 0) {
-						ws.send(
-							toBuffer(
-								encodeAwarenessStates({
-									awareness,
-									clients: Array.from(awarenessStates.keys()),
-								}),
-							),
+						ws.sendBinary(
+							encodeAwarenessStates({
+								awareness,
+								clients: Array.from(awarenessStates.keys()),
+							}),
 						);
 					}
 					break;
@@ -290,7 +273,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 				case MESSAGE_TYPE.SYNC_STATUS: {
 					// Echo the payload back unchanged — the client uses this for hasLocalChanges and heartbeat.
 					const payload = decoding.readVarUint8Array(decoder);
-					ws.send(toBuffer(encodeSyncStatus({ payload })));
+					ws.sendBinary(encodeSyncStatus({ payload }));
 					break;
 				}
 			}

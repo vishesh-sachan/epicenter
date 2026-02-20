@@ -8,7 +8,7 @@ type Room = {
 	doc: Y.Doc;
 	awareness: awarenessProtocol.Awareness;
 	/** Connections keyed by ws.raw (stable identity). */
-	conns: Map<object, { send: (data: Buffer) => void }>;
+	conns: Map<object, { send: (data: Uint8Array) => void }>;
 	evictionTimer?: ReturnType<typeof setTimeout>;
 };
 
@@ -69,7 +69,7 @@ export function createRoomManager(config?: RoomManagerConfig) {
 		join(
 			roomId: string,
 			wsRaw: object,
-			send: (data: Buffer) => void,
+			send: (data: Uint8Array) => void,
 		): { doc: Y.Doc; awareness: awarenessProtocol.Awareness } | undefined {
 			// Cancel pending eviction if a connection joins before the timer fires
 			const existing = rooms.get(roomId);
@@ -132,7 +132,7 @@ export function createRoomManager(config?: RoomManagerConfig) {
 		 *
 		 * @param excludeRaw - The ws.raw to exclude (typically the sender)
 		 */
-		broadcast(roomId: string, data: Buffer, excludeRaw?: object): void {
+		broadcast(roomId: string, data: Uint8Array, excludeRaw?: object): void {
 			const room = rooms.get(roomId);
 			if (!room) return;
 
