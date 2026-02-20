@@ -16,7 +16,7 @@ import type { FileId } from './types.js';
 import {
 	assertUniqueName,
 	disambiguateNames,
-	fsError,
+	FS_ERRORS,
 	validateName,
 } from './validation.js';
 
@@ -46,9 +46,9 @@ function makeRow(
 	};
 }
 
-describe('fsError', () => {
+describe('FS_ERRORS', () => {
 	test('creates error with code property', () => {
-		const err = fsError('ENOENT', '/missing.txt');
+		const err = FS_ERRORS.ENOENT('/missing.txt');
 		expect(err.message).toBe('ENOENT: /missing.txt');
 		expect(err.code).toBe('ENOENT');
 		expect(err).toBeInstanceOf(Error);

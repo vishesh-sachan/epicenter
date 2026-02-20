@@ -6,7 +6,7 @@ import {
 import { posixResolve } from './path-utils.js';
 import type { FileId, FileRow } from './types.js';
 import { generateFileId } from './types.js';
-import { assertUniqueName, fsError, validateName } from './validation.js';
+import { assertUniqueName, FS_ERRORS, validateName } from './validation.js';
 
 /**
  * Metadata tree operations for a POSIX-like virtual filesystem.
@@ -34,7 +34,7 @@ export class FileTree {
 	resolveId(path: string): FileId | null {
 		if (path === '/') return null;
 		const id = this.index.getIdByPath(path);
-		if (!id) throw fsError('ENOENT', path);
+		if (!id) throw FS_ERRORS.ENOENT(path);
 		return id;
 	}
 
@@ -52,7 +52,7 @@ export class FileTree {
 	 */
 	getRow(id: FileId, path: string): FileRow {
 		const result = this.filesTable.get(id);
-		if (result.status !== 'valid') throw fsError('ENOENT', path);
+		if (result.status !== 'valid') throw FS_ERRORS.ENOENT(path);
 		return result.row;
 	}
 
@@ -67,7 +67,7 @@ export class FileTree {
 		const parentPath = normalized.substring(0, lastSlash) || '/';
 		if (parentPath === '/') return { parentId: null, name };
 		const parentId = this.index.getIdByPath(parentPath);
-		if (!parentId) throw fsError('ENOENT', parentPath);
+		if (!parentId) throw FS_ERRORS.ENOENT(parentPath);
 		return { parentId, name };
 	}
 
@@ -75,7 +75,7 @@ export class FileTree {
 	assertDirectory(id: FileId | null, path: string): void {
 		if (id === null) return;
 		const row = this.getRow(id, path);
-		if (row.type !== 'folder') throw fsError('ENOTDIR', path);
+		if (row.type !== 'folder') throw FS_ERRORS.ENOTDIR(path);
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════

@@ -214,81 +214,78 @@ describe('createDocumentBinding', () => {
 		});
 	});
 
-	describe('purge', () => {
-		test('calls clearData on providers that support it', async () => {
-			let clearDataCalled = false;
+	describe('getExports', () => {
+		test('returns undefined for doc that is not open', () => {
+			const { binding } = setupWithBinding();
+
+			expect(binding.getExports('nonexistent')).toBeUndefined();
+		});
+
+		test('returns accumulated exports keyed by extension name', async () => {
+			const { binding } = setupWithBinding({
+				documentExtensions: [
+					{
+						key: 'persistence',
+						factory: () => ({
+							exports: { clearData: () => {} },
+							lifecycle: { destroy: () => {} },
+						}),
+						tags: [],
+					},
+				],
+			});
+
+			await binding.open('f1');
+			const exports = binding.getExports('f1');
+			expect(exports).toBeDefined();
+			expect(exports!.persistence).toBeDefined();
+			expect(typeof exports!.persistence!.clearData).toBe('function');
+		});
+
+		test('returns empty exports when extension has no exports', async () => {
+			const { binding } = setupWithBinding({
+				documentExtensions: [
+					{
+						key: 'lifecycle-only',
+						factory: () => ({
+							lifecycle: { destroy: () => {} },
+						}),
+						tags: [],
+					},
+				],
+			});
+
+			await binding.open('f1');
+			const exports = binding.getExports('f1');
+			expect(exports).toBeDefined();
+			expect(exports!['lifecycle-only']).toBeUndefined();
+		});
+
+		test('accepts a row object', async () => {
 			const { tables, binding } = setupWithBinding({
 				documentExtensions: [
 					{
 						key: 'test',
 						factory: () => ({
-							destroy: () => {},
-							clearData: () => {
-								clearDataCalled = true;
-							},
+							exports: { helper: () => 42 },
 						}),
 						tags: [],
 					},
 				],
 			});
 
-			tables.files.set({
+			const row = {
 				id: 'f1',
 				name: 'test.txt',
 				updatedAt: 0,
 				_v: 1,
-			});
+			} as const;
+			tables.files.set(row);
 
-			await binding.open('f1');
-			await binding.purge('f1');
-
-			expect(clearDataCalled).toBe(true);
-		});
-
-		test('purge gracefully handles providers without clearData', async () => {
-			let destroyCalled = false;
-			const { binding } = setupWithBinding({
-				documentExtensions: [
-					{
-						key: 'test',
-						factory: () => ({
-							destroy: () => {
-								destroyCalled = true;
-							},
-							// no clearData
-						}),
-						tags: [],
-					},
-				],
-			});
-
-			await binding.open('f1');
-			await binding.purge('f1');
-
-			expect(destroyCalled).toBe(true);
-		});
-
-		test('purge opens doc if not already open', async () => {
-			let openedByPurge = false;
-			const { binding } = setupWithBinding({
-				documentExtensions: [
-					{
-						key: 'test',
-						factory: () => {
-							openedByPurge = true;
-							return {
-								destroy: () => {},
-								clearData: () => {},
-							};
-						},
-						tags: [],
-					},
-				],
-			});
-
-			// Don't call open first — purge should do it
-			await binding.purge('f1');
-			expect(openedByPurge).toBe(true);
+			await binding.open(row);
+			const exports = binding.getExports(row);
+			expect(exports).toBeDefined();
+			expect(typeof exports!.test!.helper).toBe('function');
 		});
 	});
 
@@ -386,7 +383,7 @@ describe('createDocumentBinding', () => {
 						key: 'first',
 						factory: () => {
 							order.push(1);
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
 					},
@@ -394,7 +391,7 @@ describe('createDocumentBinding', () => {
 						key: 'second',
 						factory: () => {
 							order.push(2);
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
 					},
@@ -402,7 +399,7 @@ describe('createDocumentBinding', () => {
 						key: 'third',
 						factory: () => {
 							order.push(3);
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
 					},
@@ -421,8 +418,10 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'first',
 						factory: () => ({
-							whenReady: Promise.resolve(),
-							destroy: () => {},
+							lifecycle: {
+								whenReady: Promise.resolve(),
+								destroy: () => {},
+							},
 						}),
 						tags: [],
 					},
@@ -430,7 +429,7 @@ describe('createDocumentBinding', () => {
 						key: 'second',
 						factory: ({ whenReady }) => {
 							secondReceivedWhenReady = whenReady instanceof Promise;
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
 					},
@@ -458,7 +457,7 @@ describe('createDocumentBinding', () => {
 						key: 'normal-hook',
 						factory: () => {
 							hooksCalled++;
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
 					},
@@ -499,7 +498,7 @@ describe('createDocumentBinding', () => {
 						key: 'capture',
 						factory: (ctx) => {
 							capturedBinding = ctx.binding;
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
 					},
@@ -522,7 +521,7 @@ describe('createDocumentBinding', () => {
 						key: 'universal',
 						factory: () => {
 							called = true;
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [], // universal — no tags
 					},
@@ -542,7 +541,7 @@ describe('createDocumentBinding', () => {
 						key: 'sync-ext',
 						factory: () => {
 							called = true;
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: ['synced'],
 					},
@@ -562,7 +561,7 @@ describe('createDocumentBinding', () => {
 						key: 'ephemeral-ext',
 						factory: () => {
 							called = true;
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: ['ephemeral'],
 					},
@@ -582,7 +581,7 @@ describe('createDocumentBinding', () => {
 						key: 'tagged',
 						factory: () => {
 							calls.push('tagged');
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: ['persistent'],
 					},
@@ -590,7 +589,7 @@ describe('createDocumentBinding', () => {
 						key: 'universal',
 						factory: () => {
 							calls.push('universal');
-							return { destroy: () => {} };
+							return { lifecycle: { destroy: () => {} } };
 						},
 						tags: [],
 					},

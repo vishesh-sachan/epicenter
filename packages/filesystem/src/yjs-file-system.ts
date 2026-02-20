@@ -7,7 +7,7 @@ import {
 import { FileTree } from './file-tree.js';
 import { posixResolve } from './path-utils.js';
 import type { FileId, FileRow } from './types.js';
-import { disambiguateNames, fsError } from './validation.js';
+import { disambiguateNames, FS_ERRORS } from './validation.js';
 
 /**
  * Table helper with a document binding attached via `.withDocument()`.
@@ -160,7 +160,7 @@ export function createYjsFileSystem(
 			const abs = posixResolve(cwd, path);
 			const id = tree.resolveId(abs)!;
 			const row = tree.getRow(id, abs);
-			if (row.type === 'folder') throw fsError('EISDIR', abs);
+			if (row.type === 'folder') throw FS_ERRORS.EISDIR(abs);
 			return content.read(id);
 		},
 
@@ -168,7 +168,7 @@ export function createYjsFileSystem(
 			const abs = posixResolve(cwd, path);
 			const id = tree.resolveId(abs)!;
 			const row = tree.getRow(id, abs);
-			if (row.type === 'folder') throw fsError('EISDIR', abs);
+			if (row.type === 'folder') throw FS_ERRORS.EISDIR(abs);
 			return content.readBuffer(id);
 		},
 
@@ -182,7 +182,7 @@ export function createYjsFileSystem(
 
 			if (id) {
 				const row = tree.getRow(id, abs);
-				if (row.type === 'folder') throw fsError('EISDIR', abs);
+				if (row.type === 'folder') throw FS_ERRORS.EISDIR(abs);
 			}
 
 			if (!id) {
@@ -206,7 +206,7 @@ export function createYjsFileSystem(
 			if (!id) return this.writeFile(abs, data, _options);
 
 			const row = tree.getRow(id, abs);
-			if (row.type === 'folder') throw fsError('EISDIR', abs);
+			if (row.type === 'folder') throw FS_ERRORS.EISDIR(abs);
 
 			const newSize = await content.append(id, text);
 			if (newSize === null) {
@@ -226,7 +226,7 @@ export function createYjsFileSystem(
 				const existingId = tree.lookupId(abs);
 				if (existingId) {
 					const row = tree.getRow(existingId, abs);
-					if (row.type === 'file') throw fsError('EEXIST', abs);
+					if (row.type === 'file') throw FS_ERRORS.EEXIST(abs);
 				}
 				return;
 			}
@@ -241,7 +241,7 @@ export function createYjsFileSystem(
 						if (existingId) {
 							const existingRow = tree.getRow(existingId, currentPath);
 							if (existingRow.type === 'file')
-								throw fsError('ENOTDIR', currentPath);
+								throw FS_ERRORS.ENOTDIR(currentPath);
 						}
 						continue;
 					}
@@ -264,12 +264,12 @@ export function createYjsFileSystem(
 			const id = tree.lookupId(abs);
 			if (!id) {
 				if (options?.force) return;
-				throw fsError('ENOENT', abs);
+				throw FS_ERRORS.ENOENT(abs);
 			}
 			const row = tree.getRow(id, abs);
 
 			if (row.type === 'folder' && !options?.recursive) {
-				if (tree.activeChildren(id).length > 0) throw fsError('ENOTEMPTY', abs);
+				if (tree.activeChildren(id).length > 0) throw FS_ERRORS.ENOTEMPTY(abs);
 			}
 
 			// Soft-delete the row. The document binding's table observer
@@ -287,11 +287,11 @@ export function createYjsFileSystem(
 			const resolvedSrc = posixResolve(cwd, src);
 			const resolvedDest = posixResolve(cwd, dest);
 			const srcId = tree.resolveId(resolvedSrc);
-			if (srcId === null) throw fsError('EISDIR', resolvedSrc);
+			if (srcId === null) throw FS_ERRORS.EISDIR(resolvedSrc);
 			const srcRow = tree.getRow(srcId, resolvedSrc);
 
 			if (srcRow.type === 'folder') {
-				if (!options?.recursive) throw fsError('EISDIR', resolvedSrc);
+				if (!options?.recursive) throw FS_ERRORS.EISDIR(resolvedSrc);
 				await this.mkdir(resolvedDest, { recursive: true });
 				const children = await this.readdir(resolvedSrc);
 				for (const child of children) {
@@ -326,7 +326,7 @@ export function createYjsFileSystem(
 			const resolvedSrc = posixResolve(cwd, src);
 			const resolvedDest = posixResolve(cwd, dest);
 			const id = tree.resolveId(resolvedSrc);
-			if (id === null) throw fsError('EISDIR', resolvedSrc);
+			if (id === null) throw FS_ERRORS.EISDIR(resolvedSrc);
 			tree.getRow(id, resolvedSrc);
 			const { parentId: newParentId, name: newName } =
 				tree.parsePath(resolvedDest);
@@ -343,7 +343,7 @@ export function createYjsFileSystem(
 
 		async realpath(path) {
 			const abs = posixResolve(cwd, path);
-			if (!tree.exists(abs)) throw fsError('ENOENT', abs);
+			if (!tree.exists(abs)) throw FS_ERRORS.ENOENT(abs);
 			return abs;
 		},
 
@@ -372,15 +372,15 @@ export function createYjsFileSystem(
 		// ═══════════════════════════════════════════════════════════════════════
 
 		async symlink(_target, _linkPath) {
-			throw fsError('ENOSYS', 'symlinks not supported');
+			throw FS_ERRORS.ENOSYS('symlinks not supported');
 		},
 
 		async link(_existingPath, _newPath) {
-			throw fsError('ENOSYS', 'hard links not supported');
+			throw FS_ERRORS.ENOSYS('hard links not supported');
 		},
 
 		async readlink(_path) {
-			throw fsError('ENOSYS', 'symlinks not supported');
+			throw FS_ERRORS.ENOSYS('symlinks not supported');
 		},
 	});
 }

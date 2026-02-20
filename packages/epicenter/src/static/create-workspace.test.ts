@@ -23,8 +23,10 @@ type DocumentBindingLike = {
 	read: (guid: string) => Promise<string>;
 	write: (guid: string, text: string) => Promise<void>;
 	destroy: (guid: string) => Promise<void>;
-	purge: (guid: string) => Promise<void>;
 	destroyAll: () => Promise<void>;
+	getExports: (
+		guid: string,
+	) => Record<string, Record<string, unknown>> | undefined;
 };
 
 type TableWithDocs = {
@@ -307,13 +309,14 @@ describe('createWorkspace', () => {
 			if (!docs) {
 				throw new Error('Expected files docs binding to exist');
 			}
-			expect(docs.content).toBeDefined();
-			expect(typeof docs.content.open).toBe('function');
-			expect(typeof docs.content.read).toBe('function');
-			expect(typeof docs.content.write).toBe('function');
-			expect(typeof docs.content.destroy).toBe('function');
-			expect(typeof docs.content.purge).toBe('function');
-			expect(typeof docs.content.destroyAll).toBe('function');
+			const content = docs.content;
+			expect(content).toBeDefined();
+			expect(typeof content!.open).toBe('function');
+			expect(typeof content!.read).toBe('function');
+			expect(typeof content!.write).toBe('function');
+			expect(typeof content!.destroy).toBe('function');
+			expect(typeof content!.destroyAll).toBe('function');
+			expect(typeof content!.getExports).toBe('function');
 		});
 
 		test('table without withDocument does not expose docs property', () => {
@@ -339,14 +342,14 @@ describe('createWorkspace', () => {
 				tables: { files: filesTable },
 			}).withDocumentExtension('test', () => {
 				hookCalled = true;
-				return { destroy: () => {} };
+				return { lifecycle: { destroy: () => {} } };
 			});
 
 			const docs = (client.tables.files as TableWithDocs).docs;
 			if (!docs) {
 				throw new Error('Expected files docs binding to exist');
 			}
-			await docs.content.open('f1');
+			await docs.content!.open('f1');
 
 			expect(hookCalled).toBe(true);
 		});
@@ -383,7 +386,7 @@ describe('createWorkspace', () => {
 					'persistent-only',
 					() => {
 						hookCalls.push('persistent-only');
-						return { destroy: () => {} };
+						return { lifecycle: { destroy: () => {} } };
 					},
 					{ tags: ['persistent'] },
 				)
@@ -391,13 +394,13 @@ describe('createWorkspace', () => {
 					'ephemeral-only',
 					() => {
 						hookCalls.push('ephemeral-only');
-						return { destroy: () => {} };
+						return { lifecycle: { destroy: () => {} } };
 					},
 					{ tags: ['ephemeral'] },
 				)
 				.withDocumentExtension('universal', () => {
 					hookCalls.push('universal');
-					return { destroy: () => {} };
+					return { lifecycle: { destroy: () => {} } };
 				});
 
 			// biome-ignore lint/suspicious/noExplicitAny: testing runtime property
@@ -439,7 +442,7 @@ describe('createWorkspace', () => {
 			if (!docs) {
 				throw new Error('Expected files docs binding to exist');
 			}
-			const doc1 = await docs.content.open('f1');
+			const doc1 = await docs.content!.open('f1');
 
 			await client.destroy();
 

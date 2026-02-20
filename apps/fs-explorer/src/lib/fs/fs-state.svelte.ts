@@ -8,7 +8,6 @@ import { indexeddbPersistence } from '@epicenter/hq/extensions/sync/web';
 import { createWorkspace } from '@epicenter/hq/static';
 import { SvelteSet } from 'svelte/reactivity';
 import { toast } from 'svelte-sonner';
-import { IndexeddbPersistence } from 'y-indexeddb';
 
 /**
  * Reactive filesystem state singleton.
@@ -35,21 +34,9 @@ function createFsState() {
 		tables: { files: filesTable },
 	})
 		.withExtension('persistence', indexeddbPersistence)
-		.withDocumentExtension(
-			'persistence',
-			({ ydoc: contentDoc }) => {
-				const contentIdb = new IndexeddbPersistence(
-					contentDoc.guid,
-					contentDoc,
-				);
-				return {
-					whenReady: contentIdb.whenSynced,
-					destroy: () => contentIdb.destroy(),
-					clearData: () => contentIdb.clearData(),
-				};
-			},
-			{ tags: ['persistent'] },
-		);
+		.withDocumentExtension('persistence', indexeddbPersistence, {
+			tags: ['persistent'],
+		});
 	const fs = createYjsFileSystem(ws.tables.files);
 
 	// ── Reactive state ────────────────────────────────────────────────
