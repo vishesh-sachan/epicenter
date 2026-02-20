@@ -75,10 +75,10 @@ export type SyncPluginConfig = {
  *   .listen(3913);
  *
  * // Integrated mode — mount under /workspaces prefix
- * // Route: /workspaces/:room/sync
+ * // Route: /rooms/:room/sync
  * const app = new Elysia()
  *   .use(
- *     new Elysia({ prefix: '/workspaces' })
+ *     new Elysia({ prefix: '/rooms' })
  *       .use(createSyncPlugin({ getDoc: (room) => workspaces[room]?.ydoc }))
  *   )
  *   .listen(3913);

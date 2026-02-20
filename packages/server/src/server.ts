@@ -28,7 +28,7 @@ export type ServerOptions = {
  * - `/openapi/json` - OpenAPI specification
  * - `/workspaces/{id}/tables/{table}` - RESTful table CRUD endpoints
  * - `/workspaces/{id}/actions/{action}` - Workspace action endpoints (queries via GET, mutations via POST)
- * - `/workspaces/{id}/sync` - WebSocket sync endpoint (y-websocket protocol)
+ * - `/rooms/{id}/sync` - WebSocket sync endpoint (y-websocket protocol)
  *
  * @example
  * ```typescript
@@ -72,14 +72,15 @@ export function createServer(
 			}),
 		)
 		.use(
-			new Elysia({ prefix: '/workspaces' })
-				.use(
-					createSyncPlugin({
-						getDoc: (room) => workspaces[room]?.ydoc,
-						auth: options?.auth,
-					}),
-				)
-				.use(createWorkspacePlugin(clients)),
+			new Elysia({ prefix: '/rooms' }).use(
+				createSyncPlugin({
+					getDoc: (room) => workspaces[room]?.ydoc,
+					auth: options?.auth,
+				}),
+			),
+		)
+		.use(
+			new Elysia({ prefix: '/workspaces' }).use(createWorkspacePlugin(clients)),
 		)
 		.get('/', () => ({
 			name: 'Epicenter API',

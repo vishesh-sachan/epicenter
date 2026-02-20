@@ -50,7 +50,7 @@ describe('createSyncExtension', () => {
 			const ydoc = new Y.Doc({ guid: 'test-doc' });
 
 			const factory = createSyncExtension({
-				url: 'ws://localhost:8080/workspaces/{id}/sync',
+				url: 'ws://localhost:8080/rooms/{id}/sync',
 			});
 
 			const result = factory(
@@ -62,7 +62,7 @@ describe('createSyncExtension', () => {
 
 			// Reconnect with a different URL
 			result.exports.reconnect({
-				url: 'ws://cloud.example.com/workspaces/test-doc/sync',
+				url: 'ws://cloud.example.com/rooms/test-doc/sync',
 			});
 
 			// Old provider should be destroyed (offline)
@@ -81,7 +81,7 @@ describe('createSyncExtension', () => {
 			const ydoc = new Y.Doc({ guid: 'test-doc-getter' });
 
 			const factory = createSyncExtension({
-				url: 'ws://localhost:8080/workspaces/{id}/sync',
+				url: 'ws://localhost:8080/rooms/{id}/sync',
 			});
 
 			const result = factory(
@@ -90,11 +90,11 @@ describe('createSyncExtension', () => {
 
 			const firstProvider = result.exports.provider;
 			result.exports.reconnect({
-				url: 'ws://server-2/workspaces/test-doc-getter/sync',
+				url: 'ws://server-2/rooms/test-doc-getter/sync',
 			});
 			const secondProvider = result.exports.provider;
 			result.exports.reconnect({
-				url: 'ws://server-3/workspaces/test-doc-getter/sync',
+				url: 'ws://server-3/rooms/test-doc-getter/sync',
 			});
 			const thirdProvider = result.exports.provider;
 
@@ -113,14 +113,14 @@ describe('createSyncExtension', () => {
 			const ydoc = new Y.Doc({ guid: 'test-doc-destroy' });
 
 			const factory = createSyncExtension({
-				url: 'ws://localhost:8080/workspaces/{id}/sync',
+				url: 'ws://localhost:8080/rooms/{id}/sync',
 			});
 
 			const result = factory(
 				createMockClient(ydoc),
 			) as unknown as SyncExtensionResult;
 			result.exports.reconnect({
-				url: 'ws://cloud.example.com/workspaces/test-doc-destroy/sync',
+				url: 'ws://cloud.example.com/rooms/test-doc-destroy/sync',
 			});
 
 			const currentProvider = result.exports.provider;
@@ -135,7 +135,7 @@ describe('createSyncExtension', () => {
 		const ydoc = new Y.Doc({ guid: 'my-workspace' });
 
 		const factory = createSyncExtension({
-			url: 'ws://localhost:3913/workspaces/{id}/sync',
+			url: 'ws://localhost:3913/rooms/{id}/sync',
 		});
 
 		// The factory creates a provider with connect: false, so no actual connection
@@ -177,7 +177,7 @@ describe('createSyncExtension', () => {
 		});
 
 		const factory = createSyncExtension({
-			url: 'ws://localhost:8080/workspaces/{id}/sync',
+			url: 'ws://localhost:8080/rooms/{id}/sync',
 		});
 
 		const result = factory({

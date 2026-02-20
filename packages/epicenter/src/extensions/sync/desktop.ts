@@ -93,7 +93,7 @@ export const persistence = (
  *     filePath: join(epicenterDir, 'persistence', `${ctx.id}.yjs`),
  *   }))
  *   .withExtension('sync', createSyncExtension({
- *     url: 'ws://localhost:3913/workspaces/{id}/sync',
+ *     url: 'ws://localhost:3913/rooms/{id}/sync',
  *   }))
  * ```
  */

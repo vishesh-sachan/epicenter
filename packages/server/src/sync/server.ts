@@ -14,8 +14,8 @@ export type SyncServerConfig = {
  * Create a standalone sync server with zero configuration.
  *
  * Rooms are created on demand when clients connect. No workspace schemas needed.
- * Mounts the sync plugin under `/workspaces` so the WebSocket URL matches
- * `createServer`: `ws://host:port/workspaces/{room}/sync`.
+ * Mounts the sync plugin under `/rooms` so the WebSocket URL matches
+ * `createServer`: `ws://host:port/rooms/{room}/sync`.
  *
  * Includes a health/status endpoint at `GET /`.
  *
@@ -25,7 +25,7 @@ export type SyncServerConfig = {
  *
  * // Zero-config relay
  * createSyncServer().start();
- * // Clients connect to: ws://localhost:3913/workspaces/{room}/sync
+ * // Clients connect to: ws://localhost:3913/rooms/{room}/sync
  *
  * // With auth
  * createSyncServer({ port: 3913, auth: { token: 'my-secret' } }).start();
@@ -40,7 +40,7 @@ export function createSyncServer(config?: SyncServerConfig) {
 	});
 
 	const app = new Elysia()
-		.use(new Elysia({ prefix: '/workspaces' }).use(syncPlugin))
+		.use(new Elysia({ prefix: '/rooms' }).use(syncPlugin))
 		.get('/', () => ({ status: 'ok' }));
 
 	const port = config?.port ?? 3913;

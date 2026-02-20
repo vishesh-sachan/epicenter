@@ -144,7 +144,10 @@ Key behaviors:
 │   ├── Room manager               ├── Tables plugin               │
 │   ├── Auth (open/token/verify)   ├── Actions router              │
 │   ├── WS protocol handler        ├── OpenAPI docs                │
-│   └── Ping/pong keepalive        └── Discovery endpoint          │
+│   ├── Ping/pong keepalive        └── Discovery endpoint          │
+│   ├── GET / (room list)                                          │
+│   ├── GET /:room/doc (snapshot)                                  │
+│   └── POST /:room/doc (update)                                   │
 │                                                                  │
 │   Depends on:                    Depends on:                     │
 │     elysia, yjs, lib0,            elysia, @epicenter/hq          │
@@ -530,7 +533,8 @@ for (const [raw, conn] of room.conns) {
 
 4. **Should the sync plugin expose room state via REST?**
    - Example: `GET /rooms` → `[{ id: 'blog', connections: 2 }]`
-   - **Recommendation**: Yes, but only in `createSyncServer` (the convenience wrapper adds a health endpoint). The raw plugin shouldn't add REST routes — it's a WS plugin.
+   - ~~**Recommendation**: Yes, but only in `createSyncServer` (the convenience wrapper adds a health endpoint). The raw plugin shouldn't add REST routes — it's a WS plugin.~~
+   - **Updated**: Yes, directly in `createSyncPlugin`. See `specs/20260220T195900-sync-plugin-rest-endpoints.md`. The plugin registers `GET /` (room list), `GET /:room/doc` (binary snapshot), and `POST /:room/doc` (binary update) alongside the WS route. REST and WS operate on the same Y.Doc — they're the same concern.
 
 ## Success Criteria
 
@@ -593,7 +597,7 @@ All 5 phases implemented in dependency order. Typecheck clean after each phase. 
 
 3. **Room count limits** → (a) Unlimited. Eviction keeps memory bounded. Add limits when DoS is a real concern.
 
-4. **REST room state in sync** → Only in `createSyncServer` wrapper (the `GET /` health endpoint). The raw `createSyncPlugin` doesn't add REST routes — it's a WebSocket-only plugin.
+4. **REST room state in sync** → ~~Only in `createSyncServer` wrapper. The raw `createSyncPlugin` doesn't add REST routes — it's a WebSocket-only plugin.~~ **Amended**: REST endpoints (`GET /`, `GET /:room/doc`, `POST /:room/doc`) now live in `createSyncPlugin` directly. See `specs/20260220T195900-sync-plugin-rest-endpoints.md`.
 
 5. **Connection state tracking (Phase 1.7)** → Per-connection state (updateHandler, pingInterval, controlledClientIds) stays in the plugin via a `WeakMap<object, ConnectionState>` keyed by `ws.raw`. This is transport-specific (WebSocket concerns). The room manager handles rooms, docs, awareness, and the connection map (`Map<object, { send }>`). Clean separation: room manager is transport-agnostic, plugin is Elysia/WebSocket-specific.
 
@@ -605,9 +609,10 @@ The sync plugin always registers `/:room/sync` as a fixed route string. Consumer
 // Standalone: /:room/sync
 new Elysia().use(createSyncPlugin()).listen(3913);
 
-// Integrated: /workspaces/:room/sync
+// Integrated: /rooms/:room/sync
+// NOTE: Prefix changed from /workspaces to /rooms in specs/20260220T195900-sync-route-prefix-restructure.md
 new Elysia()
-	.use(new Elysia({ prefix: '/workspaces' }).use(createSyncPlugin({ getDoc })))
+	.use(new Elysia({ prefix: '/rooms' }).use(createSyncPlugin({ getDoc })))
 	.listen(3913);
 ```
 
