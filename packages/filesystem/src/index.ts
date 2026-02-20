@@ -45,7 +45,8 @@ export { generateColumnId, generateFileId, generateRowId } from './types.js';
 export {
 	assertUniqueName,
 	disambiguateNames,
-	fsError,
+	FS_ERRORS,
+	type FsErrorCode,
 	validateName,
 } from './validation.js';
 
