@@ -1,8 +1,4 @@
-import {
-	type AnyTextAdapter,
-	chat,
-	toServerSentEventsResponse,
-} from '@tanstack/ai';
+import { chat, toServerSentEventsResponse } from '@tanstack/ai';
 import { Elysia, t } from 'elysia';
 import { createAdapter, SUPPORTED_PROVIDERS } from './adapters';
 
@@ -50,7 +46,14 @@ export function createAIPlugin(config?: AIPluginConfig) {
 		'/chat',
 		async ({ body, headers, set }) => {
 			const apiKey = headers['x-provider-api-key'];
-			const { messages, provider, model, conversationId, systemPrompt } = body;
+			const {
+				messages,
+				provider,
+				model,
+				conversationId,
+				systemPrompt,
+				modelOptions,
+			} = body;
 
 			// Ollama is local — no API key needed
 			if (provider !== 'ollama' && !apiKey) {
@@ -63,9 +66,7 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				return { error: `Unsupported provider: ${provider}` };
 			}
 
-			const adapter = createAdapter(provider, model, apiKey) as
-				| AnyTextAdapter
-				| undefined;
+			const adapter = createAdapter(provider, model, apiKey);
 			if (!adapter) {
 				set.status = 400;
 				return { error: `Unsupported provider: ${provider}` };
@@ -74,6 +75,7 @@ export function createAIPlugin(config?: AIPluginConfig) {
 			// AbortController for cleanup when client disconnects mid-stream.
 			// Passed to both chat() and toServerSentEventsResponse() so the
 			// LLM API call and the SSE stream are both cancelled on disconnect.
+			// This is the recommended TanStack AI pattern (see api.tanchat.ts).
 			const abortController = new AbortController();
 
 			try {
@@ -83,10 +85,21 @@ export function createAIPlugin(config?: AIPluginConfig) {
 					conversationId,
 					abortController,
 					...(systemPrompt ? { systemPrompts: [systemPrompt] } : {}),
+					...(modelOptions ? { modelOptions } : {}),
 				});
 
 				return toServerSentEventsResponse(stream, { abortController });
 			} catch (error) {
+				// Distinguish client disconnects from provider errors.
+				// TanStack AI reference pattern: return 499 for aborted requests.
+				if (
+					error instanceof Error &&
+					(error.name === 'AbortError' || abortController.signal.aborted)
+				) {
+					set.status = 499;
+					return { error: 'Client closed request' };
+				}
+
 				// Provider errors (bad API key, rate limit, model not found)
 				// may throw synchronously before streaming starts.
 				const message =
@@ -102,6 +115,7 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				model: t.String(),
 				conversationId: t.Optional(t.String()),
 				systemPrompt: t.Optional(t.String()),
+				modelOptions: t.Optional(t.Any()), // Provider-specific options (temperature, thinking, etc.)
 			}),
 		},
 	);

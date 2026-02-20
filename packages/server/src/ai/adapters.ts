@@ -1,10 +1,30 @@
+import type { AnyTextAdapter } from '@tanstack/ai';
 import { createAnthropicChat } from '@tanstack/ai-anthropic';
 import { createGeminiChat } from '@tanstack/ai-gemini';
 import { createGrokText } from '@tanstack/ai-grok';
 import { createOllamaChat } from '@tanstack/ai-ollama';
 import { createOpenaiChat } from '@tanstack/ai-openai';
 
-type AnyModel = Parameters<typeof createOpenaiChat>[0];
+/**
+ * Providers supported by the AI plugin.
+ *
+ * This is a string literal union — not derived from a runtime object — so
+ * TypeScript narrows it properly in switch statements and discriminated checks.
+ */
+export type SupportedProvider =
+	| 'openai'
+	| 'anthropic'
+	| 'gemini'
+	| 'ollama'
+	| 'grok';
+
+export const SUPPORTED_PROVIDERS: SupportedProvider[] = [
+	'openai',
+	'anthropic',
+	'gemini',
+	'ollama',
+	'grok',
+];
 
 /**
  * Factory functions for each supported provider.
@@ -21,10 +41,11 @@ type AnyModel = Parameters<typeof createOpenaiChat>[0];
  * so factories receive a non-empty string for providers that require one.
  */
 const ADAPTER_FACTORIES: Record<
-	string,
-	(model: string, apiKey: string) => unknown
+	SupportedProvider,
+	(model: string, apiKey: string) => AnyTextAdapter
 > = {
-	openai: (model, apiKey) => createOpenaiChat(model as AnyModel, apiKey),
+	openai: (model, apiKey) =>
+		createOpenaiChat(model as Parameters<typeof createOpenaiChat>[0], apiKey),
 	anthropic: (model, apiKey) =>
 		createAnthropicChat(
 			model as Parameters<typeof createAnthropicChat>[0],
@@ -32,16 +53,11 @@ const ADAPTER_FACTORIES: Record<
 		),
 	gemini: (model, apiKey) =>
 		createGeminiChat(model as Parameters<typeof createGeminiChat>[0], apiKey),
-	ollama: (model, _apiKey) => createOllamaChat(model),
+	ollama: (model, _apiKey) =>
+		createOllamaChat(model) as unknown as AnyTextAdapter,
 	grok: (model, apiKey) =>
 		createGrokText(model as Parameters<typeof createGrokText>[0], apiKey),
 };
-
-export type SupportedProvider = keyof typeof ADAPTER_FACTORIES;
-
-export const SUPPORTED_PROVIDERS = Object.keys(
-	ADAPTER_FACTORIES,
-) as SupportedProvider[];
 
 /**
  * Create a TanStack AI text adapter for the given provider.
@@ -52,8 +68,14 @@ export function createAdapter(
 	provider: string,
 	model: string,
 	apiKey: string = '',
-) {
-	const factory = ADAPTER_FACTORIES[provider as SupportedProvider];
-	if (!factory) return undefined;
-	return factory(model, apiKey);
+): AnyTextAdapter | undefined {
+	if (!isSupportedProvider(provider)) return undefined;
+	return ADAPTER_FACTORIES[provider](model, apiKey);
+}
+
+/** Type guard for narrowing an arbitrary string to a known provider. */
+export function isSupportedProvider(
+	provider: string,
+): provider is SupportedProvider {
+	return SUPPORTED_PROVIDERS.includes(provider as SupportedProvider);
 }

@@ -6,6 +6,7 @@
 
 export {
 	createAdapter,
+	isSupportedProvider,
 	SUPPORTED_PROVIDERS,
 	type SupportedProvider,
 } from './adapters';
