@@ -33,7 +33,7 @@ const blogWorkspace = defineWorkspace({
 const blogClient = await blogWorkspace.withProviders({ sqlite }).create();
 
 // 3. Create and start server
-const server = createServer(blogClient, { port: 3913 });
+const server = createServer([blogClient], { port: 3913 });
 server.start();
 ```
 
@@ -44,12 +44,11 @@ Now your tables are available as REST endpoints:
 
 ## API
 
-### `createServer(client, options?)` or `createServer(clients, options?)`
+### `createServer(clients, options?)`
 
-**Signatures:**
+**Signature:**
 
 ```typescript
-function createServer(client: WorkspaceClient, options?: ServerOptions): Server;
 function createServer(
 	clients: WorkspaceClient[],
 	options?: ServerOptions,
@@ -63,11 +62,15 @@ type ServerOptions = {
 **Usage:**
 
 ```typescript
-// Single workspace
-createServer(blogClient);
-createServer(blogClient, { port: 8080 });
+// No workspaces (dynamic docs only)
+createServer([]);
+createServer([], { port: 8080 });
 
-// Multiple workspaces (array - IDs from workspace definitions)
+// Single workspace
+createServer([blogClient]);
+createServer([blogClient], { port: 8080 });
+
+// Multiple workspaces
 createServer([blogClient, authClient]);
 createServer([blogClient, authClient], { port: 8080 });
 ```
@@ -81,7 +84,7 @@ createServer([blogClient, authClient], { port: 8080 });
 ### Server Methods
 
 ```typescript
-const server = createServer(blogClient, { port: 3913 });
+const server = createServer([blogClient], { port: 3913 });
 
 server.app; // Underlying Elysia instance
 server.start(); // Start the HTTP server
@@ -133,23 +136,26 @@ The recommended client is `@epicenter/sync` (via `createSyncExtension` from `@ep
 import { createSyncExtension } from '@epicenter/hq/extensions/sync';
 
 const client = createClient(definition.id)
-  .withDefinition(definition)
-  .withExtension('persistence', setupPersistence)
-  .withExtension('sync', createSyncExtension({
-    url: 'ws://localhost:3913/workspaces/{id}/sync',
-  }));
+	.withDefinition(definition)
+	.withExtension('persistence', setupPersistence)
+	.withExtension(
+		'sync',
+		createSyncExtension({
+			url: 'ws://localhost:3913/workspaces/{id}/sync',
+		}),
+	);
 ```
 
 ### Protocol
 
 The sync plugin implements the y-websocket protocol with one custom extension:
 
-| Message Type          | Tag | Direction          | Purpose                                    |
-| --------------------- | --- | ------------------ | ------------------------------------------ |
-| SYNC                  | 0   | Bidirectional      | Document synchronization (step 1, 2, updates) |
-| AWARENESS             | 1   | Bidirectional      | User presence (cursors, names, selections) |
-| QUERY_AWARENESS       | 3   | Client → Server    | Request current awareness states           |
-| SYNC_STATUS           | 102 | Client → Server → Client | Heartbeat + `hasLocalChanges` tracking |
+| Message Type    | Tag | Direction                | Purpose                                       |
+| --------------- | --- | ------------------------ | --------------------------------------------- |
+| SYNC            | 0   | Bidirectional            | Document synchronization (step 1, 2, updates) |
+| AWARENESS       | 1   | Bidirectional            | User presence (cursors, names, selections)    |
+| QUERY_AWARENESS | 3   | Client → Server          | Request current awareness states              |
+| SYNC_STATUS     | 102 | Client → Server → Client | Heartbeat + `hasLocalChanges` tracking        |
 
 **MESSAGE_SYNC_STATUS (102)**: The client sends its local version counter. The server echoes the raw bytes back unchanged (zero parsing cost). This enables the client to know when all local changes have reached the server, powering "Saving..." / "Saved" UI. It also doubles as a heartbeat for fast dead-connection detection (5s worst case).
 
@@ -172,7 +178,7 @@ The server exposes the WebSocket endpoint. `@epicenter/sync` is the client-side 
 
 ```typescript
 // Server side
-const server = createServer(blogClient, { port: 3913 });
+const server = createServer([blogClient], { port: 3913 });
 server.start();
 // Exposes: ws://localhost:3913/workspaces/blog/sync
 
@@ -180,8 +186,8 @@ server.start();
 import { createSyncProvider } from '@epicenter/sync';
 
 const provider = createSyncProvider({
-  doc: myDoc,
-  url: 'ws://localhost:3913/workspaces/blog/sync',
+	doc: myDoc,
+	url: 'ws://localhost:3913/workspaces/blog/sync',
 });
 ```
 
@@ -209,7 +215,7 @@ See `@epicenter/sync` for the client-side API (auth modes, status model, `hasLoc
 ```typescript
 const client = await blogWorkspace.withProviders({ sqlite }).create();
 
-const server = createServer(client, { port: 3913 });
+const server = createServer([client], { port: 3913 });
 server.start();
 // Clients stay alive until Ctrl+C
 ```
@@ -266,7 +272,7 @@ Tables are automatically exposed as CRUD endpoints:
 Write regular functions that use your client and expose them via custom routes:
 
 ```typescript
-const server = createServer(blogClient, { port: 3913 });
+const server = createServer([blogClient], { port: 3913 });
 
 // Define functions that use the client
 function createPost(title: string) {

@@ -31,7 +31,7 @@ export type ServerOptions = {
  *   .withExtension('persistence', (ctx) => setupPersistence(ctx))
  *   .withExtension('sqlite', (ctx) => sqliteProvider(ctx));
  *
- * const server = createServer(workspace, { port: 3913 });
+ * const server = createServer([workspace], { port: 3913 });
  * server.start();
  *
  * // Access endpoints:
@@ -40,46 +40,7 @@ export type ServerOptions = {
  * // WS   ws://localhost:3913/workspaces/blog/sync
  * ```
  */
-function createServer(
-	options?: ServerOptions,
-): ReturnType<typeof createServerInternal>;
-function createServer(
-	client: AnyWorkspaceClient,
-	options?: ServerOptions,
-): ReturnType<typeof createServerInternal>;
-function createServer(
-	clients: AnyWorkspaceClient[],
-	options?: ServerOptions,
-): ReturnType<typeof createServerInternal>;
-function createServer(
-	clientOrClientsOrOptions?:
-		| AnyWorkspaceClient
-		| AnyWorkspaceClient[]
-		| ServerOptions,
-	options?: ServerOptions,
-): ReturnType<typeof createServerInternal> {
-	// No args or just options
-	if (
-		!clientOrClientsOrOptions ||
-		(!Array.isArray(clientOrClientsOrOptions) &&
-			!('id' in clientOrClientsOrOptions))
-	) {
-		return createServerInternal(
-			[],
-			clientOrClientsOrOptions as ServerOptions | undefined,
-		);
-	}
-
-	const clients = Array.isArray(clientOrClientsOrOptions)
-		? clientOrClientsOrOptions
-		: [clientOrClientsOrOptions];
-	return createServerInternal(clients, options);
-}
-
-function createServerInternal(
-	clients: AnyWorkspaceClient[],
-	options?: ServerOptions,
-) {
+function createServer(clients: AnyWorkspaceClient[], options?: ServerOptions) {
 	const workspaces: Record<string, AnyWorkspaceClient> = {};
 
 	for (const client of clients) {

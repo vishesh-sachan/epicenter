@@ -14,7 +14,7 @@ console.log('Starting tab-manager sync server...');
 const client = createWorkspace(definition);
 
 // Create and start server
-const server = createServer(client, { port: 3913 });
+const server = createServer([client], { port: 3913 });
 server.start();
 
 console.log('');

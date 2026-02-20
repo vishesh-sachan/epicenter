@@ -24,7 +24,7 @@ export function createCLI(client: AnyWorkspaceClient) {
 			async (argv) => {
 				try {
 					const { createServer } = await import('@epicenter/server');
-					createServer(client, {
+					createServer([client], {
 						port: argv.port,
 					}).start();
 				} catch {
