@@ -10,7 +10,7 @@
 	},
 	"license": "AGPL-3.0",
 	"scripts": {
-		"dev": "bun src/start.ts",
+		"start": "bun src/start.ts",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
