@@ -9,10 +9,10 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"lib0": "^0.2.99",
-		"y-protocols": "^1.0.6"
+		"lib0": "catalog:",
+		"y-protocols": "catalog:"
 	},
 	"peerDependencies": {
-		"yjs": "^13.0.0"
+		"yjs": "catalog:"
 	}
 }

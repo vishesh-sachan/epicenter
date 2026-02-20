@@ -15,13 +15,13 @@
 	"dependencies": {
 		"@elysiajs/openapi": "^1.4.11",
 		"elysia": "^1.2.25",
-		"lib0": "^0.2.99",
+		"lib0": "catalog:",
 		"wellcrafted": "catalog:",
-		"y-protocols": "^1.0.6"
+		"y-protocols": "catalog:"
 	},
 	"peerDependencies": {
 		"@epicenter/hq": "workspace:*",
-		"yjs": "^13.6.27"
+		"yjs": "catalog:"
 	},
 	"devDependencies": {
 		"@epicenter/sync": "workspace:*",

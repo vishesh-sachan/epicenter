@@ -25,7 +25,7 @@
 		"tailwindcss": "catalog:",
 		"typescript": "catalog:",
 		"vite": "catalog:",
-		"y-indexeddb": "^9.0.12",
-		"yjs": "^13.6.27"
+		"y-indexeddb": "catalog:",
+		"yjs": "catalog:"
 	}
 }

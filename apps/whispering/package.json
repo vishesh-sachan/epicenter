@@ -89,6 +89,6 @@
 		"tailwind-variants": "catalog:",
 		"tauri-plugin-macos-permissions-api": "^2.3.0",
 		"wellcrafted": "catalog:",
-		"yjs": "^13.6.27"
+		"yjs": "catalog:"
 	}
 }
