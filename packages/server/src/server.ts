@@ -28,7 +28,7 @@ export type ServerOptions = {
  * - `/openapi/json` - OpenAPI specification
  * - `/workspaces/{id}/tables/{table}` - RESTful table CRUD endpoints
  * - `/workspaces/{id}/actions/{action}` - Workspace action endpoints (queries via GET, mutations via POST)
- * - `/workspaces/{id}/ws` - WebSocket sync endpoint (y-websocket protocol)
+ * - `/workspaces/{id}/sync` - WebSocket sync endpoint (y-websocket protocol)
  *
  * @example
  * ```typescript

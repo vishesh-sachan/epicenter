@@ -44,7 +44,7 @@ function startTestServer(config?: SyncServerConfig) {
 		server,
 		port,
 		wsUrl(room: string) {
-			return `ws://localhost:${port}/${room}/ws`;
+			return `ws://localhost:${port}/workspaces/${room}/sync`;
 		},
 		httpUrl(path = '/') {
 			return `http://localhost:${port}${path}`;
@@ -65,7 +65,7 @@ function startIntegratedTestServer({
 		app,
 		port,
 		wsUrl(room: string) {
-			return `ws://localhost:${port}/${room}/ws`;
+			return `ws://localhost:${port}/${room}/sync`;
 		},
 	};
 }
