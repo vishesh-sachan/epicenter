@@ -12,25 +12,14 @@
 
 import { describe, expect, test } from 'bun:test';
 import { type } from 'arktype';
-import type * as Y from 'yjs';
 import { createWorkspace } from './create-workspace.js';
 import { defineKv } from './define-kv.js';
 import { defineTable } from './define-table.js';
 import { defineWorkspace } from './define-workspace.js';
 
-type DocumentBindingLike = {
-	open: (guid: string) => Promise<Y.Doc>;
-	read: (guid: string) => Promise<string>;
-	write: (guid: string, text: string) => Promise<void>;
-	destroy: (guid: string) => Promise<void>;
-	destroyAll: () => Promise<void>;
-	getExports: (
-		guid: string,
-	) => Record<string, Record<string, unknown>> | undefined;
-};
-
 type TableWithDocs = {
-	docs?: Record<string, DocumentBindingLike>;
+	// biome-ignore lint/suspicious/noExplicitAny: test helper — loose duck type for `as` casts
+	docs?: Record<string, any>;
 };
 
 /** Creates a workspace client with two tables and one KV for testing. */
@@ -288,6 +277,157 @@ describe('createWorkspace', () => {
 		});
 	});
 
+	describe('extension whenReady', () => {
+		test('withExtension injects whenReady into extension exports', () => {
+			const filesTable = defineTable(
+				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
+			);
+
+			const client = createWorkspace({
+				id: 'ext-await-test-1',
+				tables: { files: filesTable },
+			}).withExtension('myExt', () => {
+				return { exports: { someValue: 42 }, lifecycle: { destroy: () => {} } };
+			});
+
+			expect(client.extensions.myExt.someValue).toBe(42);
+			expect(client.extensions.myExt.whenReady).toBeInstanceOf(Promise);
+		});
+
+		test('extension factory receives prior extensions with per-key whenReady', () => {
+			const filesTable = defineTable(
+				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
+			);
+			let receivedFirstWhenReady = false;
+
+			createWorkspace({
+				id: 'ext-await-test-2',
+				tables: { files: filesTable },
+			})
+				.withExtension('first', () => {
+					return {
+						exports: { value: 'first' },
+						lifecycle: { whenReady: Promise.resolve(), destroy: () => {} },
+					};
+				})
+				.withExtension('second', (context) => {
+					receivedFirstWhenReady =
+						context.extensions.first.whenReady instanceof Promise;
+					return { lifecycle: { destroy: () => {} } };
+				});
+
+			expect(receivedFirstWhenReady).toBe(true);
+		});
+
+		test('per-extension whenReady resolves independently', async () => {
+			const filesTable = defineTable(
+				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
+			);
+			let resolveFirstWhenReady: (() => void) | undefined;
+
+			const firstWhenReady = new Promise<void>((resolve) => {
+				resolveFirstWhenReady = resolve;
+			});
+
+			const client = createWorkspace({
+				id: 'ext-await-test-3',
+				tables: { files: filesTable },
+			})
+				.withExtension('first', () => {
+					return {
+						exports: { value: 'first' },
+						lifecycle: { whenReady: firstWhenReady, destroy: () => {} },
+					};
+				})
+				.withExtension('second', () => {
+					return {
+						exports: { value: 'second' },
+						lifecycle: { whenReady: Promise.resolve(), destroy: () => {} },
+					};
+				});
+
+			let secondResolved = false;
+			let firstResolved = false;
+			client.extensions.second.whenReady.then(() => {
+				secondResolved = true;
+			});
+			client.extensions.first.whenReady.then(() => {
+				firstResolved = true;
+			});
+
+			await client.extensions.second.whenReady;
+			expect(secondResolved).toBe(true);
+			expect(firstResolved).toBe(false);
+
+			resolveFirstWhenReady?.();
+			await client.extensions.first.whenReady;
+			expect(firstResolved).toBe(true);
+		});
+
+		test('composite whenReady waits for all extensions', async () => {
+			const filesTable = defineTable(
+				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
+			);
+			let resolveFirstWhenReady: (() => void) | undefined;
+			let resolveSecondWhenReady: (() => void) | undefined;
+
+			const firstWhenReady = new Promise<void>((resolve) => {
+				resolveFirstWhenReady = resolve;
+			});
+			const secondWhenReady = new Promise<void>((resolve) => {
+				resolveSecondWhenReady = resolve;
+			});
+
+			const client = createWorkspace({
+				id: 'ext-await-test-4',
+				tables: { files: filesTable },
+			})
+				.withExtension('first', () => {
+					return {
+						lifecycle: { whenReady: firstWhenReady, destroy: () => {} },
+					};
+				})
+				.withExtension('second', () => {
+					return {
+						lifecycle: { whenReady: secondWhenReady, destroy: () => {} },
+					};
+				});
+
+			let compositeResolved = false;
+			client.whenReady.then(() => {
+				compositeResolved = true;
+			});
+
+			await Promise.resolve();
+			expect(compositeResolved).toBe(false);
+
+			resolveFirstWhenReady?.();
+			await Promise.resolve();
+			expect(compositeResolved).toBe(false);
+
+			resolveSecondWhenReady?.();
+			await client.whenReady;
+			expect(compositeResolved).toBe(true);
+		});
+
+		test('extension with no lifecycle gets resolved whenReady', async () => {
+			const filesTable = defineTable(
+				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
+			);
+
+			const client = createWorkspace({
+				id: 'ext-await-test-5',
+				tables: { files: filesTable },
+			}).withExtension('myExt', () => {
+				return { exports: { foo: 42 } };
+			});
+
+			expect(client.extensions.myExt.foo).toBe(42);
+			const value = await client.extensions.myExt.whenReady;
+			expect(value).toBeUndefined();
+		});
+	});
+
 	describe('document binding wiring', () => {
 		test('table using withDocument exposes docs namespace on helper', () => {
 			const filesTable = defineTable(
@@ -312,11 +452,9 @@ describe('createWorkspace', () => {
 			const content = docs.content;
 			expect(content).toBeDefined();
 			expect(typeof content!.open).toBe('function');
-			expect(typeof content!.read).toBe('function');
-			expect(typeof content!.write).toBe('function');
-			expect(typeof content!.destroy).toBe('function');
-			expect(typeof content!.destroyAll).toBe('function');
-			expect(typeof content!.getExports).toBe('function');
+			expect(typeof content!.close).toBe('function');
+			expect(typeof content!.closeAll).toBe('function');
+			expect(typeof content!.guidOf).toBe('function');
 		});
 
 		test('table without withDocument does not expose docs property', () => {
@@ -423,7 +561,7 @@ describe('createWorkspace', () => {
 			expect(hookCalls).toEqual(['ephemeral-only', 'universal']);
 		});
 
-		test('workspace destroy cascades to destroyAll on bindings', async () => {
+		test('workspace destroy cascades to closeAll on bindings', async () => {
 			const filesTable = defineTable(
 				type({
 					id: 'string',

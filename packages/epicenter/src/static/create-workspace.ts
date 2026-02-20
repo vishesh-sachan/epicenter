@@ -153,7 +153,7 @@ export function createWorkspace<
 			});
 
 			docsNamespace[docName] = binding;
-			documentBindingCleanups.push(() => binding.destroyAll());
+			documentBindingCleanups.push(() => binding.closeAll());
 		}
 
 		// Attach .docs namespace to the table helper
@@ -197,7 +197,13 @@ export function createWorkspace<
 			tables,
 			kv,
 			awareness,
-			extensions,
+			// Cast: each extension entry has whenReady injected at runtime via Object.assign
+			// in withExtension(). The mapped type in WorkspaceClient declares this.
+			extensions: extensions as {
+				[K in keyof TExtensions]: TExtensions[K] & {
+					whenReady: Promise<void>;
+				};
+			},
 			batch(fn: () => void): void {
 				ydoc.transact(fn);
 			},
@@ -206,7 +212,10 @@ export function createWorkspace<
 			[Symbol.asyncDispose]: destroy,
 		};
 
-		return Object.assign(client, {
+		// The builder methods use generics at the type level for progressive accumulation,
+		// but the runtime implementations use wider types for storage (registrations array).
+		// The cast at the end bridges the gap — type safety is enforced at call sites.
+		const builder = Object.assign(client, {
 			withExtension<
 				TKey extends string,
 				TExports extends Record<string, unknown>,
@@ -222,16 +231,32 @@ export function createWorkspace<
 					>,
 				) => Extension<TExports>,
 			) {
-				const result = factory(client);
+				const result = factory(
+					client as unknown as ExtensionContext<
+						TId,
+						TTableDefinitions,
+						TKvDefinitions,
+						TAwarenessDefinitions,
+						TExtensions
+					>,
+				);
 				const destroy = result.lifecycle?.destroy;
 				if (destroy) extensionCleanups.push(destroy);
-				whenReadyPromises.push(
-					result.lifecycle?.whenReady ?? Promise.resolve(),
-				);
+
+				// Normalize whenReady to Promise<void> for both composite and per-extension use
+				const extWhenReady: Promise<void> = result.lifecycle?.whenReady
+					? result.lifecycle.whenReady.then(() => {})
+					: Promise.resolve();
+				whenReadyPromises.push(extWhenReady);
+
+				// Inject per-extension whenReady into the exports object (Option B: flat inject).
+				// Object.assign preserves the original exports reference (getters, identity).
+				const exports = result.exports ?? {};
+				Object.assign(exports, { whenReady: extWhenReady });
 
 				const newExtensions = {
 					...extensions,
-					[key]: result.exports ?? {},
+					[key]: exports,
 				} as TExtensions & Record<TKey, TExports>;
 
 				return buildClient(newExtensions);
@@ -277,6 +302,14 @@ export function createWorkspace<
 				>;
 			},
 		});
+
+		return builder as unknown as WorkspaceClientBuilder<
+			TId,
+			TTableDefinitions,
+			TKvDefinitions,
+			TAwarenessDefinitions,
+			TExtensions
+		>;
 	}
 
 	return buildClient({} as Record<string, never>);
