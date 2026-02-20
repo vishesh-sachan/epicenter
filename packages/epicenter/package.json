@@ -41,19 +41,19 @@
 		"drizzle-orm": "catalog:",
 		"elysia": "^1.2.25",
 		"fflate": "^0.8.2",
-		"lib0": "^0.2.99",
+		"lib0": "catalog:",
 		"mime": "catalog:",
 		"nanoid": "catalog:",
 		"temporal-polyfill": "^0.3.0",
 		"tinybase": "^5.4.2",
 		"typebox": "^1.0.75",
 		"wellcrafted": "catalog:",
-		"y-indexeddb": "^9.0.12",
-		"y-protocols": "^1.0.6",
+		"y-indexeddb": "catalog:",
+		"y-protocols": "catalog:",
 		"yargs": "catalog:"
 	},
 	"peerDependencies": {
-		"yjs": "^13.6.27"
+		"yjs": "catalog:"
 	},
 	"devDependencies": {
 		"@types/diff": "^8.0.0",

@@ -29,7 +29,7 @@
 		"svelte-sonner": "catalog:",
 		"tailwind-variants": "catalog:",
 		"wellcrafted": "catalog:",
-		"yjs": "^13.6.27"
+		"yjs": "catalog:"
 	},
 	"devDependencies": {
 		"@epicenter/config": "workspace:*",
