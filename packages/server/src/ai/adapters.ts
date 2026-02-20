@@ -1,9 +1,12 @@
 import type { AnyTextAdapter } from '@tanstack/ai';
-import { createAnthropicChat } from '@tanstack/ai-anthropic';
-import { createGeminiChat } from '@tanstack/ai-gemini';
-import { createGrokText } from '@tanstack/ai-grok';
+import {
+	type AnthropicChatModel,
+	createAnthropicChat,
+} from '@tanstack/ai-anthropic';
+import { createGeminiChat, type GeminiTextModel } from '@tanstack/ai-gemini';
+import { createGrokText, type GrokChatModel } from '@tanstack/ai-grok';
 import { createOllamaChat } from '@tanstack/ai-ollama';
-import { createOpenaiChat } from '@tanstack/ai-openai';
+import { createOpenaiChat, type OpenAIChatModel } from '@tanstack/ai-openai';
 
 /**
  * Providers supported by the AI plugin.
@@ -44,19 +47,12 @@ const ADAPTER_FACTORIES: Record<
 	SupportedProvider,
 	(model: string, apiKey: string) => AnyTextAdapter
 > = {
-	openai: (model, apiKey) =>
-		createOpenaiChat(model as Parameters<typeof createOpenaiChat>[0], apiKey),
+	openai: (model, apiKey) => createOpenaiChat(model as OpenAIChatModel, apiKey),
 	anthropic: (model, apiKey) =>
-		createAnthropicChat(
-			model as Parameters<typeof createAnthropicChat>[0],
-			apiKey,
-		),
-	gemini: (model, apiKey) =>
-		createGeminiChat(model as Parameters<typeof createGeminiChat>[0], apiKey),
-	ollama: (model, _apiKey) =>
-		createOllamaChat(model) as unknown as AnyTextAdapter,
-	grok: (model, apiKey) =>
-		createGrokText(model as Parameters<typeof createGrokText>[0], apiKey),
+		createAnthropicChat(model as AnthropicChatModel, apiKey),
+	gemini: (model, apiKey) => createGeminiChat(model as GeminiTextModel, apiKey),
+	ollama: (model, _apiKey) => createOllamaChat(model),
+	grok: (model, apiKey) => createGrokText(model as GrokChatModel, apiKey),
 };
 
 /**
