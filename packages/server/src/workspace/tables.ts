@@ -38,8 +38,7 @@ export function createTablesPlugin(workspace: AnyWorkspaceClient) {
 			'/:id',
 			({ params, status }) => {
 				const result = tableHelper.get(params.id);
-				if (result.status === 'not_found')
-					return status('Internal Server Error', result);
+				if (result.status === 'not_found') return status('Not Found', result);
 				if (result.status === 'invalid')
 					return status('Unprocessable Content', result);
 				return result;
@@ -70,7 +69,7 @@ export function createTablesPlugin(workspace: AnyWorkspaceClient) {
 					params.id,
 					body as Record<string, unknown>,
 				);
-				if (result.status === 'not_found') return status(404, result);
+				if (result.status === 'not_found') return status('Not Found', result);
 				if (result.status === 'invalid')
 					return status('Unprocessable Content', result);
 				return result;
