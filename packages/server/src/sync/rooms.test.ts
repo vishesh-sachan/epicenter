@@ -21,12 +21,12 @@ function createMockWsRaw(): object {
 
 /** Create a mock send function that captures data */
 function createMockSend(): {
-	send: (data: Buffer) => void;
-	calls: Buffer[];
+	send: (data: Uint8Array) => void;
+	calls: Uint8Array[];
 } {
-	const calls: Buffer[] = [];
+	const calls: Uint8Array[] = [];
 	return {
-		send: (data: Buffer) => calls.push(data),
+		send: (data: Uint8Array) => calls.push(data),
 		calls,
 	};
 }
@@ -186,7 +186,7 @@ describe('leave()', () => {
 		manager.join('room1', wsRaw2, send2);
 
 		// Broadcast to room1 (should reach both)
-		const mockData = Buffer.from([1, 2, 3]);
+		const mockData = new Uint8Array([1, 2, 3]);
 		manager.broadcast('room1', mockData);
 
 		// Leave with wsRaw1
@@ -274,7 +274,7 @@ describe('broadcast()', () => {
 		manager.join('room1', wsRaw2, send2);
 		manager.join('room1', wsRaw3, send3);
 
-		const mockData = Buffer.from([1, 2, 3]);
+		const mockData = new Uint8Array([1, 2, 3]);
 		manager.broadcast('room1', mockData, wsRaw1);
 
 		// wsRaw1 (sender) should NOT receive
@@ -292,7 +292,7 @@ describe('broadcast()', () => {
 
 		// Should not throw
 		expect(() => {
-			manager.broadcast('non-existent', Buffer.from([1, 2, 3]));
+			manager.broadcast('non-existent', new Uint8Array([1, 2, 3]));
 		}).not.toThrow();
 	});
 
@@ -307,7 +307,7 @@ describe('broadcast()', () => {
 		manager.join('room1', wsRaw1, send1);
 		manager.join('room1', wsRaw2, send2);
 
-		const mockData = Buffer.from([1, 2, 3]);
+		const mockData = new Uint8Array([1, 2, 3]);
 		manager.broadcast('room1', mockData);
 
 		// Both should receive
@@ -521,7 +521,7 @@ describe('integration', () => {
 		expect(doc1).not.toBe(doc2);
 
 		// Broadcast to room1 should not affect room2
-		manager.broadcast('room1', Buffer.from([1, 2, 3]), wsRaw1);
+		manager.broadcast('room1', new Uint8Array([1, 2, 3]), wsRaw1);
 		expect(calls1.length).toBe(0); // wsRaw1 is sender, excluded
 		expect(calls2.length).toBe(0); // wsRaw2 is in different room
 	});
