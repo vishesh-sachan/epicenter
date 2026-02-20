@@ -130,9 +130,7 @@ describe('createWorkspace', () => {
 
 			// Use inline factory for better type inference
 			const workspace = baseWorkspace.withExtension('mock', ({ id }) => ({
-				exports: {
-					greeting: `Hello from ${id}`,
-				},
+				greeting: `Hello from ${id}`,
 			}));
 
 			// Should have extension exports
@@ -171,24 +169,20 @@ describe('createWorkspace', () => {
 
 			const workspace = baseWorkspace
 				.withExtension('ext1', () => ({
-					lifecycle: {
-						whenReady: new Promise<void>((resolve) => {
-							setTimeout(() => {
-								resolved1 = true;
-								resolve();
-							}, 10);
-						}),
-					},
+					whenReady: new Promise<void>((resolve) => {
+						setTimeout(() => {
+							resolved1 = true;
+							resolve();
+						}, 10);
+					}),
 				}))
 				.withExtension('ext2', () => ({
-					lifecycle: {
-						whenReady: new Promise<void>((resolve) => {
-							setTimeout(() => {
-								resolved2 = true;
-								resolve();
-							}, 20);
-						}),
-					},
+					whenReady: new Promise<void>((resolve) => {
+						setTimeout(() => {
+							resolved2 = true;
+							resolve();
+						}, 20);
+					}),
 				}));
 
 			// Before awaiting, neither should be resolved
@@ -206,15 +200,13 @@ describe('createWorkspace', () => {
 
 			const workspace = createWorkspace(testDefinition)
 				.withExtension('slow', () => ({
-					exports: { tag: 'slow' },
-					lifecycle: {
-						whenReady: new Promise<void>((resolve) =>
-							setTimeout(() => {
-								order.push('slow-ready');
-								resolve();
-							}, 50),
-						),
-					},
+					tag: 'slow',
+					whenReady: new Promise<void>((resolve) =>
+						setTimeout(() => {
+							order.push('slow-ready');
+							resolve();
+						}, 50),
+					),
 				}))
 				.withExtension('dependent', (context) => {
 					// context.whenReady should be a promise representing all prior extensions
@@ -226,10 +218,8 @@ describe('createWorkspace', () => {
 					})();
 
 					return {
-						exports: { tag: 'dependent' },
-						lifecycle: {
-							whenReady,
-						},
+						tag: 'dependent',
+						whenReady,
 					};
 				});
 
@@ -255,7 +245,7 @@ describe('createWorkspace', () => {
 			const baseWorkspace = createWorkspace(testDefinition);
 
 			const chainedWorkspace = baseWorkspace.withExtension('mock', () => ({
-				exports: { data: 'test' },
+				data: 'test',
 			}));
 
 			// Base should still have empty extensions
@@ -292,17 +282,13 @@ describe('createWorkspace', () => {
 
 			const workspace = baseWorkspace
 				.withExtension('ext1', () => ({
-					lifecycle: {
-						destroy: () => {
-							destroyed1 = true;
-						},
+					destroy: () => {
+						destroyed1 = true;
 					},
 				}))
 				.withExtension('ext2', () => ({
-					lifecycle: {
-						destroy: () => {
-							destroyed2 = true;
-						},
+					destroy: () => {
+						destroyed2 = true;
 					},
 				}));
 
@@ -322,10 +308,8 @@ describe('createWorkspace', () => {
 			const workspace = createWorkspace(testDefinition).withExtension(
 				'tracker',
 				() => ({
-					lifecycle: {
-						destroy: () => {
-							destroyed = true;
-						},
+					destroy: () => {
+						destroyed = true;
 					},
 				}),
 			);
@@ -367,10 +351,8 @@ describe('createWorkspace', () => {
 			const workspace = createWorkspace(testDefinition).withExtension(
 				'myExt',
 				() => ({
-					exports: {
-						version: 1,
-						getName: () => 'my-extension',
-					},
+					version: 1,
+					getName: () => 'my-extension',
 				}),
 			);
 
@@ -384,22 +366,20 @@ describe('createWorkspace', () => {
 		test('extension N+1 can access extension N exports via context', () => {
 			const workspace = createWorkspace(testDefinition)
 				.withExtension('first', () => ({
-					exports: {
-						value: 42,
-						helper: () => 'from-first',
-					},
+					value: 42,
+					helper: () => 'from-first',
 				}))
 				.withExtension('second', ({ extensions }) => {
 					// extensions.first is fully typed — no casts needed
 					const doubled = extensions.first.value * 2;
 					const msg = extensions.first.helper();
-					return { exports: { doubled, msg } };
+					return { doubled, msg };
 				})
 				.withExtension('third', ({ extensions }) => {
 					// extensions.first AND extensions.second are both fully typed
 					const tripled = extensions.first.value * 3;
 					const fromSecond = extensions.second.doubled;
-					return { exports: { tripled, fromSecond } };
+					return { tripled, fromSecond };
 				});
 
 			// All extensions accessible and typed on the final client
@@ -425,24 +405,18 @@ describe('createWorkspace', () => {
 
 			const workspace = createWorkspace(testDefinition)
 				.withExtension('a', () => ({
-					lifecycle: {
-						destroy: () => {
-							order.push('a');
-						},
+					destroy: () => {
+						order.push('a');
 					},
 				}))
 				.withExtension('b', () => ({
-					lifecycle: {
-						destroy: () => {
-							order.push('b');
-						},
+					destroy: () => {
+						order.push('b');
 					},
 				}))
 				.withExtension('c', () => ({
-					lifecycle: {
-						destroy: () => {
-							order.push('c');
-						},
+					destroy: () => {
+						order.push('c');
 					},
 				}));
 

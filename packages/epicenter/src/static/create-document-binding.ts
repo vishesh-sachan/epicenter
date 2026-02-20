@@ -39,7 +39,11 @@
  */
 
 import * as Y from 'yjs';
-import type { MaybePromise } from '../shared/lifecycle.js';
+import {
+	defineExtension,
+	type Extension,
+	type MaybePromise,
+} from '../shared/lifecycle.js';
 import type {
 	BaseRow,
 	DocumentBinding,
@@ -69,40 +73,36 @@ import type {
 export const DOCUMENT_BINDING_ORIGIN = Symbol('document-binding');
 
 /**
- * Normalized lifecycle hooks from a single document extension result.
- */
-type NormalizedLifecycle = {
-	whenReady?: Promise<unknown>;
-	destroy?: () => MaybePromise<void>;
-};
-
-/**
  * Internal entry for an open document.
- * Tracks the Y.Doc, normalized lifecycle hooks, accumulated exports,
+ * Tracks the Y.Doc, resolved extensions (with required whenReady/destroy),
  * the updatedAt observer teardown, and the composite whenReady promise.
  */
 type DocEntry = {
 	ydoc: Y.Doc;
-	lifecycles: NormalizedLifecycle[];
-	exports: Record<string, Record<string, unknown>>;
+	// biome-ignore lint/suspicious/noExplicitAny: runtime storage uses wide type
+	extensions: Record<string, Extension<any>>;
 	unobserve: () => void;
 	whenReady: Promise<DocumentHandle>;
 };
 
 /**
- * Create a lightweight handle wrapping an open Y.Doc and its extension exports.
+ * Create a lightweight handle wrapping an open Y.Doc and its resolved extensions.
  *
  * Handles are cheap (4 properties). The Y.Doc underneath is the expensive
  * shared resource. Calling `open()` twice returns fresh handles backed
  * by the same cached Y.Doc.
+ *
+ * The `exports` property on the handle surfaces the resolved extensions map
+ * (each entry is `Extension<T>` with `whenReady`/`destroy` alongside custom exports).
  */
 function makeHandle(
 	ydoc: Y.Doc,
-	exports: Record<string, Record<string, unknown>>,
+	// biome-ignore lint/suspicious/noExplicitAny: runtime storage uses wide type
+	extensions: Record<string, Extension<any>>,
 ): DocumentHandle {
 	return {
 		ydoc,
-		exports,
+		exports: extensions,
 		read() {
 			return ydoc.getText('content').toString();
 		},
@@ -238,8 +238,6 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			if (existing) return existing.whenReady;
 
 			const contentYdoc = new Y.Doc({ guid, gc: false });
-			const lifecycles: NormalizedLifecycle[] = [];
-			const docExports: Record<string, Record<string, unknown>> = {};
 
 			// Filter document extensions by tag matching:
 			// - No tags on extension → fire for all docs (universal)
@@ -253,41 +251,35 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			// IMPORTANT: No await between docs.get() and docs.set() — ensures
 			// concurrent open() calls for the same guid are safe.
 			// Build the extensions map incrementally so each factory sees prior
-			// extensions' exports.
-			const docExtensionsMap: Record<string, Record<string, unknown>> = {};
+			// extensions' resolved form.
+			// biome-ignore lint/suspicious/noExplicitAny: runtime storage uses wide type; type safety enforced at call sites
+			const resolvedExtensions: Record<string, Extension<any>> = {};
+			const destroys: (() => MaybePromise<void>)[] = [];
+			const whenReadyPromises: Promise<void>[] = [];
 
 			try {
 				for (const reg of applicableExtensions) {
 					const compositeWhenReady: Promise<void> =
-						lifecycles.length === 0
+						whenReadyPromises.length === 0
 							? Promise.resolve()
-							: Promise.all(
-									lifecycles.map((l) => l.whenReady ?? Promise.resolve()),
-								).then(() => {});
+							: Promise.all(whenReadyPromises).then(() => {});
 
-					const result = reg.factory({
+					const raw = reg.factory({
 						ydoc: contentYdoc,
 						whenReady: compositeWhenReady,
 						binding: { tableName, documentName, tags: documentTags },
-						extensions: { ...docExtensionsMap },
+						extensions: { ...resolvedExtensions },
 					});
 
-					if (result) {
-						const lifecycle = result.lifecycle ?? {};
-						lifecycles.push(lifecycle);
-
-						const exports = result.exports ?? {};
-						if (result.exports) {
-							docExports[reg.key] = exports;
-						}
-						// Store exports directly — no wrapper.
-						docExtensionsMap[reg.key] = exports;
+					if (raw) {
+						const resolved = defineExtension(raw);
+						resolvedExtensions[reg.key] = resolved;
+						destroys.push(resolved.destroy);
+						whenReadyPromises.push(resolved.whenReady);
 					}
 				}
 			} catch (err) {
-				await Promise.allSettled(
-					lifecycles.map((l) => l.destroy?.()).filter(Boolean),
-				);
+				await Promise.allSettled(destroys.map((d) => d()));
 				contentYdoc.destroy();
 				throw err;
 			}
@@ -322,15 +314,13 @@ export function createDocumentBinding<TRow extends BaseRow>(
 
 			// Cache entry SYNCHRONOUSLY before any promise resolution
 			const whenReady =
-				lifecycles.length === 0
-					? Promise.resolve(makeHandle(contentYdoc, docExports))
-					: Promise.all(lifecycles.map((l) => l.whenReady ?? Promise.resolve()))
-							.then(() => makeHandle(contentYdoc, docExports))
+				whenReadyPromises.length === 0
+					? Promise.resolve(makeHandle(contentYdoc, resolvedExtensions))
+					: Promise.all(whenReadyPromises)
+							.then(() => makeHandle(contentYdoc, resolvedExtensions))
 							.catch(async (err) => {
 								// If any provider's whenReady rejects, clean up everything
-								await Promise.allSettled(
-									lifecycles.map((l) => l.destroy?.()).filter(Boolean),
-								);
+								await Promise.allSettled(destroys.map((d) => d()));
 								unobserve();
 								contentYdoc.destroy();
 								docs.delete(guid);
@@ -339,8 +329,7 @@ export function createDocumentBinding<TRow extends BaseRow>(
 
 			docs.set(guid, {
 				ydoc: contentYdoc,
-				lifecycles,
-				exports: docExports,
+				extensions: resolvedExtensions,
 				unobserve,
 				whenReady,
 			});
@@ -358,7 +347,7 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			entry.unobserve();
 
 			await Promise.allSettled(
-				entry.lifecycles.map((l) => l.destroy?.()).filter(Boolean),
+				Object.values(entry.extensions).map((ext) => ext.destroy()),
 			);
 			entry.ydoc.destroy();
 		},
@@ -372,7 +361,7 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			for (const [, entry] of entries) {
 				entry.unobserve();
 				await Promise.allSettled(
-					entry.lifecycles.map((l) => l.destroy?.()).filter(Boolean),
+					Object.values(entry.extensions).map((ext) => ext.destroy()),
 				);
 				entry.ydoc.destroy();
 			}

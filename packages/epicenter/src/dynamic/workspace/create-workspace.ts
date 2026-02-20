@@ -26,7 +26,7 @@
  */
 
 import * as Y from 'yjs';
-import type { Extension, MaybePromise } from '../../shared/lifecycle';
+import { defineExtension, type MaybePromise } from '../../shared/lifecycle';
 import { createKv } from '../kv/create-kv';
 import type { KvField, TableDefinition } from '../schema/fields/types';
 import type { WorkspaceDefinition } from '../schema/workspace-definition';
@@ -116,7 +116,10 @@ export function createWorkspace<
 			[Symbol.asyncDispose]: destroy,
 		};
 
-		return Object.assign(client, {
+		// The builder methods use generics at the type level for progressive accumulation,
+		// but the runtime implementations use wider types for storage.
+		// The cast at the end bridges the gap — type safety is enforced at call sites.
+		const builder = Object.assign(client, {
 			withExtension<
 				TKey extends string,
 				TExports extends Record<string, unknown>,
@@ -124,24 +127,30 @@ export function createWorkspace<
 				key: TKey,
 				factory: (
 					context: ExtensionContext<TTableDefinitions, TKvFields, TExtensions>,
-				) => Extension<TExports>,
+				) => TExports & {
+					whenReady?: Promise<unknown>;
+					destroy?: () => MaybePromise<void>;
+				},
 			) {
-				const result = factory(client);
-				const destroy = result.lifecycle?.destroy;
-				if (destroy) extensionCleanups.push(destroy);
-
-				whenReadyPromises.push(
-					result.lifecycle?.whenReady ?? Promise.resolve(),
-				);
+				const raw = factory(client);
+				const resolved = defineExtension(raw ?? {});
+				extensionCleanups.push(resolved.destroy);
+				whenReadyPromises.push(resolved.whenReady);
 
 				const newExtensions = {
 					...extensions,
-					[key]: result.exports ?? {},
+					[key]: resolved,
 				} as TExtensions & Record<TKey, TExports>;
 
 				return buildClient(newExtensions);
 			},
 		});
+
+		return builder as unknown as WorkspaceClientBuilder<
+			TTableDefinitions,
+			TKvFields,
+			TExtensions
+		>;
 	}
 
 	return buildClient({} as Record<string, never>);

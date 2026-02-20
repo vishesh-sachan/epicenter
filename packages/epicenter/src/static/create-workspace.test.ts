@@ -287,7 +287,7 @@ describe('createWorkspace', () => {
 				id: 'ext-await-test-1',
 				tables: { files: filesTable },
 			}).withExtension('myExt', () => {
-				return { exports: { someValue: 42 }, lifecycle: { destroy: () => {} } };
+				return { someValue: 42, destroy: () => {} };
 			});
 
 			expect(client.extensions.myExt.someValue).toBe(42);
@@ -305,13 +305,13 @@ describe('createWorkspace', () => {
 			})
 				.withExtension('first', () => {
 					return {
-						exports: { value: 'first' },
-						lifecycle: { destroy: () => {} },
+						value: 'first',
+						destroy: () => {},
 					};
 				})
 				.withExtension('second', (context) => {
 					receivedFirstExtension = context.extensions.first.value === 'first';
-					return { lifecycle: { destroy: () => {} } };
+					return { destroy: () => {} };
 				});
 
 			expect(receivedFirstExtension).toBe(true);
@@ -333,14 +333,16 @@ describe('createWorkspace', () => {
 			})
 				.withExtension('first', () => {
 					return {
-						exports: { value: 'first' },
-						lifecycle: { whenReady: firstWhenReady, destroy: () => {} },
+						value: 'first',
+						whenReady: firstWhenReady,
+						destroy: () => {},
 					};
 				})
 				.withExtension('second', () => {
 					return {
-						exports: { value: 'second' },
-						lifecycle: { whenReady: Promise.resolve(), destroy: () => {} },
+						value: 'second',
+						whenReady: Promise.resolve(),
+						destroy: () => {},
 					};
 				});
 
@@ -377,12 +379,14 @@ describe('createWorkspace', () => {
 			})
 				.withExtension('first', () => {
 					return {
-						lifecycle: { whenReady: firstWhenReady, destroy: () => {} },
+						whenReady: firstWhenReady,
+						destroy: () => {},
 					};
 				})
 				.withExtension('second', () => {
 					return {
-						lifecycle: { whenReady: secondWhenReady, destroy: () => {} },
+						whenReady: secondWhenReady,
+						destroy: () => {},
 					};
 				});
 
@@ -412,10 +416,67 @@ describe('createWorkspace', () => {
 				id: 'ext-await-test-5',
 				tables: { files: filesTable },
 			}).withExtension('myExt', () => {
-				return { exports: { foo: 42 } };
+				return { foo: 42 };
 			});
 
 			expect(client.extensions.myExt.foo).toBe(42);
+		});
+
+		test('extensions.X.whenReady is always a Promise even without explicit whenReady', () => {
+			const client = createWorkspace({
+				id: 'ext-whenready-default',
+			}).withExtension('bare', () => {
+				return { tag: 'no-lifecycle' };
+			});
+
+			expect(client.extensions.bare.whenReady).toBeInstanceOf(Promise);
+		});
+
+		test('extensions.X.destroy is always a function even without explicit destroy', () => {
+			const client = createWorkspace({
+				id: 'ext-destroy-default',
+			}).withExtension('bare', () => {
+				return { tag: 'no-lifecycle' };
+			});
+
+			expect(typeof client.extensions.bare.destroy).toBe('function');
+		});
+
+		test('surgical await: extension B chains off extensions.A.whenReady', async () => {
+			const order: string[] = [];
+			let resolveA: (() => void) | undefined;
+			const aReady = new Promise<void>((r) => {
+				resolveA = r;
+			});
+
+			const client = createWorkspace({
+				id: 'surgical-await-test',
+			})
+				.withExtension('a', () => ({
+					tag: 'a',
+					whenReady: aReady.then(() => {
+						order.push('a-ready');
+					}),
+				}))
+				.withExtension('b', (ctx) => {
+					const whenReady = (async () => {
+						await ctx.extensions.a.whenReady;
+						order.push('b-ready');
+					})();
+					return { tag: 'b', whenReady };
+				});
+
+			// B should not resolve until A does
+			let bResolved = false;
+			client.extensions.b.whenReady.then(() => {
+				bResolved = true;
+			});
+			await Promise.resolve();
+			expect(bResolved).toBe(false);
+
+			resolveA?.();
+			await client.whenReady;
+			expect(order).toEqual(['a-ready', 'b-ready']);
 		});
 	});
 
@@ -471,7 +532,7 @@ describe('createWorkspace', () => {
 				tables: { files: filesTable },
 			}).withDocumentExtension('test', () => {
 				hookCalled = true;
-				return { lifecycle: { destroy: () => {} } };
+				return { destroy: () => {} };
 			});
 
 			const docs = (client.tables.files as TableWithDocs).docs;
@@ -515,7 +576,7 @@ describe('createWorkspace', () => {
 					'persistent-only',
 					() => {
 						hookCalls.push('persistent-only');
-						return { lifecycle: { destroy: () => {} } };
+						return { destroy: () => {} };
 					},
 					{ tags: ['persistent'] },
 				)
@@ -523,13 +584,13 @@ describe('createWorkspace', () => {
 					'ephemeral-only',
 					() => {
 						hookCalls.push('ephemeral-only');
-						return { lifecycle: { destroy: () => {} } };
+						return { destroy: () => {} };
 					},
 					{ tags: ['ephemeral'] },
 				)
 				.withDocumentExtension('universal', () => {
 					hookCalls.push('universal');
-					return { lifecycle: { destroy: () => {} } };
+					return { destroy: () => {} };
 				});
 
 			// biome-ignore lint/suspicious/noExplicitAny: testing runtime property
