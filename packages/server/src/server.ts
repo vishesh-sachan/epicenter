@@ -1,6 +1,7 @@
 import { openapi } from '@elysiajs/openapi';
 import type { AnyWorkspaceClient } from '@epicenter/hq/static';
 import { Elysia } from 'elysia';
+import { createAIPlugin } from './ai';
 import type { AuthConfig } from './sync/auth';
 import { createSyncPlugin } from './sync/plugin';
 import { createWorkspacePlugin } from './workspace';
@@ -82,6 +83,7 @@ export function createServer(
 		.use(
 			new Elysia({ prefix: '/workspaces' }).use(createWorkspacePlugin(clients)),
 		)
+		.use(new Elysia({ prefix: '/ai' }).use(createAIPlugin()))
 		.get('/', () => ({
 			name: 'Epicenter API',
 			version: '1.0.0',
