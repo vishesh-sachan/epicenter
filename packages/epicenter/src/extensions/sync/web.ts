@@ -20,7 +20,7 @@ import type * as Y from 'yjs';
  * createWorkspace(definition)
  *   .withExtension('persistence', indexeddbPersistence)
  *   .withExtension('sync', createSyncExtension({
- *     url: 'ws://localhost:3913/rooms/{id}/sync',
+ *     url: 'ws://localhost:3913/rooms/{id}',
  *   }))
  * ```
  *

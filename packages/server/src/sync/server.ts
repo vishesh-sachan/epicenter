@@ -15,7 +15,7 @@ export type SyncServerConfig = {
  *
  * Rooms are created on demand when clients connect. No workspace schemas needed.
  * Mounts the sync plugin under `/rooms` so the WebSocket URL matches
- * `createServer`: `ws://host:port/rooms/{room}/sync`.
+ * `createServer`: `ws://host:port/rooms/{room}`.
  *
  * Includes a health/status endpoint at `GET /`.
  *
@@ -25,7 +25,7 @@ export type SyncServerConfig = {
  *
  * // Zero-config relay
  * createSyncServer().start();
- * // Clients connect to: ws://localhost:3913/rooms/{room}/sync
+ * // Clients connect to: ws://localhost:3913/rooms/{room}
  *
  * // With auth
  * createSyncServer({ port: 3913, auth: { token: 'my-secret' } }).start();

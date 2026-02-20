@@ -106,10 +106,10 @@ Phone has no local server, so it connects directly to all available servers:
 ```typescript
 providers: {
   syncToLaptopA: createSyncExtension({
-    url: 'ws://laptop-a.tailnet:3913/rooms/{id}/sync'
+    url: 'ws://laptop-a.tailnet:3913/rooms/{id}'
   }),
   syncToLaptopB: createSyncExtension({
-    url: 'ws://laptop-b.tailnet:3913/rooms/{id}/sync'
+    url: 'ws://laptop-b.tailnet:3913/rooms/{id}'
   }),
 }
 ```
@@ -121,7 +121,7 @@ Browser connects to its own local server:
 ```typescript
 providers: {
   sync: createSyncExtension({
-    url: 'ws://localhost:3913/rooms/{id}/sync'
+    url: 'ws://localhost:3913/rooms/{id}'
   }),
 }
 ```
@@ -134,7 +134,7 @@ Server accepts connections AND connects to other servers:
 // Laptop A server connects to Laptop B
 providers: {
   syncToLaptopB: createSyncExtension({
-    url: 'ws://laptop-b.tailnet:3913/rooms/{id}/sync'
+    url: 'ws://laptop-b.tailnet:3913/rooms/{id}'
   }),
 }
 
@@ -151,11 +151,11 @@ const doc = new Y.Doc();
 // Connect to multiple servers via createSyncProvider from @epicenter/sync
 const provider1 = createSyncProvider({
 	doc,
-	url: 'ws://laptop-a.tailnet:3913/rooms/blog/sync',
+	url: 'ws://laptop-a.tailnet:3913/rooms/blog',
 });
 const provider2 = createSyncProvider({
 	doc,
-	url: 'ws://laptop-b.tailnet:3913/rooms/blog/sync',
+	url: 'ws://laptop-b.tailnet:3913/rooms/blog',
 });
 
 // Changes sync through ALL connected providers
@@ -179,7 +179,7 @@ providers: {
   persistence: setupPersistence,
 
   // Network sync (via @epicenter/sync)
-  sync: createSyncExtension({ url: 'ws://localhost:3913/rooms/{id}/sync' }),
+  sync: createSyncExtension({ url: 'ws://localhost:3913/rooms/{id}' }),
 }
 ```
 

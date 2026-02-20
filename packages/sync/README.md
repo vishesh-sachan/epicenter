@@ -20,7 +20,7 @@ const doc = new Y.Doc();
 
 const provider = createSyncProvider({
 	doc,
-	url: 'ws://localhost:3913/rooms/my-workspace/sync',
+	url: 'ws://localhost:3913/rooms/my-workspace',
 });
 
 // Provider connects automatically. Check status:
@@ -48,7 +48,7 @@ For localhost, Tailscale, LAN, or development:
 ```typescript
 const provider = createSyncProvider({
 	doc,
-	url: 'ws://localhost:3913/rooms/blog/sync',
+	url: 'ws://localhost:3913/rooms/blog',
 });
 ```
 
@@ -59,7 +59,7 @@ A shared secret passed as a query parameter:
 ```typescript
 const provider = createSyncProvider({
 	doc,
-	url: 'ws://my-server:3913/rooms/blog/sync',
+	url: 'ws://my-server:3913/rooms/blog',
 	token: 'my-shared-secret',
 });
 ```
@@ -71,7 +71,7 @@ A function that fetches a fresh token on each connect/reconnect. Useful for JWTs
 ```typescript
 const provider = createSyncProvider({
 	doc,
-	url: 'wss://sync.epicenter.so/rooms/blog/sync',
+	url: 'wss://sync.epicenter.so/rooms/blog',
 	getToken: async () => {
 		const res = await fetch('/api/sync/token');
 		return (await res.json()).token;
@@ -198,5 +198,5 @@ This eliminates the race conditions common in event-driven WebSocket reconnectio
 ```
 
 - **`@epicenter/sync`** (this package): Raw sync provider. Connects a Y.Doc to a WebSocket.
-- **`@epicenter/server`**: The server that this provider connects to. Exposes `ws://host:port/rooms/{id}/sync`.
+- **`@epicenter/server`**: The server that this provider connects to. Exposes `ws://host:port/rooms/{id}`.
 - **`@epicenter/hq/extensions/sync`**: Workspace extension wrapper. Most consumers use this instead of the raw provider.

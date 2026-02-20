@@ -9,7 +9,7 @@
  *   bun run --filter @epicenter/server start
  *
  * Clients connect to:
- *   ws://localhost:3913/rooms/{room}/sync
+ *   ws://localhost:3913/rooms/{room}
  */
 
 import { createSyncServer } from './sync';
@@ -25,7 +25,7 @@ const server = createSyncServer({
 server.start();
 
 console.log(`Epicenter sync server running on http://localhost:${port}`);
-console.log(`WebSocket: ws://localhost:${port}/rooms/{room}/sync`);
+console.log(`WebSocket: ws://localhost:${port}/rooms/{room}`);
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
