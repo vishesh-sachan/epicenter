@@ -37,7 +37,7 @@
  */
 
 import * as Y from 'yjs';
-import type { DocumentLifecycle } from '../shared/lifecycle.js';
+import type { MaybePromise } from '../shared/lifecycle.js';
 import type {
 	BaseRow,
 	DocumentBinding,
@@ -66,13 +66,22 @@ import type {
 export const DOCUMENT_BINDING_ORIGIN = Symbol('document-binding');
 
 /**
+ * Normalized lifecycle hooks from a single document extension result.
+ */
+type NormalizedLifecycle = {
+	whenReady?: Promise<unknown>;
+	destroy?: () => MaybePromise<void>;
+};
+
+/**
  * Internal entry for an open document.
- * Tracks the Y.Doc, provider lifecycles, the updatedAt observer teardown,
- * and the composite whenReady promise.
+ * Tracks the Y.Doc, normalized lifecycle hooks, accumulated exports,
+ * the updatedAt observer teardown, and the composite whenReady promise.
  */
 type DocEntry = {
 	ydoc: Y.Doc;
-	lifecycles: DocumentLifecycle[];
+	lifecycles: NormalizedLifecycle[];
+	exports: Record<string, Record<string, unknown>>;
 	unobserve: () => void;
 	whenReady: Promise<Y.Doc>;
 };
@@ -131,7 +140,7 @@ export type CreateDocumentBindingConfig<TRow extends BaseRow> = {
  * - Automatic cleanup when rows are deleted from the table
  *
  * @param config - Binding configuration
- * @returns A `DocumentBinding<TRow>` with open/read/write/destroy/purge methods
+ * @returns A `DocumentBinding<TRow>` with open/read/write/destroy/getExports methods
  */
 export function createDocumentBinding<TRow extends BaseRow>(
 	config: CreateDocumentBindingConfig<TRow>,
@@ -199,7 +208,8 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			if (existing) return existing.whenReady;
 
 			const contentYdoc = new Y.Doc({ guid, gc: false });
-			const lifecycles: DocumentLifecycle[] = [];
+			const lifecycles: NormalizedLifecycle[] = [];
+			const docExports: Record<string, Record<string, unknown>> = {};
 
 			// Filter document extensions by tag matching:
 			// - No tags on extension → fire for all docs (universal)
@@ -227,10 +237,17 @@ export function createDocumentBinding<TRow extends BaseRow>(
 						binding: { tableName, documentName, tags: documentTags },
 					});
 
-					if (result) lifecycles.push(result);
+					if (result) {
+						lifecycles.push(result.lifecycle ?? {});
+						if (result.exports) {
+							docExports[reg.key] = result.exports;
+						}
+					}
 				}
 			} catch (err) {
-				await Promise.allSettled(lifecycles.map((l) => l.destroy()));
+				await Promise.allSettled(
+					lifecycles.map((l) => l.destroy?.()).filter(Boolean),
+				);
 				contentYdoc.destroy();
 				throw err;
 			}
@@ -271,14 +288,22 @@ export function createDocumentBinding<TRow extends BaseRow>(
 							.then(() => contentYdoc)
 							.catch(async (err) => {
 								// If any provider's whenReady rejects, clean up everything
-								await Promise.allSettled(lifecycles.map((l) => l.destroy()));
+								await Promise.allSettled(
+									lifecycles.map((l) => l.destroy?.()).filter(Boolean),
+								);
 								unobserve();
 								contentYdoc.destroy();
 								docs.delete(guid);
 								throw err;
 							});
 
-			docs.set(guid, { ydoc: contentYdoc, lifecycles, unobserve, whenReady });
+			docs.set(guid, {
+				ydoc: contentYdoc,
+				lifecycles,
+				exports: docExports,
+				unobserve,
+				whenReady,
+			});
 			return whenReady;
 		},
 
@@ -306,30 +331,9 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			docs.delete(guid);
 			entry.unobserve();
 
-			await Promise.allSettled(entry.lifecycles.map((l) => l.destroy()));
-			entry.ydoc.destroy();
-		},
-
-		async purge(input: TRow | string): Promise<void> {
-			const guid = resolveGuid(input);
-
-			// Ensure the doc is open (wires providers, loads from persistence)
-			await binding.open(guid);
-
-			const entry = docs.get(guid);
-			if (!entry) return;
-
-			// Remove from map SYNCHRONOUSLY
-			docs.delete(guid);
-			entry.unobserve();
-
-			// clearData first (while providers are still connected)
 			await Promise.allSettled(
-				entry.lifecycles.filter((l) => l.clearData).map((l) => l.clearData!()),
+				entry.lifecycles.map((l) => l.destroy?.()).filter(Boolean),
 			);
-
-			// Then tear down
-			await Promise.allSettled(entry.lifecycles.map((l) => l.destroy()));
 			entry.ydoc.destroy();
 		},
 
@@ -341,9 +345,19 @@ export function createDocumentBinding<TRow extends BaseRow>(
 
 			for (const [, entry] of entries) {
 				entry.unobserve();
-				await Promise.allSettled(entry.lifecycles.map((l) => l.destroy()));
+				await Promise.allSettled(
+					entry.lifecycles.map((l) => l.destroy?.()).filter(Boolean),
+				);
 				entry.ydoc.destroy();
 			}
+		},
+
+		getExports(
+			input: TRow | string,
+		): Record<string, Record<string, unknown>> | undefined {
+			const guid = resolveGuid(input);
+			const entry = docs.get(guid);
+			return entry?.exports;
 		},
 
 		guidOf(row: TRow): string {

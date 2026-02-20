@@ -83,7 +83,6 @@ export { ExtensionErr } from '../shared/errors.js';
 // Lifecycle protocol
 export type {
 	DocumentContext,
-	DocumentLifecycle,
 	Extension,
 	Lifecycle,
 	MaybePromise,

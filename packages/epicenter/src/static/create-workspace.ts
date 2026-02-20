@@ -40,7 +40,6 @@ import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
 import type {
 	DocumentContext,
-	DocumentLifecycle,
 	Extension,
 	MaybePromise,
 } from '../shared/lifecycle.js';
@@ -240,7 +239,9 @@ export function createWorkspace<
 
 			withDocumentExtension(
 				key: string,
-				factory: (context: DocumentContext) => DocumentLifecycle | void,
+				factory: (
+					context: DocumentContext,
+				) => Extension<Record<string, unknown>> | void,
 				options?: { tags?: string[] },
 			) {
 				documentExtensionRegistrations.push({

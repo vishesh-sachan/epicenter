@@ -7,11 +7,7 @@
 import type { Awareness } from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
-import type {
-	DocumentContext,
-	DocumentLifecycle,
-	Extension,
-} from '../shared/lifecycle.js';
+import type { DocumentContext, Extension } from '../shared/lifecycle.js';
 import type {
 	CombinedStandardSchema,
 	StandardSchemaV1,
@@ -202,7 +198,9 @@ export type DocBinding<
  */
 export type DocumentExtensionRegistration = {
 	key: string;
-	factory: (context: DocumentContext) => DocumentLifecycle | void;
+	factory: (
+		context: DocumentContext,
+	) => Extension<Record<string, unknown>> | void;
 	tags: readonly string[];
 };
 
@@ -309,17 +307,32 @@ export type DocumentBinding<TRow extends BaseRow> = {
 	destroy(input: TRow | string): Promise<void>;
 
 	/**
-	 * Purge a document — destroy AND delete all persisted data.
-	 * This is permanent. The document cannot be recovered.
-	 *
-	 * @param input - A row or GUID string
-	 */
-	purge(input: TRow | string): Promise<void>;
-
-	/**
 	 * Destroy all open documents. Called automatically by workspace destroy().
 	 */
 	destroyAll(): Promise<void>;
+
+	/**
+	 * Get the accumulated per-doc exports for an open document, keyed by extension name.
+	 *
+	 * Returns `undefined` if the document isn't open. Each key corresponds to a
+	 * document extension registered via `withDocumentExtension()`, and the value
+	 * is that extension's `exports` object.
+	 *
+	 * Useful for consumer-driven cleanup — e.g., calling `clearData` before `destroy`
+	 * for permanent deletion.
+	 *
+	 * @param input - A row (extracts GUID from the bound column) or a GUID string
+	 *
+	 * @example
+	 * ```typescript
+	 * const exports = binding.getExports(guid);
+	 * await exports?.persistence?.clearData?.();
+	 * await binding.destroy(guid);
+	 * ```
+	 */
+	getExports(
+		input: TRow | string,
+	): Record<string, Record<string, unknown>> | undefined;
 
 	/** Extract the GUID from a row (reads the bound guid column). */
 	guidOf(row: TRow): string;
@@ -885,7 +898,7 @@ export type WorkspaceClientBuilder<
 	 * least one value with the extension's tags (set intersection).
 	 *
 	 * @param key - Unique name for this document extension (independent namespace from workspace extensions)
-	 * @param factory - Factory function receiving DocumentContext, returns DocumentLifecycle or void
+	 * @param factory - Factory function receiving DocumentContext, returns Extension or void
 	 * @param options - Optional tag filter for targeting specific document types
 	 * @returns A new builder with the document extension key accumulated
 	 *
@@ -893,15 +906,14 @@ export type WorkspaceClientBuilder<
 	 * ```typescript
 	 * createWorkspace({ id: 'app', tables: { notes } })
 	 *   .withExtension('persistence', workspacePersistence)
-	 *   .withDocumentExtension('persistence', ({ ydoc }) => {
-	 *     const idb = new IndexeddbPersistence(ydoc.guid, ydoc);
-	 *     return { whenReady: idb.whenSynced, destroy: () => idb.destroy() };
-	 *   }, { tags: ['persistent'] })
+	 *   .withDocumentExtension('persistence', indexeddbPersistence, { tags: ['persistent'] })
 	 * ```
 	 */
 	withDocumentExtension<K extends string>(
 		key: K,
-		factory: (context: DocumentContext) => DocumentLifecycle | void,
+		factory: (
+			context: DocumentContext,
+		) => Extension<Record<string, unknown>> | void,
 		options?: { tags?: ExtractAllDocTags<TTableDefinitions>[] },
 	): WorkspaceClientBuilder<
 		TId,

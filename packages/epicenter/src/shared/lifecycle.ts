@@ -196,36 +196,8 @@ export type Extension<
 };
 
 // ════════════════════════════════════════════════════════════════════════════
-// DOCUMENT LIFECYCLE TYPES — Used by document bindings and withDocumentExtension
+// DOCUMENT CONTEXT — Passed to document extension factories
 // ════════════════════════════════════════════════════════════════════════════
-
-/**
- * Extended lifecycle for document providers.
- *
- * Adds an optional `clearData` method for permanent deletion of persisted data.
- * This is intentionally NOT on the base `Lifecycle` type — it's a destructive
- * capability that only makes sense for per-document persistence.
- *
- * @example
- * ```typescript
- * const lifecycle: DocumentLifecycle = {
- *   whenReady: idb.whenSynced,
- *   destroy: () => idb.destroy(),
- *   clearData: () => idb.clearData(), // permanent deletion
- * };
- * ```
- */
-export type DocumentLifecycle = {
-	/** Resolves when initialization is complete. */
-	whenReady?: Promise<unknown>;
-	/** Clean up resources (free memory, disconnect). */
-	destroy: () => MaybePromise<void>;
-	/**
-	 * Optional: delete all persisted data for this document.
-	 * Called by `purge()`. Providers without persistent storage can omit this.
-	 */
-	clearData?: () => MaybePromise<void>;
-};
 
 /**
  * Context passed to document extension factories registered via `withDocumentExtension()`.
