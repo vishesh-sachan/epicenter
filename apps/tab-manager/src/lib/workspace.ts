@@ -189,27 +189,29 @@ export const definition = defineWorkspace({
 				autoDiscardable: 'boolean',
 				frozen: 'boolean', // Chrome 132+, tab cannot execute tasks
 				// Optional fields — matching chrome.tabs.Tab optionality
-				'url?': 'string',
-				'title?': 'string',
-				'favIconUrl?': 'string',
-				'pendingUrl?': 'string', // Chrome 79+, URL before commit
-				'status?': "'unloaded' | 'loading' | 'complete'",
-				'audible?': 'boolean', // Chrome 45+
+				// Unioned with `undefined` so that present-but-undefined keys pass
+				// arktype validation (which defaults to exactOptionalPropertyTypes).
+				'url?': 'string | undefined',
+				'title?': 'string | undefined',
+				'favIconUrl?': 'string | undefined',
+				'pendingUrl?': 'string | undefined', // Chrome 79+, URL before commit
+				'status?': "'unloaded' | 'loading' | 'complete' | undefined",
+				'audible?': 'boolean | undefined', // Chrome 45+
 				/** @see https://developer.chrome.com/docs/extensions/reference/api/tabs#type-MutedInfo */
 				'mutedInfo?': type({
 					/** Whether the tab is muted (prevented from playing sound). The tab may be muted even if it has not played or is not currently playing sound. Equivalent to whether the 'muted' audio indicator is showing. */
 					muted: 'boolean',
 					/** The reason the tab was muted or unmuted. Not set if the tab's mute state has never been changed. */
-					'reason?': "'user' | 'capture' | 'extension'",
+					'reason?': "'user' | 'capture' | 'extension' | undefined",
 					/** The ID of the extension that changed the muted state. Not set if an extension was not the reason the muted state last changed. */
-					'extensionId?': 'string',
-				}),
-				'groupId?': GroupCompositeId, // Composite: `${deviceId}_${groupId}`, Chrome 88+
-				'openerTabId?': TabCompositeId, // Composite: `${deviceId}_${openerTabId}`
-				'lastAccessed?': 'number', // Chrome 121+, ms since epoch
-				'height?': 'number',
-				'width?': 'number',
-				'sessionId?': 'string', // From chrome.sessions API
+					'extensionId?': 'string | undefined',
+				}).or('undefined'),
+				'groupId?': GroupCompositeId.or('undefined'), // Composite: `${deviceId}_${groupId}`, Chrome 88+
+				'openerTabId?': TabCompositeId.or('undefined'), // Composite: `${deviceId}_${openerTabId}`
+				'lastAccessed?': 'number | undefined', // Chrome 121+, ms since epoch
+				'height?': 'number | undefined',
+				'width?': 'number | undefined',
+				'sessionId?': 'string | undefined', // From chrome.sessions API
 				_v: '1',
 			}),
 		),
@@ -232,13 +234,14 @@ export const definition = defineWorkspace({
 				incognito: 'boolean',
 				// Optional fields — matching chrome.windows.Window optionality
 				'state?':
-					"'normal' | 'minimized' | 'maximized' | 'fullscreen' | 'locked-fullscreen'",
-				'type?': "'normal' | 'popup' | 'panel' | 'app' | 'devtools'",
-				'top?': 'number',
-				'left?': 'number',
-				'width?': 'number',
-				'height?': 'number',
-				'sessionId?': 'string', // From chrome.sessions API
+					"'normal' | 'minimized' | 'maximized' | 'fullscreen' | 'locked-fullscreen' | undefined",
+				'type?':
+					"'normal' | 'popup' | 'panel' | 'app' | 'devtools' | undefined",
+				'top?': 'number | undefined',
+				'left?': 'number | undefined',
+				'width?': 'number | undefined',
+				'height?': 'number | undefined',
+				'sessionId?': 'string | undefined', // From chrome.sessions API
 				_v: '1',
 			}),
 		),
@@ -261,7 +264,7 @@ export const definition = defineWorkspace({
 					"'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange'",
 				shared: 'boolean', // Chrome 137+
 				// Optional fields — matching chrome.tabGroups.TabGroup optionality
-				'title?': 'string',
+				'title?': 'string | undefined',
 				_v: '1',
 			}),
 		),
@@ -282,7 +285,7 @@ export const definition = defineWorkspace({
 				id: 'string', // nanoid, generated on save
 				url: 'string', // The tab URL
 				title: 'string', // Tab title at time of save
-				'favIconUrl?': 'string', // Favicon URL (nullable)
+				'favIconUrl?': 'string | undefined', // Favicon URL (nullable)
 				pinned: 'boolean', // Whether tab was pinned
 				sourceDeviceId: 'string', // Device that saved this tab
 				savedAt: 'number', // Timestamp (ms since epoch)
