@@ -10,9 +10,9 @@
  * sync will converge on the same document.
  */
 
+import { createWorkspace } from '@epicenter/hq';
 import { createSyncExtension } from '@epicenter/hq/extensions/sync';
 import { indexeddbPersistence } from '@epicenter/hq/extensions/sync/web';
-import { createWorkspace } from '@epicenter/hq/static';
 import { definition } from '$lib/workspace';
 
 /**

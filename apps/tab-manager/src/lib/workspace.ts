@@ -12,7 +12,7 @@ import {
 	defineTable,
 	defineWorkspace,
 	type InferTableRow,
-} from '@epicenter/hq/static';
+} from '@epicenter/hq';
 import { type } from 'arktype';
 import type { Brand } from 'wellcrafted/brand';
 

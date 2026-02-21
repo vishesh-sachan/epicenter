@@ -1,5 +1,5 @@
 import { openapi } from '@elysiajs/openapi';
-import type { AnyWorkspaceClient } from '@epicenter/hq/static';
+import type { AnyWorkspaceClient } from '@epicenter/hq';
 import { Elysia } from 'elysia';
 import * as Y from 'yjs';
 import { createAIPlugin } from './ai';

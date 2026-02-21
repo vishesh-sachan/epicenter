@@ -4,7 +4,7 @@
  * Usage: bun run dev-server.ts
  */
 
-import { createWorkspace } from '@epicenter/hq/static';
+import { createWorkspace } from '@epicenter/hq';
 import { definition } from '@epicenter/tab-manager/workspace';
 import { createServer } from './src/index';
 

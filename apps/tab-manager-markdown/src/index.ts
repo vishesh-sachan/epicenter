@@ -17,8 +17,8 @@
  * ONE-WAY sync: Y.Doc → Markdown only (read-only export)
  */
 
+import { createWorkspace } from '@epicenter/hq';
 import { createSyncExtension } from '@epicenter/hq/extensions/sync';
-import { createWorkspace } from '@epicenter/hq/static';
 import { definition } from '@epicenter/tab-manager/workspace';
 import { createMarkdownPersistenceExtension } from './markdown-persistence-extension';
 

@@ -1,4 +1,4 @@
-import type { DocumentBinding } from '@epicenter/hq/static';
+import type { DocumentBinding } from '@epicenter/hq';
 import { parseSheetFromCsv } from './sheet-helpers.js';
 import { createTimeline } from './timeline-helpers.js';
 import type { FileId, FileRow } from './types.js';
