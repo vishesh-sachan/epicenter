@@ -4,7 +4,7 @@
  * This root export provides the full workspace API and shared utilities.
  *
  * - `@epicenter/hq` - Full API (workspace creation, tables, KV, extensions)
- * - `@epicenter/hq/static` - Same exports (alias for migration convenience)
+ * - `@epicenter/hq/static` - Alias (kept for backward compatibility)
  * - `@epicenter/hq/extensions` - Extension plugins (persistence, sync)
  *
  * @example
@@ -75,28 +75,28 @@ export { KV_KEY, TableKey } from './shared/ydoc-keys';
 // SCHEMA DEFINITIONS (Pure)
 // ════════════════════════════════════════════════════════════════════════════
 
-export { defineKv } from './static/define-kv';
-export { defineTable } from './static/define-table';
-export { defineWorkspace } from './static/define-workspace';
+export { defineKv } from './workspace/define-kv';
+export { defineTable } from './workspace/define-table';
+export { defineWorkspace } from './workspace/define-workspace';
 
 // ════════════════════════════════════════════════════════════════════════════
 // WORKSPACE CREATION
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { CreateDocumentBindingConfig } from './static/create-document-binding';
+export type { CreateDocumentBindingConfig } from './workspace/create-document-binding';
 export {
 	createDocumentBinding,
 	DOCUMENT_BINDING_ORIGIN,
-} from './static/create-document-binding';
-export { createWorkspace } from './static/create-workspace';
+} from './workspace/create-document-binding';
+export { createWorkspace } from './workspace/create-workspace';
 
 // ════════════════════════════════════════════════════════════════════════════
 // LOWER-LEVEL APIs (Bring Your Own Y.Doc)
 // ════════════════════════════════════════════════════════════════════════════
 
-export { createAwareness } from './static/create-awareness';
-export { createKv } from './static/create-kv';
-export { createTables } from './static/create-tables';
+export { createAwareness } from './workspace/create-awareness';
+export { createKv } from './workspace/create-kv';
+export { createTables } from './workspace/create-tables';
 
 // ════════════════════════════════════════════════════════════════════════════
 // INTROSPECTION
@@ -108,14 +108,14 @@ export type {
 	KvDescriptor,
 	TableDescriptor,
 	WorkspaceDescriptor,
-} from './static/describe-workspace';
-export { describeWorkspace } from './static/describe-workspace';
+} from './workspace/describe-workspace';
+export { describeWorkspace } from './workspace/describe-workspace';
 
 // ════════════════════════════════════════════════════════════════════════════
 // VALIDATION UTILITIES
 // ════════════════════════════════════════════════════════════════════════════
 
-export { createUnionSchema } from './static/schema-union';
+export { createUnionSchema } from './workspace/schema-union';
 
 // ════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -158,7 +158,7 @@ export type {
 	WorkspaceClientBuilder,
 	WorkspaceClientWithActions,
 	WorkspaceDefinition,
-} from './static/types';
+} from './workspace/types';
 
 // ════════════════════════════════════════════════════════════════════════════
 // DRIZZLE RE-EXPORTS

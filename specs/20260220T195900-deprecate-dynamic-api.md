@@ -362,13 +362,14 @@ Removed the entire Dynamic workspace API and its coupled extensions. ~17,900 lin
 
 6. **Kept `./static` export as alias**: Rather than breaking existing `@epicenter/hq/static` imports, kept the export path working. Migration to `@epicenter/hq` deferred.
 
+7. **Renamed `src/static/` → `src/workspace/`**: The "static" name only made sense as contrast to "dynamic." Now that the Dynamic API is gone, the folder is simply the workspace implementation. All internal imports updated. The `./static` package.json export alias is preserved (points to new path) for backward compatibility with external consumers.
+
 ### Deferred Work
 
-- Rename `static/` folder to `workspace/` (or promote contents to root)
-- Migrate existing `@epicenter/hq/static` imports to `@epicenter/hq`
+- Migrate remaining external `@epicenter/hq/static` imports to `@epicenter/hq` (tab-manager, fs-explorer, server, filesystem packages)
 - Update `packages/epicenter/README.md` and `AGENTS.md`
-- Remove the `./static` re-export alias
-- Re-implement sqlite/markdown extensions against Static API if needed in future
+- Remove the `./static` re-export alias once all consumers migrated
+- Re-implement sqlite/markdown extensions against the Workspace API if needed in future
 
 ### Verification
 

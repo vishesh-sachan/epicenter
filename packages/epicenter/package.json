@@ -5,7 +5,7 @@
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
-		"./static": "./src/static/index.ts",
+		"./static": "./src/workspace/index.ts",
 		"./extensions": {
 			"node": "./src/extensions/index.ts",
 			"default": "./src/extensions/index.ts"

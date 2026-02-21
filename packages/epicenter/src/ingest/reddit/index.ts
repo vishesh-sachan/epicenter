@@ -21,7 +21,7 @@
  */
 
 import { snakify } from '../../shared/snakify.js';
-import { createWorkspace } from '../../static/index.js';
+import { createWorkspace } from '../../workspace/index.js';
 import { csvSchemas, type TableName } from './csv-schemas.js';
 import { type ParsedRedditData, parseRedditZip } from './parse.js';
 import { type RedditWorkspace, redditWorkspace } from './workspace.js';

@@ -1,10 +1,10 @@
-# Static Workspace API
+# Workspace API
 
 A typed interface over Y.js for apps that need to evolve their data schema over time.
 
 ## The Idea
 
-This is a wrapper around Y.js that handles schema versioning. Local-first apps can't run migration scripts, so data has to evolve gracefully. Old data coexists with new. The Static Workspace API bakes that into the design: define your schemas once with versions, write a migration function, and everything else is typed.
+This is a wrapper around Y.js that handles schema versioning. Local-first apps can't run migration scripts, so data has to evolve gracefully. Old data coexists with new. The Workspace API bakes that into the design: define your schemas once with versions, write a migration function, and everything else is typed.
 
 It's structured in three layers. Start at the top, drop down when you need control:
 

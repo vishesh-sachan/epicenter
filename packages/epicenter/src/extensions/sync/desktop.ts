@@ -3,7 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import * as Y from 'yjs';
 import type { Lifecycle } from '../../shared/lifecycle';
-import type { ExtensionContext } from '../../static/types.js';
+import type { ExtensionContext } from '../../workspace/types.js';
 
 /**
  * Configuration for the persistence extension.
@@ -26,7 +26,7 @@ export type PersistenceConfig = {
  *
  * @example
  * ```typescript
- * import { createWorkspace } from '@epicenter/hq/static';
+ * import { createWorkspace } from '@epicenter/hq';
  * import { persistence } from '@epicenter/hq/extensions/sync/desktop';
  * import { join } from 'node:path';
  *

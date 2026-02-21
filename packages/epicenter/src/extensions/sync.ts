@@ -1,5 +1,5 @@
 import { createSyncProvider, type SyncProvider } from '@epicenter/sync';
-import type { ExtensionFactory } from '../static/types';
+import type { ExtensionFactory } from '../workspace/types';
 
 /**
  * Sync extension configuration.

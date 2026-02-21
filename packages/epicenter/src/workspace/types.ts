@@ -1,5 +1,5 @@
 /**
- * Shared types for the Static Workspace API.
+ * Shared types for the Workspace API.
  *
  * This module contains all type definitions for versioned tables and KV stores.
  */
@@ -401,7 +401,7 @@ export type InferKvVersionUnion<T> =
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * Type-safe table helper for a single static workspace table.
+ * Type-safe table helper for a single workspace table.
  *
  * Provides CRUD operations with schema validation and migration on read.
  * Backed by a YKeyValueLww store with row-level atomicity — `set()` replaces
@@ -412,11 +412,7 @@ export type InferKvVersionUnion<T> =
  * `TRow` always extends `{ id: string }` and represents the latest schema
  * version's output type. Old rows are migrated to the latest schema on read.
  *
- * ## Difference from Dynamic API's TableHelper
- *
- * The static API uses row-level replacement (`set`) while the dynamic API has
- * cell-level LWW merge (`upsert`) and dedicated batch methods (`upsertMany`,
- * `deleteMany`). Batching in the static API is done at the workspace level
+ * Uses row-level replacement (`set`). Batching is done at the workspace level
  * via `client.batch()`, which wraps `ydoc.transact()`.
  *
  * @typeParam TRow - The fully-typed row shape for this table (extends `{ id: string }`)

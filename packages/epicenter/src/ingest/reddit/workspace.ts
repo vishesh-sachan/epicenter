@@ -7,7 +7,11 @@
  */
 
 import { type } from 'arktype';
-import { defineKv, defineTable, defineWorkspace } from '../../static/index.js';
+import {
+	defineKv,
+	defineTable,
+	defineWorkspace,
+} from '../../workspace/index.js';
 
 export const redditWorkspace = defineWorkspace({
 	id: 'reddit',

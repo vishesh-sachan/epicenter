@@ -1,4 +1,4 @@
-import type { ExtensionContext } from '@epicenter/hq/static';
+import type { ExtensionContext } from '@epicenter/hq';
 import { appLocalDataDir, join } from '@tauri-apps/api/path';
 import { mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs';
 import * as Y from 'yjs';
