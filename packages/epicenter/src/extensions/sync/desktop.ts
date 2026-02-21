@@ -2,8 +2,8 @@ import { writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import * as Y from 'yjs';
-import type { ExtensionContext } from '../../dynamic/extension';
 import type { Lifecycle } from '../../shared/lifecycle';
+import type { ExtensionContext } from '../../static/types.js';
 
 /**
  * Configuration for the persistence extension.
@@ -26,14 +26,14 @@ export type PersistenceConfig = {
  *
  * @example
  * ```typescript
- * import { createWorkspace } from '@epicenter/hq/dynamic';
+ * import { createWorkspace } from '@epicenter/hq/static';
  * import { persistence } from '@epicenter/hq/extensions/sync/desktop';
  * import { join } from 'node:path';
  *
  * const projectDir = '/my/project';
  * const epicenterDir = join(projectDir, '.epicenter');
  *
- * const workspace = createWorkspace({ name: 'Blog', tables: {...} })
+ * const workspace = createWorkspace({ id: 'blog', tables: {...} })
  *   .withExtension('persistence', (ctx) => persistence(ctx, {
  *     filePath: join(epicenterDir, 'persistence', `${ctx.id}.yjs`),
  *   }));
