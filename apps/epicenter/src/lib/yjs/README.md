@@ -1,23 +1,29 @@
-# Simple Definition-First Architecture
+# Workspace YJS Layer
 
-Epicenter uses a simple definition-first architecture where workspace schema lives in JSON files and Y.Doc contains only data.
+Bridges workspace templates (Static API definitions) with Y.Doc persistence.
 
 ## Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    SIMPLE DEFINITION-FIRST ARCHITECTURE                      │
+│                     WORKSPACE ARCHITECTURE                                   │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   ┌──────────────────────┐          ┌──────────────────────┐               │
-│   │  DEFINITION (JSON)   │   ──▶    │    WORKSPACE DOC     │               │
-│   │                      │          │                      │               │
-│   │  "Schema + Metadata" │          │  "Data (Y.Doc)"      │               │
+│   │  METADATA (JSON)     │          │    WORKSPACE DOC     │               │
+│   │  {id, name, icon}    │          │    (Y.Doc data)      │               │
 │   └──────────────────────┘          └──────────────────────┘               │
 │           │                                  │                              │
 │           ▼                                  ▼                              │
 │     {id}/definition.json             {id}/workspace.yjs                     │
-│                                      {id}/kv.json                           │
+│                                                                             │
+│   ┌──────────────────────┐                                                 │
+│   │  SCHEMA (Code)       │                                                 │
+│   │  defineTable(type()) │                                                 │
+│   └──────────────────────┘                                                 │
+│           │                                                                 │
+│           ▼                                                                 │
+│     $lib/templates/*.ts                                                     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -26,59 +32,36 @@ Epicenter uses a simple definition-first architecture where workspace schema liv
 
 ```
 {appLocalDataDir}/workspaces/
-├── blog-workspace/
-│   ├── definition.json              # WorkspaceDefinition (schema + metadata)
-│   ├── workspace.yjs                # Y.Doc binary (source of truth)
-│   └── kv.json                      # KV values mirror
-└── notes-app/
+├── epicenter.whispering/
+│   ├── definition.json              # Display metadata (name, description, icon)
+│   └── workspace.yjs               # Y.Doc binary (source of truth)
+└── epicenter.entries/
     ├── definition.json
-    ├── workspace.yjs
-    └── kv.json
+    └── workspace.yjs
 ```
 
 ## Definition JSON Format
 
-`{workspaceId}/definition.json`:
+`{workspaceId}/definition.json` stores display metadata only (schemas are in code):
 
 ```json
 {
-	"id": "blog-workspace",
-	"name": "My Blog",
-	"description": "Personal blog content",
-	"icon": "emoji:📝",
-	"tables": [
-		{
-			"id": "posts",
-			"name": "Posts",
-			"icon": "emoji:📄",
-			"description": "Blog posts",
-			"fields": [
-				{ "id": "id", "type": "id" },
-				{ "id": "title", "type": "text", "name": "Title" },
-				{ "id": "content", "type": "text", "name": "Content" }
-			]
-		}
-	],
-	"kv": [
-		{
-			"id": "theme",
-			"type": "select",
-			"options": ["light", "dark"],
-			"default": "light"
-		}
-	]
+	"id": "epicenter.whispering",
+	"name": "Whispering",
+	"description": "",
+	"icon": null
 }
 ```
 
 ## Y.Doc Structure
 
 ```typescript
-// Y.Doc guid: definition.id
+// Y.Doc guid: workspace.id
 // gc: true (for efficient YKeyValueLww storage)
 
 // Table data (rows as LWW entries)
-Y.Array('table:posts');
-Y.Array('table:users');
+Y.Array('table:recordings');
+Y.Array('table:entries');
 
 // Workspace-level key-values
 Y.Array('kv');
@@ -92,18 +75,16 @@ Y.Array('kv');
 import { getWorkspace } from '$lib/workspaces/dynamic/service';
 import { createWorkspaceClient } from '$lib/yjs/workspace';
 
-// 1. Load definition from JSON file
+// 1. Load metadata from JSON file (for display: name, icon)
 const definition = await getWorkspace(workspaceId);
-if (!definition) {
-	throw new Error('Workspace not found');
-}
+if (!definition) throw new Error('Workspace not found');
 
-// 2. Create workspace client with persistence
-const client = createWorkspaceClient(definition);
+// 2. Create workspace client (looks up Static definition from template registry)
+const client = createWorkspaceClient(workspaceId);
 await client.whenReady;
 
-// 3. Use the client
-client.tables.get('posts').upsert({ id: '1', title: 'Hello' });
+// 3. Use the client (property access, not .get())
+client.tables.recordings.set({ id: '1', title: 'Hello', ... });
 ```
 
 ### Creating a Workspace
@@ -112,47 +93,36 @@ client.tables.get('posts').upsert({ id: '1', title: 'Hello' });
 import { createWorkspaceDefinition } from '$lib/workspaces/dynamic/service';
 
 const definition = await createWorkspaceDefinition({
-	id: 'my-workspace',
-	name: 'My Workspace',
+	id: 'epicenter.whispering',
+	name: 'Whispering',
 	description: '',
 	icon: null,
-	tables: [],
-	kv: [],
 });
-```
-
-### Listing Workspaces
-
-```typescript
-import { listWorkspaces } from '$lib/workspaces/dynamic/service';
-
-const workspaces = await listWorkspaces();
-// Returns all WorkspaceDefinition objects from definition.json files
 ```
 
 ## File Structure
 
 ```
 $lib/
+├── templates/
+│   ├── index.ts                     # Template registry
+│   ├── whispering.ts                # Whispering workspace (defineTable + defineWorkspace)
+│   └── entries.ts                   # Entries workspace
 ├── yjs/
 │   ├── README.md                    # This file
-│   ├── workspace.ts                 # Creates workspace client from definition
-│   └── workspace-persistence.ts     # Y.Doc + KV persistence extension
+│   ├── workspace.ts                 # Creates workspace client from template registry
+│   └── workspace-persistence.ts     # Y.Doc persistence extension
 └── workspaces/
-    ├── dynamic/
-    │   ├── service.ts               # CRUD operations for definition JSON files
-    │   └── queries.ts               # TanStack Query wrappers
-    └── static/
-        ├── service.ts               # Static workspace registry operations
-        ├── queries.ts               # TanStack Query wrappers
-        └── types.ts                 # Static workspace type definitions
+    └── dynamic/
+        ├── service.ts               # CRUD operations for definition JSON files
+        └── queries.ts               # TanStack Query wrappers
 ```
 
 ## Key Decisions
 
 ### GC Setting
 
-Simple mode uses `gc: true` for efficient YKeyValueLww storage:
+Uses `gc: true` for efficient YKeyValueLww storage:
 
 - Tombstones from updates get merged into tiny metadata
 - 200-1000x smaller than Y.Map for update-heavy data
@@ -160,14 +130,9 @@ Simple mode uses `gc: true` for efficient YKeyValueLww storage:
 
 See `docs/articles/ykeyvalue-gc-the-hidden-variable.md` for details.
 
-### No Registry
+### Schema in Code, Metadata on Disk
 
-Workspaces are discovered by listing directories in the workspaces folder and reading `definition.json` from each. No separate registry Y.Doc needed.
-
-### No HeadDoc
-
-Definition (schema + metadata) lives in JSON files, not in a Y.Doc. This simplifies the architecture and makes definitions human-editable.
-
-## Future: Versioned Workspaces
-
-When epoch-based versioning is needed (time travel, snapshots, schema migrations), a separate API will be added. The HeadDoc pattern is archived in `docs/articles/archived-head-registry-patterns.md`.
+Workspace schemas (table definitions, field types) live in TypeScript code
+via `defineTable()` and `defineWorkspace()` from the Static API. Only display
+metadata (name, description, icon) is stored as JSON on disk. This keeps
+schemas type-safe and avoids runtime parsing of schema definitions.
