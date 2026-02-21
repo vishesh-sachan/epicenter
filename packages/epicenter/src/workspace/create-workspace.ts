@@ -38,12 +38,12 @@
 
 import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
-import type { DocumentContext, MaybePromise } from '../shared/lifecycle.js';
-import { runExtensionFactories } from '../shared/run-extension-factories.js';
 import { createAwareness } from './create-awareness.js';
 import { createDocumentBinding } from './create-document-binding.js';
 import { createKv } from './create-kv.js';
 import { createTables } from './create-tables.js';
+import type { DocumentContext, MaybePromise } from './lifecycle.js';
+import { runExtensionFactories } from './run-extension-factories.js';
 import type {
 	AwarenessDefinitions,
 	BaseRow,

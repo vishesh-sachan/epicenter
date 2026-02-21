@@ -42,7 +42,7 @@ export type {
 	Extension,
 	Lifecycle,
 	MaybePromise,
-} from './shared/lifecycle';
+} from './workspace/lifecycle';
 
 // ════════════════════════════════════════════════════════════════════════════
 // ERROR TYPES
@@ -68,8 +68,8 @@ export { generateGuid, generateId, Id as createId } from './shared/id';
 // Y.DOC STORAGE KEYS
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { KvKey, TableKey as TableKeyType } from './shared/ydoc-keys';
-export { KV_KEY, TableKey } from './shared/ydoc-keys';
+export type { KvKey, TableKey as TableKeyType } from './workspace/ydoc-keys';
+export { KV_KEY, TableKey } from './workspace/ydoc-keys';
 
 // ════════════════════════════════════════════════════════════════════════════
 // SCHEMA DEFINITIONS (Pure)

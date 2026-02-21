@@ -8,14 +8,10 @@ import type { Awareness } from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
 import type {
-	DocumentContext,
-	Extension,
-	MaybePromise,
-} from '../shared/lifecycle.js';
-import type {
 	CombinedStandardSchema,
 	StandardSchemaV1,
 } from '../shared/standard-schema/types.js';
+import type { DocumentContext, Extension, MaybePromise } from './lifecycle.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // TABLE RESULT TYPES - Building Blocks
@@ -953,7 +949,7 @@ export type WorkspaceClientBuilder<
 };
 
 // Re-export Extension for convenience
-export type { Extension } from '../shared/lifecycle.js';
+export type { Extension } from './lifecycle.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // EXTENSION TYPES

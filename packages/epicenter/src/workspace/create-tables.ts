@@ -34,7 +34,6 @@ import {
 	YKeyValueLww,
 	type YKeyValueLwwEntry,
 } from '../shared/y-keyvalue/y-keyvalue-lww.js';
-import { TableKey } from '../shared/ydoc-keys.js';
 import { createTableHelper } from './table-helper.js';
 import type {
 	BaseRow,
@@ -44,6 +43,7 @@ import type {
 	TableHelper,
 	TablesHelper,
 } from './types.js';
+import { TableKey } from './ydoc-keys.js';
 
 /**
  * Binds table definitions to an existing Y.Doc.

@@ -36,7 +36,6 @@ import {
 	type YKeyValueLwwChange,
 	type YKeyValueLwwEntry,
 } from '../shared/y-keyvalue/y-keyvalue-lww.js';
-import { KV_KEY } from '../shared/ydoc-keys.js';
 import type {
 	InferKvValue,
 	KvDefinition,
@@ -44,6 +43,7 @@ import type {
 	KvGetResult,
 	KvHelper,
 } from './types.js';
+import { KV_KEY } from './ydoc-keys.js';
 
 /**
  * Binds KV definitions to an existing Y.Doc.

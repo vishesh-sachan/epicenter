@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import * as Y from 'yjs';
-import type { Lifecycle } from '../../shared/lifecycle';
+import type { Lifecycle } from '../../workspace/lifecycle';
 import type { ExtensionContext } from '../../workspace/types.js';
 
 /**

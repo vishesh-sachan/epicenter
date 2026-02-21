@@ -39,11 +39,11 @@
  */
 
 import * as Y from 'yjs';
-import type { Extension } from '../shared/lifecycle.js';
+import type { Extension } from './lifecycle.js';
 import {
 	type RunExtensionFactoriesResult,
 	runExtensionFactories,
-} from '../shared/run-extension-factories.js';
+} from './run-extension-factories.js';
 import type {
 	BaseRow,
 	DocumentBinding,
