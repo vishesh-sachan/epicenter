@@ -1,5 +1,5 @@
 /**
- * Static Workspace API for Epicenter
+ * Workspace API for Epicenter
  *
  * A composable, type-safe API for defining and creating workspaces
  * with versioned tables and KV stores.
@@ -9,7 +9,7 @@
  *
  * @example
  * ```typescript
- * import { createWorkspace, defineTable, defineKv } from 'epicenter/static';
+ * import { createWorkspace, defineTable, defineKv } from '@epicenter/hq';
  * import { type } from 'arktype';
  *
  * // Tables: shorthand for single version

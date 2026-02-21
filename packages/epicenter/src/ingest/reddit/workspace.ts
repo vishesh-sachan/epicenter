@@ -1,7 +1,7 @@
 /**
  * Reddit Workspace Definition
  *
- * Static API workspace with 1:1 CSV → table mapping for Reddit GDPR export data.
+ * Workspace definition with 1:1 CSV → table mapping for Reddit GDPR export data.
  * (Singleton/settings-like CSVs map to the KV store instead of tables.)
  * Uses arktype schemas for type validation and inference.
  */

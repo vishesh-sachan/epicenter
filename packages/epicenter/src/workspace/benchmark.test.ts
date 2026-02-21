@@ -1,5 +1,5 @@
 /**
- * Static Workspace Benchmark Tests
+ * Workspace Benchmark Tests
  *
  * Benchmarks createWorkspace, table operations, KV operations, and storage growth under load.
  * These tests provide practical performance baselines and tombstone-size observations for local-first usage.
@@ -922,7 +922,7 @@ describe('heavy text rows: size and tombstone analysis', () => {
 			};
 		}
 
-		// ── Approach 1: YKeyValueLww (Static API) ──
+		// ── Approach 1: YKeyValueLww (Workspace API) ──
 		const ykvDoc = new Y.Doc();
 		const tables = createTables(ykvDoc, { notes: heavyNoteDefinition });
 
@@ -1101,7 +1101,9 @@ describe('heavy text rows: size and tombstone analysis', () => {
 		console.log(
 			`  ───────────────────────────────────────────────────────────`,
 		);
-		console.log(`  YKV = Static API (Y.Array + LWW, opaque ContentAny blobs)`);
+		console.log(
+			`  YKV = Workspace API (Y.Array + LWW, opaque ContentAny blobs)`,
+		);
 		console.log(`  Y.Map Replace = new Y.Map() per update (orphans old Y.Map)`);
 		console.log(`  Y.Map Field = reuse Y.Map, set() individual fields`);
 	});

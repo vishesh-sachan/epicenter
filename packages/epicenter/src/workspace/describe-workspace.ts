@@ -8,7 +8,7 @@
  *
  * @example
  * ```typescript
- * import { describeWorkspace } from 'epicenter/static';
+ * import { describeWorkspace } from '@epicenter/hq';
  *
  * const descriptor = describeWorkspace(client);
  * console.log(JSON.stringify(descriptor, null, 2));

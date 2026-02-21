@@ -10,7 +10,7 @@ import {
 /**
  * Stored workspace metadata (persisted as JSON on disk).
  *
- * Schemas are defined in code via Static workspace definitions (see templates).
+ * Schemas are defined in code via workspace definitions (see templates).
  * Only display metadata is stored.
  */
 export type WorkspaceDefinition = {

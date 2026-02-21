@@ -12,7 +12,7 @@
  *
  * @example
  * ```typescript
- * import { createDocumentBinding, createTables, defineTable } from '@epicenter/hq/static';
+ * import { createDocumentBinding, createTables, defineTable } from '@epicenter/hq';
  * import * as Y from 'yjs';
  * import { type } from 'arktype';
  *
@@ -59,7 +59,7 @@ import type {
  *
  * @example
  * ```typescript
- * import { DOCUMENT_BINDING_ORIGIN } from '@epicenter/hq/static';
+ * import { DOCUMENT_BINDING_ORIGIN } from '@epicenter/hq';
  *
  * client.tables.files.observe((changedIds, transaction) => {
  *   if (transaction.origin === DOCUMENT_BINDING_ORIGIN) {

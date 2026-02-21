@@ -4,7 +4,7 @@
  * @example
  * ```typescript
  * import * as Y from 'yjs';
- * import { createKv, defineKv } from 'epicenter/static';
+ * import { createKv, defineKv } from '@epicenter/hq';
  * import { type } from 'arktype';
  *
  * // Shorthand for single version

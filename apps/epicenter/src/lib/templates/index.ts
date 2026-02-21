@@ -6,7 +6,7 @@
  *
  * Each template contains:
  * - Display metadata (id, name, description, icon) for the UI
- * - A Static workspace definition (for creating workspace clients)
+ * - A workspace definition (for creating workspace clients)
  */
 
 import { ENTRIES_TEMPLATE } from './entries';
@@ -25,7 +25,7 @@ export const WORKSPACE_TEMPLATES = [
 ] as const;
 
 /**
- * A workspace template with display metadata and a Static workspace definition.
+ * A workspace template with display metadata and a workspace definition.
  */
 export type WorkspaceTemplate = (typeof WORKSPACE_TEMPLATES)[number];
 

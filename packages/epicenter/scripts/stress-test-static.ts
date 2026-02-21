@@ -1,5 +1,5 @@
 /**
- * Stress test for the Static Workspace API.
+ * Stress test for the Workspace API.
  *
  * Simulates an event/command log table: adds N events, deletes them all,
  * repeats for several cycles, then measures the final Y.Doc binary size

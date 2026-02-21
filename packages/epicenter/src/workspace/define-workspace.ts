@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { defineWorkspace, createWorkspace, defineTable } from 'epicenter/static';
+ * import { defineWorkspace, createWorkspace, defineTable } from '@epicenter/hq';
  *
  * const posts = defineTable(type({ id: 'string', title: 'string' }));
  *

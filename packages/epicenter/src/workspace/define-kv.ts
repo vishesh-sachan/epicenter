@@ -11,7 +11,7 @@
  *
  * @example
  * ```typescript
- * import { defineKv } from 'epicenter/static';
+ * import { defineKv } from '@epicenter/hq';
  * import { type } from 'arktype';
  *
  * // Shorthand for single version

@@ -5,7 +5,7 @@ import { workspacePersistence } from './workspace-persistence';
 /**
  * Create a workspace client with persistence.
  *
- * Looks up the Static workspace definition from the template registry
+ * Looks up the workspace definition from the template registry
  * by workspace ID, then creates a workspace client with persistence.
  *
  * @param workspaceId - The workspace ID (must match a registered template)
