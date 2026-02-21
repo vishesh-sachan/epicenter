@@ -26,10 +26,11 @@ import { SvelteMap } from 'svelte/reactivity';
 import {
 	createWindowCompositeId,
 	type WindowCompositeId,
-} from '$lib/device/composite-id';
+	type Tab,
+	type Window,
+} from '$lib/workspace';
 import { getDeviceId } from '$lib/device/device-id';
 import { tabToRow, windowToRow } from '$lib/sync/row-converters';
-import type { Tab, Window } from '$lib/workspace';
 
 /**
  * A window and all the tabs it owns, stored together.

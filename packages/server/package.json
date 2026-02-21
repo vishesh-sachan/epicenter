@@ -34,6 +34,7 @@
 	},
 	"devDependencies": {
 		"@epicenter/sync": "workspace:*",
+		"@epicenter/tab-manager": "workspace:*",
 		"@types/bun": "catalog:",
 		"arktype": "catalog:",
 		"typescript": "catalog:"

@@ -9,8 +9,10 @@ import {
 	createGroupCompositeId,
 	createTabCompositeId,
 	createWindowCompositeId,
-} from '$lib/device/composite-id';
-import type { Tab, TabGroup, Window } from '$lib/workspace';
+	type Tab,
+	type TabGroup,
+	type Window,
+} from '$lib/workspace';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Row Converters (Browser API → Schema Row)

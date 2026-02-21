@@ -39,7 +39,7 @@ const blogWorkspace = defineWorkspace({
 const blogClient = createWorkspace(blogWorkspace);
 
 // 3. Create and start server
-const server = createServer(blogClient, { port: 3913 });
+const server = createServer([blogClient], { port: 3913 });
 server.start();
 ```
 
@@ -50,12 +50,11 @@ Now your tables are available as REST endpoints:
 
 ## API
 
-### `createServer(client, options?)` or `createServer(clients, options?)`
+### `createServer(clients, options?)`
 
-**Signatures:**
+**Signature:**
 
 ```typescript
-function createServer(client: WorkspaceClient, options?: ServerOptions): Server;
 function createServer(
 	clients: WorkspaceClient[],
 	options?: ServerOptions,
@@ -70,11 +69,15 @@ type ServerOptions = {
 **Usage:**
 
 ```typescript
-// Single workspace
-createServer(blogClient);
-createServer(blogClient, { port: 8080 });
+// No workspaces (dynamic docs only)
+createServer([]);
+createServer([], { port: 8080 });
 
-// Multiple workspaces (array - IDs from workspace definitions)
+// Single workspace
+createServer([blogClient]);
+createServer([blogClient], { port: 8080 });
+
+// Multiple workspaces
 createServer([blogClient, authClient]);
 createServer([blogClient, authClient], { port: 8080 });
 ```
@@ -88,7 +91,7 @@ createServer([blogClient, authClient], { port: 8080 });
 ### Server Methods
 
 ```typescript
-const server = createServer(blogClient, { port: 3913 });
+const server = createServer([blogClient], { port: 3913 });
 
 server.app; // Underlying Elysia instance
 server.start(); // Start the HTTP server
@@ -317,7 +320,7 @@ The server exposes the WebSocket endpoint. `@epicenter/sync` is the client-side 
 
 ```typescript
 // Server side
-const server = createServer(blogClient, { port: 3913 });
+const server = createServer([blogClient], { port: 3913 });
 server.start();
 // Exposes: ws://localhost:3913/rooms/blog/sync
 
@@ -354,7 +357,7 @@ See `@epicenter/sync` for the client-side API (auth modes, status model, `hasLoc
 ```typescript
 const client = createWorkspace(blogWorkspace);
 
-const server = createServer(client, { port: 3913 });
+const server = createServer([client], { port: 3913 });
 server.start();
 // Clients stay alive until Ctrl+C
 ```
@@ -411,7 +414,7 @@ Tables are automatically exposed as CRUD endpoints:
 Write regular functions that use your client and expose them via custom routes:
 
 ```typescript
-const server = createServer(blogClient, { port: 3913 });
+const server = createServer([blogClient], { port: 3913 });
 
 // Define functions that use the client
 function createPost(title: string) {
