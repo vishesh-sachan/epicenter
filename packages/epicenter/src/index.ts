@@ -1,22 +1,19 @@
 /**
  * Epicenter: YJS-First Collaborative Workspace System
  *
- * This root export provides shared utilities used by both workspace systems.
- * Import from subpaths to choose your workspace API:
+ * This root export provides the full workspace API and shared utilities.
  *
- * - `@epicenter/hq/dynamic` - Field-based schema system (Notion-like)
- * - `@epicenter/hq/static` - Standard Schema with versioning
- * - `@epicenter/hq/extensions` - All extensions (persistence, sqlite, etc.)
+ * - `@epicenter/hq` - Full API (workspace creation, tables, KV, extensions)
+ * - `@epicenter/hq/static` - Same exports (alias for migration convenience)
+ * - `@epicenter/hq/extensions` - Extension plugins (persistence, sync)
  *
  * @example
  * ```typescript
- * // Dynamic (field-based schema)
- * import { createWorkspace, id, text, select } from '@epicenter/hq/dynamic';
- * import { sqlite, webPersistence } from '@epicenter/hq/extensions';
- *
- * // Static (Standard Schema with versioning)
- * import { createWorkspace, defineTable } from '@epicenter/hq/static';
+ * import { createWorkspace, defineTable } from '@epicenter/hq';
  * import { type } from 'arktype';
+ *
+ * const posts = defineTable(type({ id: 'string', title: 'string', _v: '1' }));
+ * const client = createWorkspace({ id: 'my-app', tables: { posts } });
  * ```
  *
  * @packageDocumentation
@@ -41,6 +38,7 @@ export {
 // ════════════════════════════════════════════════════════════════════════════
 
 export type {
+	DocumentContext,
 	Extension,
 	Lifecycle,
 	MaybePromise,
@@ -72,6 +70,95 @@ export { generateGuid, generateId, Id as createId } from './shared/id';
 
 export type { KvKey, TableKey as TableKeyType } from './shared/ydoc-keys';
 export { KV_KEY, TableKey } from './shared/ydoc-keys';
+
+// ════════════════════════════════════════════════════════════════════════════
+// SCHEMA DEFINITIONS (Pure)
+// ════════════════════════════════════════════════════════════════════════════
+
+export { defineKv } from './static/define-kv';
+export { defineTable } from './static/define-table';
+export { defineWorkspace } from './static/define-workspace';
+
+// ════════════════════════════════════════════════════════════════════════════
+// WORKSPACE CREATION
+// ════════════════════════════════════════════════════════════════════════════
+
+export type { CreateDocumentBindingConfig } from './static/create-document-binding';
+export {
+	createDocumentBinding,
+	DOCUMENT_BINDING_ORIGIN,
+} from './static/create-document-binding';
+export { createWorkspace } from './static/create-workspace';
+
+// ════════════════════════════════════════════════════════════════════════════
+// LOWER-LEVEL APIs (Bring Your Own Y.Doc)
+// ════════════════════════════════════════════════════════════════════════════
+
+export { createAwareness } from './static/create-awareness';
+export { createKv } from './static/create-kv';
+export { createTables } from './static/create-tables';
+
+// ════════════════════════════════════════════════════════════════════════════
+// INTROSPECTION
+// ════════════════════════════════════════════════════════════════════════════
+
+export type {
+	ActionDescriptor,
+	AwarenessDescriptor,
+	KvDescriptor,
+	TableDescriptor,
+	WorkspaceDescriptor,
+} from './static/describe-workspace';
+export { describeWorkspace } from './static/describe-workspace';
+
+// ════════════════════════════════════════════════════════════════════════════
+// VALIDATION UTILITIES
+// ════════════════════════════════════════════════════════════════════════════
+
+export { createUnionSchema } from './static/schema-union';
+
+// ════════════════════════════════════════════════════════════════════════════
+// TYPES
+// ════════════════════════════════════════════════════════════════════════════
+
+export type {
+	AnyWorkspaceClient,
+	AwarenessDefinitions,
+	AwarenessHelper,
+	AwarenessState,
+	BaseRow,
+	DeleteResult,
+	DocBinding,
+	DocsPropertyOf,
+	DocumentBinding,
+	DocumentHandle,
+	ExtensionContext,
+	ExtensionFactory,
+	GetResult,
+	InferAwarenessValue,
+	InferKvValue,
+	InferTableRow,
+	InvalidRowResult,
+	KvChange,
+	KvDefinition,
+	KvDefinitions,
+	KvGetResult,
+	KvHelper,
+	NotFoundResult,
+	NumberKeysOf,
+	RowResult,
+	StringKeysOf,
+	TableDefinition,
+	TableDefinitions,
+	TableHelper,
+	TablesHelper,
+	UpdateResult,
+	ValidRowResult,
+	WorkspaceClient,
+	WorkspaceClientBuilder,
+	WorkspaceClientWithActions,
+	WorkspaceDefinition,
+} from './static/types';
 
 // ════════════════════════════════════════════════════════════════════════════
 // DRIZZLE RE-EXPORTS

@@ -5,9 +5,7 @@
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
-		"./dynamic": "./src/dynamic/index.ts",
 		"./static": "./src/static/index.ts",
-		"./node": "./src/dynamic/workspace/node.ts",
 		"./extensions": {
 			"node": "./src/extensions/index.ts",
 			"default": "./src/extensions/index.ts"
@@ -46,7 +44,6 @@
 		"nanoid": "catalog:",
 		"temporal-polyfill": "^0.3.0",
 		"tinybase": "^5.4.2",
-		"typebox": "^1.0.75",
 		"wellcrafted": "catalog:",
 		"y-indexeddb": "catalog:",
 		"y-protocols": "catalog:",
