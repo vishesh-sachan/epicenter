@@ -26,7 +26,8 @@
  */
 
 import * as Y from 'yjs';
-import { defineExtension, type MaybePromise } from '../../shared/lifecycle';
+import type { MaybePromise } from '../../shared/lifecycle';
+import { runExtensionFactories } from '../../shared/run-extension-factories';
 import { createKv } from '../kv/create-kv';
 import type { KvField, TableDefinition } from '../schema/fields/types';
 import type { WorkspaceDefinition } from '../schema/workspace-definition';
@@ -87,23 +88,44 @@ export function createWorkspace<
 	const tables = createTables(ydoc, definition.tables ?? []);
 	const kv = createKv(ydoc, definition.kv ?? []);
 
-	// Internal state: accumulated cleanup functions and whenReady promises.
-	// Shared across the builder chain (same ydoc).
-	const extensionCleanups: (() => MaybePromise<void>)[] = [];
-	const whenReadyPromises: Promise<unknown>[] = [];
+	/**
+	 * Immutable builder state passed through the builder chain.
+	 * Each `withExtension` creates new arrays instead of mutating shared state,
+	 * which fixes builder branching isolation.
+	 */
+	type BuilderState = {
+		extensionCleanups: (() => MaybePromise<void>)[];
+		whenReadyPromises: Promise<unknown>[];
+	};
 
 	function buildClient<TExtensions extends Record<string, unknown>>(
 		extensions: TExtensions,
+		state: BuilderState,
 	): WorkspaceClientBuilder<TTableDefinitions, TKvFields, TExtensions> {
-		const whenReady = Promise.all(whenReadyPromises).then(() => {});
-
 		const destroy = async (): Promise<void> => {
-			// Destroy extensions in reverse order (last added = first destroyed)
-			for (let i = extensionCleanups.length - 1; i >= 0; i--) {
-				await extensionCleanups[i]!();
+			// Destroy extensions in LIFO order (last added = first destroyed)
+			const errors: unknown[] = [];
+			for (let i = state.extensionCleanups.length - 1; i >= 0; i--) {
+				try {
+					await state.extensionCleanups[i]!();
+				} catch (err) {
+					errors.push(err);
+				}
 			}
 			ydoc.destroy();
+
+			if (errors.length > 0) {
+				throw new Error(`Extension cleanup errors: ${errors.length}`);
+			}
 		};
+
+		const whenReady = Promise.all(state.whenReadyPromises)
+			.then(() => {})
+			.catch(async (err) => {
+				// If any extension's whenReady rejects, clean up everything
+				await destroy().catch(() => {}); // idempotent
+				throw err;
+			});
 
 		const client = {
 			id,
@@ -132,17 +154,44 @@ export function createWorkspace<
 					destroy?: () => MaybePromise<void>;
 				},
 			) {
-				const raw = factory(client);
-				const resolved = defineExtension(raw ?? {});
-				extensionCleanups.push(resolved.destroy);
-				whenReadyPromises.push(resolved.whenReady);
+				const result = runExtensionFactories({
+					entries: [{ key, factory }],
+					buildContext: ({ whenReadyPromises }) => ({
+						id,
+						ydoc,
+						tables,
+						kv,
+						batch: (fn: () => void) => ydoc.transact(fn),
+						whenReady:
+							state.whenReadyPromises.length === 0 &&
+							whenReadyPromises.length === 0
+								? Promise.resolve()
+								: Promise.all([
+										...state.whenReadyPromises,
+										...whenReadyPromises,
+									]).then(() => {}),
+						extensions,
+					}),
+					priorDestroys: state.extensionCleanups,
+				});
+
+				// Void return means "not installed" — skip registration
+				if (Object.keys(result.extensions).length === 0) {
+					return buildClient(extensions, state);
+				}
 
 				const newExtensions = {
 					...extensions,
-					[key]: resolved,
+					...result.extensions,
 				} as TExtensions & Record<TKey, TExports>;
 
-				return buildClient(newExtensions);
+				return buildClient(newExtensions, {
+					extensionCleanups: [...state.extensionCleanups, ...result.destroys],
+					whenReadyPromises: [
+						...state.whenReadyPromises,
+						...result.whenReadyPromises,
+					],
+				});
 			},
 		});
 
@@ -153,7 +202,10 @@ export function createWorkspace<
 		>;
 	}
 
-	return buildClient({} as Record<string, never>);
+	return buildClient({} as Record<string, never>, {
+		extensionCleanups: [],
+		whenReadyPromises: [],
+	});
 }
 
 export type { WorkspaceClient, WorkspaceClientBuilder };

@@ -219,12 +219,19 @@ export function defineExtension<T extends Record<string, unknown>>(
 /**
  * Context passed to document extension factories registered via `withDocumentExtension()`.
  *
- * Provides the content Y.Doc being created, a composite `whenReady` from
- * prior document extensions, metadata about which table/binding this doc belongs to,
- * and typed access to prior document extensions' exports + per-extension whenReady.
+ * Flat object containing the content Y.Doc, binding metadata, and chain state.
+ * Follows the same flat pattern as workspace `ExtensionContext`:
+ *
+ * ```typescript
+ * .withDocumentExtension('persistence', ({ ydoc }) => { ... })
+ * .withDocumentExtension('sync', ({ ydoc, binding, whenReady }) => { ... })
+ * ```
  *
  * Extensions are optional because tag-filtered extensions may be skipped for certain
  * document types. Factories should guard access with optional chaining.
+ *
+ * Does NOT include `destroy` or `[Symbol.asyncDispose]` — factories return
+ * their own lifecycle hooks, they don't control the document's.
  *
  * @typeParam TDocExtensions - Accumulated document extension exports from prior
  *   `.withDocumentExtension()` calls. Defaults to `Record<string, unknown>` so
@@ -232,13 +239,13 @@ export function defineExtension<T extends Record<string, unknown>>(
  *
  * @example
  * ```typescript
- * .withDocumentExtension('sync', (context) => {
+ * .withDocumentExtension('sync', ({ ydoc, binding, whenReady, extensions }) => {
  *   // Access prior document extension exports + lifecycle directly
- *   await context.extensions.persistence?.whenReady;
- *   context.extensions.persistence?.clearData();
+ *   await extensions.persistence?.whenReady;
+ *   extensions.persistence?.clearData();
  *
  *   // Composite: await ALL prior doc extensions
- *   await context.whenReady;
+ *   await whenReady;
  * })
  * ```
  */
@@ -247,11 +254,6 @@ export type DocumentContext<
 > = {
 	/** The content Y.Doc being created. */
 	ydoc: Y.Doc;
-	/**
-	 * Composite whenReady of all PRIOR document extensions' results.
-	 * Named `whenReady` for consistency with `client.whenReady`.
-	 */
-	whenReady: Promise<void>;
 	/**
 	 * Which table + binding this doc belongs to.
 	 * Enables per-binding behavior (e.g., skip sync for cover images).
@@ -262,6 +264,8 @@ export type DocumentContext<
 		/** The document's tags (from withDocument config). Empty if no tags declared. */
 		tags: readonly string[];
 	};
+	/** Composite whenReady of all PRIOR document extensions' results. */
+	whenReady: Promise<void>;
 	/**
 	 * Typed access to prior document extensions (resolved form with lifecycle hooks).
 	 *
@@ -270,8 +274,8 @@ export type DocumentContext<
 	 *
 	 * @example
 	 * ```typescript
-	 * await context.extensions.persistence?.whenReady;
-	 * context.extensions.persistence?.clearData();
+	 * await extensions.persistence?.whenReady;
+	 * extensions.persistence?.clearData();
 	 * ```
 	 */
 	extensions: {

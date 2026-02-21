@@ -479,8 +479,8 @@ describe('createDocumentBinding', () => {
 				documentExtensions: [
 					{
 						key: 'capture',
-						factory: (ctx) => {
-							capturedBinding = ctx.binding;
+						factory: ({ binding }) => {
+							capturedBinding = binding;
 							return { destroy: () => {} };
 						},
 						tags: [],

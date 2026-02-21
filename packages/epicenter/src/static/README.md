@@ -67,7 +67,7 @@ await client.whenReady;
 client.tables.posts.set({ id: '1', title: 'Hello' });
 ```
 
-Extensions get typed access to ydoc, tables, and kv. They return a plain `{ exports?, whenReady?, destroy? }` object — the framework normalizes defaults internally.
+Extensions receive `{ ydoc, tables, kv, id, ..., whenReady, extensions }` — all workspace resources at the top level. They return a plain `{ exports?, whenReady?, destroy? }` object — the framework normalizes defaults internally.
 
 ### Lower-Level APIs
 

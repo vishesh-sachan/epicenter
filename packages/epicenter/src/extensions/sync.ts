@@ -89,8 +89,8 @@ export type SyncExtensionConfig = {
 export function createSyncExtension(
 	config: SyncExtensionConfig,
 ): ExtensionFactory {
-	return (client) => {
-		const { ydoc, awareness } = client;
+	return (ctx) => {
+		const { ydoc, awareness } = ctx;
 		const workspaceId = ydoc.guid;
 
 		// Resolve URL — supports string with {id} placeholder or function
@@ -115,7 +115,7 @@ export function createSyncExtension(
 		// This ensures the Y.Doc has local state loaded before syncing,
 		// giving an accurate state vector for the initial WebSocket handshake.
 		const whenReady = (async () => {
-			await client.whenReady;
+			await ctx.whenReady;
 			provider.connect();
 		})();
 

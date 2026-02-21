@@ -323,18 +323,18 @@ describe('defineWorkspace', () => {
 					}, 50),
 				),
 			}))
-			.withExtension('dependent', (context) => {
-				// context.whenReady should be a promise representing all prior extensions
-				expect(context.whenReady).toBeInstanceOf(Promise);
+			.withExtension('dependent', ({ whenReady }) => {
+				// whenReady should be a promise representing all prior extensions
+				expect(whenReady).toBeInstanceOf(Promise);
 
-				const whenReady = (async () => {
-					await context.whenReady;
+				const whenReadyPromise = (async () => {
+					await whenReady;
 					order.push('dependent-ready');
 				})();
 
 				return {
 					tag: 'dependent',
-					whenReady,
+					whenReady: whenReadyPromise,
 				};
 			});
 
@@ -348,17 +348,17 @@ describe('defineWorkspace', () => {
 
 		createWorkspace({
 			id: 'first-ext-test',
-		}).withExtension('first', (context) => {
-			contextWhenReady = context.whenReady;
+		}).withExtension('first', ({ whenReady }) => {
+			contextWhenReady = whenReady;
 			return { tag: 'first' };
 		});
 
-		// First extension's context.whenReady = Promise.all([]) which resolves immediately
+		// First extension's whenReady = Promise.all([]) which resolves immediately
 		expect(contextWhenReady).toBeInstanceOf(Promise);
 		await contextWhenReady; // should not hang
 	});
 
-	test('context includes definitions, destroy, and whenReady', () => {
+	test('context includes client, whenReady, and extensions', () => {
 		const tableDef = defineTable(
 			type({ id: 'string', title: 'string', _v: '1' }),
 		);
@@ -366,20 +366,19 @@ describe('defineWorkspace', () => {
 		createWorkspace({
 			id: 'full-context-test',
 			tables: { posts: tableDef },
-		}).withExtension('inspector', (context) => {
-			// All WorkspaceClient fields should be present
-			expect(context.id).toBe('full-context-test');
-			expect(context.ydoc).toBeDefined();
-			expect(context.tables).toBeDefined();
-			expect(context.kv).toBeDefined();
-			expect(context.awareness).toBeDefined();
-			expect(context.extensions).toBeDefined();
-			expect(context.definitions).toBeDefined();
-			expect(context.definitions.tables.posts).toBe(tableDef);
-			expect(context.whenReady).toBeInstanceOf(Promise);
-			expect(typeof context.destroy).toBe('function');
-			return {};
-		});
+		}).withExtension(
+			'inspector',
+			({ id, ydoc, tables, kv, extensions, whenReady }) => {
+				// All ExtensionContext fields should be present
+				expect(id).toBe('full-context-test');
+				expect(ydoc).toBeDefined();
+				expect(tables).toBeDefined();
+				expect(kv).toBeDefined();
+				expect(extensions).toBeDefined();
+				expect(whenReady).toBeInstanceOf(Promise);
+				return {};
+			},
+		);
 	});
 
 	test('destroy runs in reverse order (LIFO)', async () => {

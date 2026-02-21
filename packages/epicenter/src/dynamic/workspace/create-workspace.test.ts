@@ -144,12 +144,12 @@ describe('createWorkspace', () => {
 			const baseWorkspace = createWorkspace(testDefinition);
 
 			let receivedContext: Record<string, unknown> | undefined;
-			baseWorkspace.withExtension('capture', (ctx) => {
+			baseWorkspace.withExtension('capture', ({ id, ydoc, tables, kv }) => {
 				receivedContext = {
-					id: ctx.id,
-					hasYdoc: ctx.ydoc instanceof Y.Doc,
-					hasTables: typeof ctx.tables.get === 'function',
-					hasKv: typeof ctx.kv.get === 'function',
+					id,
+					hasYdoc: ydoc instanceof Y.Doc,
+					hasTables: typeof tables.get === 'function',
+					hasKv: typeof kv.get === 'function',
 				};
 				return {};
 			});
@@ -208,18 +208,18 @@ describe('createWorkspace', () => {
 						}, 50),
 					),
 				}))
-				.withExtension('dependent', (context) => {
-					// context.whenReady should be a promise representing all prior extensions
-					expect(context.whenReady).toBeInstanceOf(Promise);
+				.withExtension('dependent', ({ whenReady }) => {
+					// whenReady should be a promise representing all prior extensions
+					expect(whenReady).toBeInstanceOf(Promise);
 
-					const whenReady = (async () => {
-						await context.whenReady;
+					const whenReadyPromise = (async () => {
+						await whenReady;
 						order.push('dependent-ready');
 					})();
 
 					return {
 						tag: 'dependent',
-						whenReady,
+						whenReady: whenReadyPromise,
 					};
 				});
 
@@ -229,16 +229,18 @@ describe('createWorkspace', () => {
 		});
 
 		test('context includes whenReady and destroy', () => {
-			createWorkspace(testDefinition).withExtension('inspector', (context) => {
-				expect(context.id).toBe('test-workspace');
-				expect(context.ydoc).toBeDefined();
-				expect(context.tables).toBeDefined();
-				expect(context.kv).toBeDefined();
-				expect(context.extensions).toBeDefined();
-				expect(context.whenReady).toBeInstanceOf(Promise);
-				expect(typeof context.destroy).toBe('function');
-				return {};
-			});
+			createWorkspace(testDefinition).withExtension(
+				'inspector',
+				({ id, ydoc, tables, kv, extensions, whenReady }) => {
+					expect(id).toBe('test-workspace');
+					expect(ydoc).toBeDefined();
+					expect(tables).toBeDefined();
+					expect(kv).toBeDefined();
+					expect(extensions).toBeDefined();
+					expect(whenReady).toBeInstanceOf(Promise);
+					return {};
+				},
+			);
 		});
 
 		test('keeps base client extensions empty after chaining', () => {

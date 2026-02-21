@@ -31,7 +31,7 @@ type SyncExtensionFactoryClient = Parameters<
 	ReturnType<typeof createSyncExtension>
 >[0];
 
-/** Create a minimal mock client for the sync extension factory. */
+/** Create a minimal mock context for the sync extension factory. */
 function createMockClient(ydoc: Y.Doc) {
 	return {
 		ydoc,
