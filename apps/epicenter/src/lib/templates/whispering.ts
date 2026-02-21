@@ -6,40 +6,32 @@
  * Epicenter workspace.
  */
 
-import {
-	id,
-	select,
-	table,
-	text,
-	type WorkspaceDefinition,
-} from '@epicenter/hq/dynamic';
+import { defineTable, defineWorkspace } from '@epicenter/hq/static';
+import { type } from 'arktype';
+
+const recordings = defineTable(
+	type({
+		id: 'string',
+		title: 'string',
+		subtitle: 'string',
+		timestamp: 'string',
+		createdAt: 'string',
+		updatedAt: 'string',
+		transcribedText: 'string',
+		transcriptionStatus: "'UNPROCESSED' | 'TRANSCRIBING' | 'DONE' | 'FAILED'",
+		_v: '1',
+	}),
+);
+
+export const whisperingWorkspace = defineWorkspace({
+	id: 'epicenter.whispering' as const,
+	tables: { recordings },
+});
 
 export const WHISPERING_TEMPLATE = {
 	id: 'epicenter.whispering',
 	name: 'Whispering',
 	description: '',
 	icon: null,
-	tables: [
-		table({
-			id: 'recordings',
-			name: 'Recordings',
-			icon: '🎙️',
-			description: 'Voice recordings and transcriptions',
-			fields: [
-				id(),
-				text({ id: 'title', name: 'Title' }),
-				text({ id: 'subtitle', name: 'Subtitle' }),
-				text({ id: 'timestamp', name: 'Timestamp' }),
-				text({ id: 'createdAt', name: 'Created At' }),
-				text({ id: 'updatedAt', name: 'Updated At' }),
-				text({ id: 'transcribedText', name: 'Transcribed Text' }),
-				select({
-					id: 'transcriptionStatus',
-					name: 'Status',
-					options: ['UNPROCESSED', 'TRANSCRIBING', 'DONE', 'FAILED'],
-				}),
-			],
-		}),
-	],
-	kv: [],
-} as const satisfies WorkspaceDefinition;
+	workspace: whisperingWorkspace,
+} as const;

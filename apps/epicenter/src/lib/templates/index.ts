@@ -3,6 +3,10 @@
  *
  * Templates provide ready-to-use workspace definitions that users can
  * select when creating a new workspace instead of starting from scratch.
+ *
+ * Each template contains:
+ * - Display metadata (id, name, description, icon) for the UI
+ * - A Static workspace definition (for creating workspace clients)
  */
 
 import { ENTRIES_TEMPLATE } from './entries';
@@ -21,11 +25,7 @@ export const WORKSPACE_TEMPLATES = [
 ] as const;
 
 /**
- * A workspace template definition.
- *
- * Templates are similar to WorkspaceDefinition but with predefined
- * id, name, tables, and kv that get applied when the user creates
- * a workspace from this template.
+ * A workspace template with display metadata and a Static workspace definition.
  */
 export type WorkspaceTemplate = (typeof WORKSPACE_TEMPLATES)[number];
 

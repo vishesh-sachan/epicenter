@@ -6,7 +6,7 @@
  * persisted in storage.local across sessions.
  */
 
-import { generateId } from '@epicenter/hq/dynamic';
+import { generateId } from '@epicenter/hq';
 import { storage } from '@wxt-dev/storage';
 
 // ─────────────────────────────────────────────────────────────────────────────
