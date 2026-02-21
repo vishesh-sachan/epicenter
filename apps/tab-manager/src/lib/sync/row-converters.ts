@@ -9,6 +9,7 @@ import {
 	createGroupCompositeId,
 	createTabCompositeId,
 	createWindowCompositeId,
+	TAB_ID_NONE,
 	type Tab,
 	type TabGroup,
 	type Window,
@@ -21,8 +22,10 @@ import {
 /**
  * Convert a browser tab to a schema row.
  *
- * Returns `null` if the tab has no ID (e.g. foreign tabs from the sessions API).
- * Tabs without IDs can't be activated, closed, or stored with a composite key.
+ * Returns `null` if the tab has no usable ID — either `undefined` (foreign
+ * tabs from the sessions API) or `-1` (`TAB_ID_NONE`, e.g. devtools windows).
+ * Tabs without real IDs can't be activated, closed, or stored with a
+ * composite key.
  *
  * @example
  * ```typescript
@@ -31,7 +34,9 @@ import {
  * ```
  */
 export function tabToRow(deviceId: string, tab: Browser.tabs.Tab): Tab | null {
-	if (tab.id === undefined) return null;
+	// tab.id is undefined for foreign tabs (sessions API) and TAB_ID_NONE (-1)
+	// for non-browser tabs like devtools windows.
+	if (tab.id === undefined || tab.id === TAB_ID_NONE) return null;
 
 	const { id, windowId, groupId, openerTabId, selected, ...rest } = tab;
 	return {
@@ -40,8 +45,9 @@ export function tabToRow(deviceId: string, tab: Browser.tabs.Tab): Tab | null {
 		deviceId,
 		tabId: id,
 		windowId: createWindowCompositeId(deviceId, windowId),
-		groupId:
-			groupId !== -1 ? createGroupCompositeId(deviceId, groupId) : undefined,
+		// createGroupCompositeId returns undefined for -1 (TAB_GROUP_ID_NONE)
+		groupId: createGroupCompositeId(deviceId, groupId),
+		// openerTabId is absent/undefined when no opener exists (never -1)
 		openerTabId:
 			openerTabId !== undefined
 				? createTabCompositeId(deviceId, openerTabId)
@@ -80,6 +86,10 @@ export function windowToRow(
 /**
  * Convert a browser tab group to a schema row.
  *
+ * Note: A `TabGroup` object always has a valid `id` (never
+ * `TAB_GROUP_ID_NONE`). The `-1` sentinel only appears on
+ * `Tab.groupId` for ungrouped tabs, not on group objects themselves.
+ *
  * @example
  * ```typescript
  * const row = tabGroupToRow(deviceId, group);
@@ -93,7 +103,8 @@ export function tabGroupToRow(
 	const { id, windowId, ...rest } = group;
 	return {
 		...rest,
-		id: createGroupCompositeId(deviceId, id),
+		// biome-ignore lint/style/noNonNullAssertion: TabGroup.id can't be TAB_GROUP_ID_NONE per spec — https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabGroups/TabGroup
+		id: createGroupCompositeId(deviceId, id)!,
 		deviceId,
 		groupId: id,
 		windowId: createWindowCompositeId(deviceId, windowId),

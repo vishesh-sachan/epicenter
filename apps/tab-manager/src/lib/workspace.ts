@@ -17,6 +17,30 @@ import { type } from 'arktype';
 import type { Brand } from 'wellcrafted/brand';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Chrome API Sentinel Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Mirrors `chrome.tabs.TAB_ID_NONE`.
+ * Assigned to tabs that aren't browser tabs (e.g. devtools windows).
+ *
+ * @see https://developer.chrome.com/docs/extensions/reference/api/tabs#property-TAB_ID_NONE
+ */
+export const TAB_ID_NONE = -1;
+
+/**
+ * Mirrors `chrome.tabGroups.TAB_GROUP_ID_NONE`.
+ * Assigned to `Tab.groupId` when the tab doesn't belong to any group.
+ *
+ * Note: `TabGroup.id` itself is guaranteed to never be this value —
+ * only `Tab.groupId` uses it as a sentinel.
+ *
+ * @see https://developer.chrome.com/docs/extensions/reference/api/tabGroups#property-TAB_GROUP_ID_NONE
+ * @see https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabGroups/TabGroup
+ */
+export const TAB_GROUP_ID_NONE = -1;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Composite ID Types
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -52,6 +76,13 @@ export const GroupCompositeId = type('string').pipe(
 
 /**
  * Create a device-scoped composite tab ID: `${deviceId}_${tabId}`.
+ *
+ * Callers must guard against `TAB_ID_NONE` (`-1`) and `undefined`
+ * before calling — this function always returns a valid composite ID.
+ *
+ * Note: `openerTabId` is simply absent/undefined when no opener exists
+ * (it never uses `-1` as a sentinel), so the caller only needs an
+ * `undefined` check for that field.
  */
 export function createTabCompositeId(
 	deviceId: string,
@@ -62,6 +93,11 @@ export function createTabCompositeId(
 
 /**
  * Create a device-scoped composite window ID: `${deviceId}_${windowId}`.
+ *
+ * Note: `WINDOW_ID_NONE` (`-1`) only appears in `windows.onFocusChanged`
+ * events when all windows lose focus — it never appears on `Tab.windowId`.
+ * If used with a focus event's windowId, the resulting composite ID is safe
+ * for comparisons but should not be stored as a real window reference.
  */
 export function createWindowCompositeId(
 	deviceId: string,
@@ -72,11 +108,17 @@ export function createWindowCompositeId(
 
 /**
  * Create a device-scoped composite group ID: `${deviceId}_${groupId}`.
+ *
+ * Returns `undefined` when `groupId` is `TAB_GROUP_ID_NONE` (`-1`),
+ * which Chrome uses for tabs that don't belong to any group.
+ *
+ * @see https://developer.chrome.com/docs/extensions/reference/api/tabGroups#property-TAB_GROUP_ID_NONE
  */
 export function createGroupCompositeId(
 	deviceId: string,
 	groupId: number,
-): GroupCompositeId {
+): GroupCompositeId | undefined {
+	if (groupId === TAB_GROUP_ID_NONE) return undefined;
 	return `${deviceId}_${groupId}` as GroupCompositeId;
 }
 
