@@ -6,7 +6,6 @@
 	import * as DropdownMenu from '@epicenter/ui/dropdown-menu';
 	import { Button } from '@epicenter/ui/button';
 	import { Badge } from '@epicenter/ui/badge';
-	import { isNullableField, type Field } from '@epicenter/hq/dynamic';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
 	import TrashIcon from '@lucide/svelte/icons/trash-2';
@@ -19,40 +18,48 @@
 
 	const tableId = $derived(page.params.tableId);
 
-	// Definition comes from the layout loader
-	const definition = $derived(data.definition);
-
-	const tableEntry = $derived.by(() => {
-		if (!tableId || !definition?.tables) return undefined;
-		// tables is an array now - find by id
-		return definition.tables.find((t) => t.id === tableId);
+	/**
+	 * Access the table helper from the Static workspace client by name.
+	 *
+	 * Static API uses `client.tables.recordings` (property access) instead of
+	 * Dynamic's `client.tables.get('recordings')` (method call). The tableId
+	 * route param is the table name (e.g., "recordings", "entries").
+	 */
+	const tableHelper = $derived.by(() => {
+		if (!tableId || !data.client?.tables) return undefined;
+		const tables = data.client.tables as Record<
+			string,
+			| {
+					getAllValid: () => Record<string, unknown>[];
+					count: () => number;
+			  }
+			| undefined
+		>;
+		return tables[tableId];
 	});
-
-	const tableFields = $derived(tableEntry?.fields);
-	const tableName = $derived(tableEntry?.name ?? tableId);
-
-	// Fields is now an array - map to [id, field] pairs for backwards compat with template
-	const columns = $derived(
-		tableFields ? (tableFields.map((f) => [f.id, f]) as [string, Field][]) : [],
-	);
-
-	// Get actual table data from the YJS-backed client
-	const tableHelper = $derived(
-		tableId && data.client?.tables
-			? data.client.tables.get(tableId)
-			: undefined,
-	);
 
 	const rows = $derived.by(() => {
 		if (!tableHelper) return [];
 		return tableHelper.getAllValid();
 	});
 
+	/**
+	 * Derive column names from the first row of data.
+	 *
+	 * Static API schemas are arktype types defined in code — they don't have
+	 * runtime-introspectable Field objects like Dynamic did. Column names
+	 * are inferred from actual data, excluding internal fields like `_v`.
+	 */
+	const columnNames = $derived.by(() => {
+		if (rows.length === 0) return [];
+		return Object.keys(rows[0]!).filter((k) => k !== '_v');
+	});
+
 	let activeTab = $state('data');
 </script>
 
 <div class="space-y-4">
-	{#if !tableFields}
+	{#if !tableHelper}
 		<Empty.Root>
 			<Empty.Header>
 				<Empty.Media variant="icon">
@@ -73,9 +80,9 @@
 		<!-- Header -->
 		<div class="flex items-center justify-between">
 			<div>
-				<h1 class="text-2xl font-semibold">{tableName}</h1>
+				<h1 class="text-2xl font-semibold">{tableId}</h1>
 				<p class="text-muted-foreground text-sm">
-					{columns.length} column{columns.length === 1 ? '' : 's'} · {rows.length}
+					{columnNames.length} column{columnNames.length === 1 ? '' : 's'} · {rows.length}
 					row{rows.length === 1 ? '' : 's'}
 				</p>
 			</div>
@@ -127,7 +134,7 @@
 						<Table.Root>
 							<Table.Header>
 								<Table.Row>
-									{#each columns as [columnName] (columnName)}
+									{#each columnNames as columnName (columnName)}
 										<Table.Head>{columnName}</Table.Head>
 									{/each}
 									<Table.Head class="w-12"></Table.Head>
@@ -136,7 +143,7 @@
 							<Table.Body>
 								{#each rows as row (row.id)}
 									<Table.Row>
-										{#each columns as [columnName] (columnName)}
+										{#each columnNames as columnName (columnName)}
 											<Table.Cell class="font-mono text-sm">
 												{@const value = row[columnName]}
 												{#if value === null || value === undefined}
@@ -190,70 +197,26 @@
 						<Table.Header>
 							<Table.Row>
 								<Table.Head>Column Name</Table.Head>
-								<Table.Head>Type</Table.Head>
-								<Table.Head>Nullable</Table.Head>
-								<Table.Head>Default</Table.Head>
-								<Table.Head class="w-12"></Table.Head>
+								<Table.Head>Sample Type</Table.Head>
 							</Table.Row>
 						</Table.Header>
 						<Table.Body>
-							{#each columns as [columnName, schema] (columnName)}
-								{@const isNullable = isNullableField(schema)}
-								{@const hasDefault = 'default' in schema}
+							{#each columnNames as columnName (columnName)}
+								{@const sampleValue = rows[0]?.[columnName]}
 								<Table.Row>
 									<Table.Cell class="font-mono text-sm">{columnName}</Table.Cell
 									>
 									<Table.Cell>
-										<Badge variant="secondary">{schema.type}</Badge>
-									</Table.Cell>
-									<Table.Cell>
-										{#if isNullable}
-											<Badge variant="outline">nullable</Badge>
-										{:else}
-											<span class="text-muted-foreground text-sm">required</span
-											>
-										{/if}
-									</Table.Cell>
-									<Table.Cell>
-										{#if hasDefault}
-											<code class="bg-muted rounded px-1.5 py-0.5 text-xs">
-												{JSON.stringify(schema.default)}
-											</code>
-										{:else}
-											<span class="text-muted-foreground text-sm">-</span>
-										{/if}
-									</Table.Cell>
-									<Table.Cell>
-										{#if columnName !== 'id'}
-											<DropdownMenu.Root>
-												<DropdownMenu.Trigger>
-													{#snippet child({ props }: { props: any })}
-														<Button
-															{...props}
-															variant="ghost"
-															size="icon"
-															class="size-8"
-														>
-															<EllipsisIcon class="size-4" />
-															<span class="sr-only">Open menu</span>
-														</Button>
-													{/snippet}
-												</DropdownMenu.Trigger>
-												<DropdownMenu.Content align="end">
-													<DropdownMenu.Item disabled>Edit</DropdownMenu.Item>
-													<DropdownMenu.Separator />
-													<DropdownMenu.Item class="text-destructive" disabled>
-														<TrashIcon class="mr-2 size-4" />
-														Delete
-													</DropdownMenu.Item>
-												</DropdownMenu.Content>
-											</DropdownMenu.Root>
-										{/if}
+										<Badge variant="secondary"
+											>{sampleValue === null
+												? 'null'
+												: typeof sampleValue}</Badge
+										>
 									</Table.Cell>
 								</Table.Row>
 							{:else}
 								<Table.Row>
-									<Table.Cell colspan={5} class="h-24 text-center">
+									<Table.Cell colspan={2} class="h-24 text-center">
 										<Empty.Root>
 											<Empty.Title>No columns</Empty.Title>
 											<Empty.Description>
@@ -271,10 +234,10 @@
 			<!-- Raw Tab -->
 			<Tabs.Content value="raw">
 				<div class="mt-4 rounded-lg border p-4">
-					<h2 class="mb-2 font-medium">Raw Schema</h2>
+					<h2 class="mb-2 font-medium">Raw Data</h2>
 					<pre
 						class="bg-muted overflow-auto rounded p-4 text-xs">{JSON.stringify(
-							tableEntry,
+							rows.slice(0, 10),
 							null,
 							2,
 						)}</pre>
