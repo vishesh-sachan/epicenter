@@ -70,7 +70,7 @@ export const persistence = (
 		});
 	})();
 
-	return { lifecycle: { whenReady } };
+	return { whenReady };
 };
 
 /**

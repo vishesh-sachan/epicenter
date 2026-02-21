@@ -13,8 +13,8 @@
  *   like SQLite queries, Markdown sync, revision history. Receive the client-so-far
  *   as context, including previously added extensions.
  *
- * Extension factories return `{ exports?, lifecycle? }`.
- * The framework normalizes defaults internally.
+ * Extension factories return flat objects `{ ...customExports, whenReady?, destroy? }`.
+ * The framework normalizes defaults internally via `defineExtension()`.
  */
 
 // Re-export lifecycle types for extension authors

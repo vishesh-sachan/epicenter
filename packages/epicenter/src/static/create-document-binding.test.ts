@@ -1,12 +1,12 @@
 /**
  * createDocumentBinding Tests
  *
- * Validates document binding lifecycle, read/write behavior, and integration with table row metadata.
- * The suite protects contracts around open/read/write idempotency, cleanup semantics, and hook orchestration.
+ * Validates document binding lifecycle, handle read/write behavior, and integration with table row metadata.
+ * The suite protects contracts around open/close idempotency, handle pattern, cleanup semantics, and hook orchestration.
  *
  * Key behaviors:
  * - Document operations keep row metadata in sync and honor binding origins.
- * - Lifecycle methods (`destroy`, `purge`, `destroyAll`) safely clean up open docs.
+ * - Lifecycle methods (`close`, `closeAll`) safely clean up open docs.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -55,7 +55,7 @@ function setupWithBinding(
 
 describe('createDocumentBinding', () => {
 	describe('open', () => {
-		test('returns a Y.Doc with gc: false', async () => {
+		test('returns a handle with a Y.Doc (gc: false)', async () => {
 			const { tables, binding } = setupWithBinding();
 			tables.files.set({
 				id: 'f1',
@@ -64,17 +64,17 @@ describe('createDocumentBinding', () => {
 				_v: 1,
 			});
 
-			const doc = await binding.open('f1');
-			expect(doc).toBeInstanceOf(Y.Doc);
-			expect(doc.gc).toBe(false);
+			const handle = await binding.open('f1');
+			expect(handle.ydoc).toBeInstanceOf(Y.Doc);
+			expect(handle.ydoc.gc).toBe(false);
 		});
 
-		test('is idempotent — same GUID returns same Y.Doc', async () => {
+		test('is idempotent — same GUID returns same underlying Y.Doc', async () => {
 			const { binding } = setupWithBinding();
 
-			const doc1 = await binding.open('f1');
-			const doc2 = await binding.open('f1');
-			expect(doc1).toBe(doc2);
+			const handle1 = await binding.open('f1');
+			const handle2 = await binding.open('f1');
+			expect(handle1.ydoc).toBe(handle2.ydoc);
 		});
 
 		test('open accepts a row object and resolves guid', async () => {
@@ -87,40 +87,43 @@ describe('createDocumentBinding', () => {
 			} as const;
 			tables.files.set(row);
 
-			const doc = await binding.open(row);
-			expect(doc.guid).toBe('f1');
+			const handle = await binding.open(row);
+			expect(handle.ydoc.guid).toBe('f1');
 		});
 
 		test('open accepts a string guid directly', async () => {
 			const { binding } = setupWithBinding();
 
-			const doc = await binding.open('f1');
-			expect(doc.guid).toBe('f1');
+			const handle = await binding.open('f1');
+			expect(handle.ydoc.guid).toBe('f1');
 		});
 	});
 
-	describe('read and write', () => {
+	describe('handle read and write', () => {
 		test('read returns empty string for new doc', async () => {
 			const { binding } = setupWithBinding();
 
-			const text = await binding.read('f1');
+			const handle = await binding.open('f1');
+			const text = handle.read();
 			expect(text).toBe('');
 		});
 
 		test('write replaces text content, then read returns it', async () => {
 			const { binding } = setupWithBinding();
 
-			await binding.write('f1', 'hello world');
-			const text = await binding.read('f1');
+			const handle = await binding.open('f1');
+			handle.write('hello world');
+			const text = handle.read();
 			expect(text).toBe('hello world');
 		});
 
 		test('write replaces existing content', async () => {
 			const { binding } = setupWithBinding();
 
-			await binding.write('f1', 'first');
-			await binding.write('f1', 'second');
-			const text = await binding.read('f1');
+			const handle = await binding.open('f1');
+			handle.write('first');
+			handle.write('second');
+			const text = handle.read();
 			expect(text).toBe('second');
 		});
 	});
@@ -135,8 +138,8 @@ describe('createDocumentBinding', () => {
 				_v: 1,
 			});
 
-			const doc = await binding.open('f1');
-			doc.getText('content').insert(0, 'hello');
+			const handle = await binding.open('f1');
+			handle.ydoc.getText('content').insert(0, 'hello');
 
 			// Give the update observer a tick
 			const result = tables.files.get('f1');
@@ -160,8 +163,8 @@ describe('createDocumentBinding', () => {
 				capturedOrigin = (transaction as Y.Transaction).origin;
 			});
 
-			const doc = await binding.open('f1');
-			doc.getText('content').insert(0, 'hello');
+			const handle = await binding.open('f1');
+			handle.ydoc.getText('content').insert(0, 'hello');
 
 			expect(capturedOrigin).toBe(DOCUMENT_BINDING_ORIGIN);
 		});
@@ -175,7 +178,7 @@ describe('createDocumentBinding', () => {
 				_v: 1,
 			});
 
-			const doc = await binding.open('f1');
+			const handle = await binding.open('f1');
 
 			// Capture the state update from a local edit on a separate Y.Doc,
 			// then apply it as a "remote" update via Y.applyUpdate
@@ -183,7 +186,7 @@ describe('createDocumentBinding', () => {
 			remoteDoc.getText('content').insert(0, 'remote edit');
 			const remoteUpdate = Y.encodeStateAsUpdate(remoteDoc);
 
-			Y.applyUpdate(doc, remoteUpdate);
+			Y.applyUpdate(handle.ydoc, remoteUpdate);
 
 			const result = tables.files.get('f1');
 			expect(result.status).toBe('valid');
@@ -195,70 +198,65 @@ describe('createDocumentBinding', () => {
 		});
 	});
 
-	describe('destroy', () => {
+	describe('close', () => {
 		test('frees memory — doc can be re-opened as new instance', async () => {
 			const { binding } = setupWithBinding();
 
-			const doc1 = await binding.open('f1');
-			await binding.destroy('f1');
+			const handle1 = await binding.open('f1');
+			await binding.close('f1');
 
-			const doc2 = await binding.open('f1');
-			expect(doc2).not.toBe(doc1);
+			const handle2 = await binding.open('f1');
+			expect(handle2.ydoc).not.toBe(handle1.ydoc);
 		});
 
-		test('destroy on non-existent guid is a no-op', async () => {
+		test('close on non-existent guid is a no-op', async () => {
 			const { binding } = setupWithBinding();
 
 			// Should not throw
-			await binding.destroy('nonexistent');
+			await binding.close('nonexistent');
 		});
 	});
 
-	describe('getExports', () => {
-		test('returns undefined for doc that is not open', () => {
-			const { binding } = setupWithBinding();
-
-			expect(binding.getExports('nonexistent')).toBeUndefined();
-		});
-
+	describe('handle.exports', () => {
 		test('returns accumulated exports keyed by extension name', async () => {
 			const { binding } = setupWithBinding({
 				documentExtensions: [
 					{
 						key: 'persistence',
 						factory: () => ({
-							exports: { clearData: () => {} },
-							lifecycle: { destroy: () => {} },
+							clearData: () => {},
+							destroy: () => {},
 						}),
 						tags: [],
 					},
 				],
 			});
 
-			await binding.open('f1');
-			const exports = binding.getExports('f1');
-			expect(exports).toBeDefined();
-			expect(exports!.persistence).toBeDefined();
-			expect(typeof exports!.persistence!.clearData).toBe('function');
+			const handle = await binding.open('f1');
+			expect(handle.exports).toBeDefined();
+			expect(handle.exports.persistence).toBeDefined();
+			expect(typeof handle.exports.persistence!.clearData).toBe('function');
 		});
 
-		test('returns empty exports when extension has no exports', async () => {
+		test('lifecycle-only extension is accessible with whenReady and destroy', async () => {
 			const { binding } = setupWithBinding({
 				documentExtensions: [
 					{
 						key: 'lifecycle-only',
 						factory: () => ({
-							lifecycle: { destroy: () => {} },
+							destroy: () => {},
 						}),
 						tags: [],
 					},
 				],
 			});
 
-			await binding.open('f1');
-			const exports = binding.getExports('f1');
-			expect(exports).toBeDefined();
-			expect(exports!['lifecycle-only']).toBeUndefined();
+			const handle = await binding.open('f1');
+			expect(handle.exports).toBeDefined();
+			const ext = handle.exports['lifecycle-only'];
+			expect(ext).toBeDefined();
+			expect(ext!.whenReady).toBeInstanceOf(Promise);
+			expect(typeof ext!.destroy).toBe('function');
 		});
 
 		test('accepts a row object', async () => {
@@ -267,7 +265,7 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'test',
 						factory: () => ({
-							exports: { helper: () => 42 },
+							helper: () => 42,
 						}),
 						tags: [],
 					},
@@ -282,32 +280,31 @@ describe('createDocumentBinding', () => {
 			} as const;
 			tables.files.set(row);
 
-			await binding.open(row);
-			const exports = binding.getExports(row);
-			expect(exports).toBeDefined();
-			expect(typeof exports!.test!.helper).toBe('function');
+			const handle = await binding.open(row);
+			expect(handle.exports).toBeDefined();
+			expect(typeof handle.exports.test!.helper).toBe('function');
 		});
 	});
 
-	describe('destroyAll', () => {
-		test('destroys all open docs', async () => {
+	describe('closeAll', () => {
+		test('closes all open docs', async () => {
 			const { binding } = setupWithBinding();
 
-			const doc1 = await binding.open('f1');
-			const doc2 = await binding.open('f2');
+			const handle1 = await binding.open('f1');
+			const handle2 = await binding.open('f2');
 
-			await binding.destroyAll();
+			await binding.closeAll();
 
-			// Re-opening should create new instances
-			const doc1b = await binding.open('f1');
-			const doc2b = await binding.open('f2');
-			expect(doc1b).not.toBe(doc1);
-			expect(doc2b).not.toBe(doc2);
+			// Re-opening should create new Y.Doc instances
+			const handle1b = await binding.open('f1');
+			const handle2b = await binding.open('f2');
+			expect(handle1b.ydoc).not.toBe(handle1.ydoc);
+			expect(handle2b.ydoc).not.toBe(handle2.ydoc);
 		});
 	});
 
 	describe('row deletion', () => {
-		test('default onRowDeleted calls destroy', async () => {
+		test('default onRowDeleted calls close', async () => {
 			const { tables, binding } = setupWithBinding();
 			tables.files.set({
 				id: 'f1',
@@ -316,12 +313,12 @@ describe('createDocumentBinding', () => {
 				_v: 1,
 			});
 
-			const doc1 = await binding.open('f1');
+			const handle1 = await binding.open('f1');
 			tables.files.delete('f1');
 
 			// After deletion, re-opening should create a new Y.Doc
-			const doc2 = await binding.open('f1');
-			expect(doc2).not.toBe(doc1);
+			const handle2 = await binding.open('f1');
+			expect(handle2.ydoc).not.toBe(handle1.ydoc);
 		});
 
 		test('custom onRowDeleted fires with the guid', async () => {
@@ -352,24 +349,12 @@ describe('createDocumentBinding', () => {
 		});
 	});
 
-	describe('guidOf and updatedAtOf', () => {
+	describe('guidOf', () => {
 		test('guidOf extracts the guid column value', () => {
 			const { binding } = setupWithBinding();
 			expect(
 				binding.guidOf({ id: 'f1', name: 'test.txt', updatedAt: 123, _v: 1 }),
 			).toBe('f1');
-		});
-
-		test('updatedAtOf extracts the updatedAt column value', () => {
-			const { binding } = setupWithBinding();
-			expect(
-				binding.updatedAtOf({
-					id: 'f1',
-					name: 'test.txt',
-					updatedAt: 456,
-					_v: 1,
-				}),
-			).toBe(456);
 		});
 	});
 
@@ -383,7 +368,7 @@ describe('createDocumentBinding', () => {
 						key: 'first',
 						factory: () => {
 							order.push(1);
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -391,7 +376,7 @@ describe('createDocumentBinding', () => {
 						key: 'second',
 						factory: () => {
 							order.push(2);
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -399,7 +384,7 @@ describe('createDocumentBinding', () => {
 						key: 'third',
 						factory: () => {
 							order.push(3);
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -418,10 +403,8 @@ describe('createDocumentBinding', () => {
 					{
 						key: 'first',
 						factory: () => ({
-							lifecycle: {
-								whenReady: Promise.resolve(),
-								destroy: () => {},
-							},
+							whenReady: Promise.resolve(),
+							destroy: () => {},
 						}),
 						tags: [],
 					},
@@ -429,7 +412,7 @@ describe('createDocumentBinding', () => {
 						key: 'second',
 						factory: ({ whenReady }) => {
 							secondReceivedWhenReady = whenReady instanceof Promise;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -457,7 +440,7 @@ describe('createDocumentBinding', () => {
 						key: 'normal-hook',
 						factory: () => {
 							hooksCalled++;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -468,11 +451,11 @@ describe('createDocumentBinding', () => {
 			expect(hooksCalled).toBe(2);
 		});
 
-		test('no hooks → bare Y.Doc, instant resolution', async () => {
+		test('no hooks → bare handle with Y.Doc, instant resolution', async () => {
 			const { binding } = setupWithBinding({ documentExtensions: [] });
 
-			const doc = await binding.open('f1');
-			expect(doc).toBeInstanceOf(Y.Doc);
+			const handle = await binding.open('f1');
+			expect(handle.ydoc).toBeInstanceOf(Y.Doc);
 		});
 
 		test('hook receives correct binding metadata with tags', async () => {
@@ -498,7 +481,7 @@ describe('createDocumentBinding', () => {
 						key: 'capture',
 						factory: (ctx) => {
 							capturedBinding = ctx.binding;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -521,7 +504,7 @@ describe('createDocumentBinding', () => {
 						key: 'universal',
 						factory: () => {
 							called = true;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [], // universal — no tags
 					},
@@ -541,7 +524,7 @@ describe('createDocumentBinding', () => {
 						key: 'sync-ext',
 						factory: () => {
 							called = true;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: ['synced'],
 					},
@@ -561,7 +544,7 @@ describe('createDocumentBinding', () => {
 						key: 'ephemeral-ext',
 						factory: () => {
 							called = true;
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: ['ephemeral'],
 					},
@@ -581,7 +564,7 @@ describe('createDocumentBinding', () => {
 						key: 'tagged',
 						factory: () => {
 							calls.push('tagged');
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: ['persistent'],
 					},
@@ -589,7 +572,7 @@ describe('createDocumentBinding', () => {
 						key: 'universal',
 						factory: () => {
 							calls.push('universal');
-							return { lifecycle: { destroy: () => {} } };
+							return { destroy: () => {} };
 						},
 						tags: [],
 					},
@@ -598,6 +581,146 @@ describe('createDocumentBinding', () => {
 
 			await binding.open('f1');
 			expect(calls).toEqual(['universal']);
+		});
+	});
+
+	describe('document extension whenReady and typed extensions', () => {
+		test('document extension receives extensions map with flat exports', async () => {
+			let capturedFirstExtension: unknown;
+
+			const { binding } = setupWithBinding({
+				documentExtensions: [
+					{
+						key: 'first',
+						factory: () => ({
+							someValue: 42,
+							destroy: () => {},
+						}),
+						tags: [],
+					},
+					{
+						key: 'second',
+						factory: (context) => {
+							capturedFirstExtension = context.extensions.first;
+							return { destroy: () => {} };
+						},
+						tags: [],
+					},
+				],
+			});
+
+			await binding.open('f1');
+			expect(capturedFirstExtension).toBeDefined();
+			expect(
+				(capturedFirstExtension as Record<string, unknown>).someValue,
+			).toBe(42);
+		});
+
+		test('document extension extensions map is optional (tag filtering may skip)', async () => {
+			let taggedPresentForPersistentDoc = false;
+			let taggedPresentForEphemeralDoc = true;
+
+			const persistentBindingSetup = setupWithBinding({
+				documentTags: ['persistent'],
+				documentExtensions: [
+					{
+						key: 'tagged',
+						factory: () => ({
+							label: 'tagged',
+							destroy: () => {},
+						}),
+						tags: ['persistent'],
+					},
+					{
+						key: 'universal',
+						factory: (context) => {
+							taggedPresentForPersistentDoc =
+								context.extensions.tagged !== undefined;
+							return { destroy: () => {} };
+						},
+						tags: [],
+					},
+				],
+			});
+
+			await persistentBindingSetup.binding.open('f1');
+
+			const ephemeralBindingSetup = setupWithBinding({
+				documentTags: ['ephemeral'],
+				documentExtensions: [
+					{
+						key: 'tagged',
+						factory: () => ({
+							label: 'tagged',
+							destroy: () => {},
+						}),
+						tags: ['persistent'],
+					},
+					{
+						key: 'universal',
+						factory: (context) => {
+							taggedPresentForEphemeralDoc =
+								context.extensions.tagged !== undefined;
+							return { destroy: () => {} };
+						},
+						tags: [],
+					},
+				],
+			});
+
+			await ephemeralBindingSetup.binding.open('f1');
+
+			expect(taggedPresentForPersistentDoc).toBe(true);
+			expect(taggedPresentForEphemeralDoc).toBe(false);
+		});
+
+		test('document extension with no exports is still accessible', async () => {
+			let firstExtensionSeen = false;
+
+			const { binding } = setupWithBinding({
+				documentExtensions: [
+					{
+						key: 'first',
+						factory: () => ({
+							destroy: () => {},
+						}),
+						tags: [],
+					},
+					{
+						key: 'second',
+						factory: (context) => {
+							firstExtensionSeen = context.extensions.first !== undefined;
+							return { destroy: () => {} };
+						},
+						tags: [],
+					},
+				],
+			});
+
+			await binding.open('f1');
+			expect(firstExtensionSeen).toBe(true);
+		});
+
+		test('handle.exports includes flat exports from extensions', async () => {
+			const { binding } = setupWithBinding({
+				documentExtensions: [
+					{
+						key: 'test',
+						factory: () => ({
+							helper: () => 42,
+							destroy: () => {},
+						}),
+						tags: [],
+					},
+				],
+			});
+
+			const handle = await binding.open('f1');
+			expect(handle.exports).toBeDefined();
+			if (!handle.exports.test) {
+				throw new Error('Expected exports for test extension');
+			}
+			expect(typeof handle.exports.test.helper).toBe('function');
 		});
 	});
 });

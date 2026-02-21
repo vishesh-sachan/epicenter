@@ -38,11 +38,8 @@
 
 import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
-import type {
-	DocumentContext,
-	Extension,
-	MaybePromise,
-} from '../shared/lifecycle.js';
+import type { DocumentContext } from '../shared/lifecycle.js';
+import { defineExtension, type MaybePromise } from '../shared/lifecycle.js';
 import { createAwareness } from './create-awareness.js';
 import { createDocumentBinding } from './create-document-binding.js';
 import { createKv } from './create-kv.js';
@@ -153,7 +150,7 @@ export function createWorkspace<
 			});
 
 			docsNamespace[docName] = binding;
-			documentBindingCleanups.push(() => binding.destroyAll());
+			documentBindingCleanups.push(() => binding.closeAll());
 		}
 
 		// Attach .docs namespace to the table helper
@@ -197,6 +194,7 @@ export function createWorkspace<
 			tables,
 			kv,
 			awareness,
+			// Each extension entry is the exports object stored by reference.
 			extensions,
 			batch(fn: () => void): void {
 				ydoc.transact(fn);
@@ -206,7 +204,10 @@ export function createWorkspace<
 			[Symbol.asyncDispose]: destroy,
 		};
 
-		return Object.assign(client, {
+		// The builder methods use generics at the type level for progressive accumulation,
+		// but the runtime implementations use wider types for storage (registrations array).
+		// The cast at the end bridges the gap — type safety is enforced at call sites.
+		const builder = Object.assign(client, {
 			withExtension<
 				TKey extends string,
 				TExports extends Record<string, unknown>,
@@ -220,18 +221,27 @@ export function createWorkspace<
 						TAwarenessDefinitions,
 						TExtensions
 					>,
-				) => Extension<TExports>,
+				) => TExports & {
+					whenReady?: Promise<unknown>;
+					destroy?: () => MaybePromise<void>;
+				},
 			) {
-				const result = factory(client);
-				const destroy = result.lifecycle?.destroy;
-				if (destroy) extensionCleanups.push(destroy);
-				whenReadyPromises.push(
-					result.lifecycle?.whenReady ?? Promise.resolve(),
+				const raw = factory(
+					client as unknown as ExtensionContext<
+						TId,
+						TTableDefinitions,
+						TKvDefinitions,
+						TAwarenessDefinitions,
+						TExtensions
+					>,
 				);
+				const resolved = defineExtension(raw ?? {});
+				extensionCleanups.push(resolved.destroy);
+				whenReadyPromises.push(resolved.whenReady);
 
 				const newExtensions = {
 					...extensions,
-					[key]: result.exports ?? {},
+					[key]: resolved,
 				} as TExtensions & Record<TKey, TExports>;
 
 				return buildClient(newExtensions);
@@ -239,9 +249,12 @@ export function createWorkspace<
 
 			withDocumentExtension(
 				key: string,
-				factory: (
-					context: DocumentContext,
-				) => Extension<Record<string, unknown>> | void,
+				factory: (context: DocumentContext) =>
+					| (Record<string, unknown> & {
+							whenReady?: Promise<unknown>;
+							destroy?: () => MaybePromise<void>;
+					  })
+					| void,
 				options?: { tags?: string[] },
 			) {
 				documentExtensionRegistrations.push({
@@ -277,6 +290,14 @@ export function createWorkspace<
 				>;
 			},
 		});
+
+		return builder as unknown as WorkspaceClientBuilder<
+			TId,
+			TTableDefinitions,
+			TKvDefinitions,
+			TAwarenessDefinitions,
+			TExtensions
+		>;
 	}
 
 	return buildClient({} as Record<string, never>);

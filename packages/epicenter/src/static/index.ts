@@ -160,6 +160,7 @@ export type {
 	DocBinding,
 	DocsPropertyOf,
 	DocumentBinding,
+	DocumentHandle,
 	// Extension types
 	ExtensionContext,
 	ExtensionFactory,

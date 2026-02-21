@@ -49,17 +49,17 @@ export function createContentHelpers(
 ): ContentHelpers {
 	return {
 		async read(fileId) {
-			const ydoc = await binding.open(fileId);
+			const { ydoc } = await binding.open(fileId);
 			return createTimeline(ydoc).readAsString();
 		},
 
 		async readBuffer(fileId) {
-			const ydoc = await binding.open(fileId);
+			const { ydoc } = await binding.open(fileId);
 			return createTimeline(ydoc).readAsBuffer();
 		},
 
 		async write(fileId, data) {
-			const ydoc = await binding.open(fileId);
+			const { ydoc } = await binding.open(fileId);
 			const tl = createTimeline(ydoc);
 
 			if (typeof data === 'string') {
@@ -96,7 +96,7 @@ export function createContentHelpers(
 		},
 
 		async append(fileId, data) {
-			const ydoc = await binding.open(fileId);
+			const { ydoc } = await binding.open(fileId);
 			const tl = createTimeline(ydoc);
 
 			if (tl.currentMode === 'text') {

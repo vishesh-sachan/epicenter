@@ -7,7 +7,11 @@
 import type { Awareness } from 'y-protocols/awareness';
 import type * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
-import type { DocumentContext, Extension } from '../shared/lifecycle.js';
+import type {
+	DocumentContext,
+	Extension,
+	MaybePromise,
+} from '../shared/lifecycle.js';
 import type {
 	CombinedStandardSchema,
 	StandardSchemaV1,
@@ -198,9 +202,12 @@ export type DocBinding<
  */
 export type DocumentExtensionRegistration = {
 	key: string;
-	factory: (
-		context: DocumentContext,
-	) => Extension<Record<string, unknown>> | void;
+	factory: (context: DocumentContext) =>
+		| (Record<string, unknown> & {
+				whenReady?: Promise<unknown>;
+				destroy?: () => MaybePromise<void>;
+		  })
+		| void;
 	tags: readonly string[];
 };
 
@@ -246,23 +253,55 @@ export type NumberKeysOf<TRow> = {
 }[keyof TRow & string];
 
 /**
- * The runtime document binding — a bidirectional link between a table row
- * and its content Y.Doc. Returned by `createDocumentBinding()`.
+ * A handle to an open content Y.Doc, returned by `binding.open()`.
+ *
+ * All operations are scoped to this specific document. Content methods
+ * (read, write) are synchronous because the Y.Doc is already open.
+ * Exports are a property, not a function, because they belong to this doc.
+ */
+export type DocumentHandle = {
+	/** The raw Y.Doc — escape hatch for custom operations (timelines, binary, sheets). */
+	ydoc: Y.Doc;
+
+	/** Read the document's text content (from `ydoc.getText('content')`). */
+	read(): string;
+
+	/** Replace the document's text content. */
+	write(text: string): void;
+
+	/**
+	 * Per-doc extension exports, keyed by extension name.
+	 *
+	 * Each key corresponds to a document extension registered via
+	 * `withDocumentExtension()`. The value is that extension's `exports` object.
+	 *
+	 * @example
+	 * ```typescript
+	 * const handle = await binding.open(guid);
+	 * await handle.exports.persistence?.clearData?.();
+	 * ```
+	 */
+	exports: Record<string, Record<string, unknown>>;
+};
+
+/**
+ * Runtime binding between a table and its associated content Y.Docs.
  *
  * Manages Y.Doc creation, provider lifecycle, `updatedAt` auto-bumping,
- * and cleanup on row deletion.
+ * and cleanup on row deletion. Most users access this via
+ * `client.tables.files.docs.content`.
  *
  * @typeParam TRow - The row type of the bound table
  *
  * @example
  * ```typescript
- * const doc = await binding.open(row);
- * doc.getText('body').insert(0, 'hello');
+ * const handle = await binding.open(row);
+ * handle.ydoc.getText('body').insert(0, 'hello');
  * // updatedAt on the row is bumped automatically
  *
- * const text = await binding.read(row);
- * await binding.write(row, 'new content');
- * await binding.destroy(row);
+ * const text = handle.read();
+ * handle.write('new content');
+ * await binding.close(row);
  * ```
  */
 export type DocumentBinding<TRow extends BaseRow> = {
@@ -271,74 +310,27 @@ export type DocumentBinding<TRow extends BaseRow> = {
 	 *
 	 * Creates the Y.Doc if it doesn't exist, wires up providers, and attaches
 	 * the updatedAt observer. Idempotent — calling open() twice for the same
-	 * row returns the same Y.Doc.
+	 * row returns the same handle (same Y.Doc).
 	 *
 	 * @param input - A row (extracts GUID from the bound column) or a GUID string
 	 */
-	open(input: TRow | string): Promise<Y.Doc>;
+	open(input: TRow | string): Promise<DocumentHandle>;
 
 	/**
-	 * Read document content as plain text.
-	 *
-	 * Opens the doc (if not already open) and reads the text content.
-	 * For domain-specific reading, use open() and work with the Y.Doc directly.
-	 *
-	 * @param input - A row or GUID string
-	 */
-	read(input: TRow | string): Promise<string>;
-
-	/**
-	 * Write plain text to a document.
-	 *
-	 * Opens the doc (if not already open) and replaces the text content.
-	 * The updatedAt observer fires automatically.
-	 *
-	 * @param input - A row or GUID string
-	 * @param text - The text content to write
-	 */
-	write(input: TRow | string, text: string): Promise<void>;
-
-	/**
-	 * Destroy a document — free memory, disconnect providers.
+	 * Close a document — free memory, disconnect providers.
 	 * Persisted data is NOT deleted. The doc can be re-opened later.
 	 *
 	 * @param input - A row or GUID string
 	 */
-	destroy(input: TRow | string): Promise<void>;
+	close(input: TRow | string): Promise<void>;
 
 	/**
-	 * Destroy all open documents. Called automatically by workspace destroy().
+	 * Close all open documents. Called automatically by workspace destroy().
 	 */
-	destroyAll(): Promise<void>;
-
-	/**
-	 * Get the accumulated per-doc exports for an open document, keyed by extension name.
-	 *
-	 * Returns `undefined` if the document isn't open. Each key corresponds to a
-	 * document extension registered via `withDocumentExtension()`, and the value
-	 * is that extension's `exports` object.
-	 *
-	 * Useful for consumer-driven cleanup — e.g., calling `clearData` before `destroy`
-	 * for permanent deletion.
-	 *
-	 * @param input - A row (extracts GUID from the bound column) or a GUID string
-	 *
-	 * @example
-	 * ```typescript
-	 * const exports = binding.getExports(guid);
-	 * await exports?.persistence?.clearData?.();
-	 * await binding.destroy(guid);
-	 * ```
-	 */
-	getExports(
-		input: TRow | string,
-	): Record<string, Record<string, unknown>> | undefined;
+	closeAll(): Promise<void>;
 
 	/** Extract the GUID from a row (reads the bound guid column). */
 	guidOf(row: TRow): string;
-
-	/** Extract the updatedAt value from a row (reads the bound updatedAt column). */
-	updatedAtOf(row: TRow): number;
 };
 
 /**
@@ -828,7 +820,7 @@ export type WorkspaceClientBuilder<
 	TKvDefinitions extends KvDefinitions,
 	TAwarenessDefinitions extends AwarenessDefinitions,
 	TExtensions extends Record<string, unknown> = Record<string, never>,
-	TDocExtKeys extends string = never,
+	TDocExtensions extends Record<string, unknown> = Record<string, never>,
 > = WorkspaceClient<
 	TId,
 	TTableDefinitions,
@@ -844,12 +836,11 @@ export type WorkspaceClientBuilder<
 	 * each factory receives the client-so-far (including all previously added extensions)
 	 * as typed context. This enables extension N+1 to access extension N's exports.
 	 *
-	 * The factory returns `{ exports?, lifecycle? }`.
-	 * The framework normalizes defaults and stores `exports` by reference —
-	 * getters and object identity are preserved.
+	 * The factory returns a flat object with custom exports + optional `whenReady`
+	 * and `destroy`. The framework normalizes defaults via `defineExtension()`.
 	 *
 	 * @param key - Unique name for this extension (used as the key in `.extensions`)
-	 * @param factory - Factory function receiving the client-so-far context, returns Extension
+	 * @param factory - Factory receiving the client-so-far context, returns flat exports
 	 * @returns A new builder with the extension's exports added to the type
 	 *
 	 * @example
@@ -857,11 +848,11 @@ export type WorkspaceClientBuilder<
 	 * const client = createWorkspace(definition)
 	 *   .withExtension('persistence', ({ ydoc }) => {
 	 *     const idb = new IndexeddbPersistence(ydoc.guid, ydoc);
-	 *     return { lifecycle: { whenReady: idb.whenReady, destroy: () => idb.destroy() } };
+	 *     return { clearData: () => idb.clearData(), whenReady: idb.whenSynced, destroy: () => idb.destroy() };
 	 *   })
 	 *   .withExtension('sync', ({ extensions }) => {
 	 *     // extensions.persistence is fully typed here!
-	 *     return { exports: { provider }, lifecycle: { whenReady, destroy: () => provider.destroy() } };
+	 *     return { provider, whenReady, destroy: () => provider.destroy() };
 	 *   });
 	 * ```
 	 */
@@ -875,14 +866,18 @@ export type WorkspaceClientBuilder<
 				TAwarenessDefinitions,
 				TExtensions
 			>,
-		) => Extension<TExports>,
+		) => TExports & {
+			whenReady?: Promise<unknown>;
+			destroy?: () => MaybePromise<void>;
+		},
 	): WorkspaceClientBuilder<
 		TId,
 		TTableDefinitions,
 		TKvDefinitions,
 		TAwarenessDefinitions,
-		TExtensions & Record<TKey, TExports>,
-		TDocExtKeys
+		TExtensions &
+			Record<TKey, Extension<Omit<TExports, 'whenReady' | 'destroy'>>>,
+		TDocExtensions
 	>;
 
 	/**
@@ -909,11 +904,17 @@ export type WorkspaceClientBuilder<
 	 *   .withDocumentExtension('persistence', indexeddbPersistence, { tags: ['persistent'] })
 	 * ```
 	 */
-	withDocumentExtension<K extends string>(
+	withDocumentExtension<
+		K extends string,
+		TDocExports extends Record<string, unknown>,
+	>(
 		key: K,
-		factory: (
-			context: DocumentContext,
-		) => Extension<Record<string, unknown>> | void,
+		factory: (context: DocumentContext<TDocExtensions>) =>
+			| (TDocExports & {
+					whenReady?: Promise<unknown>;
+					destroy?: () => MaybePromise<void>;
+			  })
+			| void,
 		options?: { tags?: ExtractAllDocTags<TTableDefinitions>[] },
 	): WorkspaceClientBuilder<
 		TId,
@@ -921,7 +922,7 @@ export type WorkspaceClientBuilder<
 		TKvDefinitions,
 		TAwarenessDefinitions,
 		TExtensions,
-		TDocExtKeys | K
+		TDocExtensions & Record<K, Omit<TDocExports, 'whenReady' | 'destroy'>>
 	>;
 
 	/**
@@ -964,31 +965,28 @@ export type { Extension } from '../shared/lifecycle.js';
 /**
  * Context passed to extension factories — the "client-so-far".
  *
- * Each `.withExtension()` call passes the current `WorkspaceClient` to the factory.
- * The `extensions` field contains all previously added extensions, fully typed.
- * This enables progressive composition: extension N+1 can access extension N's exports.
+ * Structurally identical to `WorkspaceClient` today. Defined as a separate named
+ * type so factory-only additions don't leak to the consumer-facing client if they
+ * diverge in the future.
  *
- * Includes `whenReady` (composite of all prior extensions' readiness), `destroy`,
- * and `definitions`, giving extensions full access to sequence after prior extensions
- * via `await context.whenReady`.
+ * Each extension in `context.extensions` is the flat exports object from
+ * prior `.withExtension()` calls. Access exports directly:
+ *
+ * ```typescript
+ * .withExtension('sync', (context) => {
+ *   // Access prior extension exports directly
+ *   context.extensions.persistence.clearData();
+ *
+ *   // Composite: wait for ALL prior extensions
+ *   await context.whenReady;
+ * })
+ * ```
  *
  * @typeParam TId - Workspace identifier type
  * @typeParam TTableDefinitions - Map of table definitions for this workspace
  * @typeParam TKvDefinitions - Map of KV definitions for this workspace
  * @typeParam TAwarenessDefinitions - Map of awareness field definitions for this workspace
- * @typeParam TExtensions - Accumulated extension exports from previous `.withExtension()` calls
- *
- * @example
- * ```typescript
- * .withExtension('sync', (context) => {
- *   const provider = createProvider(context.ydoc, { awareness: context.awareness.raw });
- *   const whenReady = (async () => {
- *     await context.whenReady; // wait for all prior extensions (persistence, etc.)
- *     provider.connect();
- *   })();
- *   return { exports: { provider }, whenReady, destroy: () => provider.destroy() };
- * })
- * ```
+ * @typeParam TExtensions - Accumulated extension outputs from previous `.withExtension()` calls
  */
 export type ExtensionContext<
 	TId extends string = string,
@@ -1005,18 +1003,17 @@ export type ExtensionContext<
 >;
 
 /**
- * Factory function that creates an extension with lifecycle hooks.
+ * Factory function that creates an extension.
  *
- * Returns a flat `{ exports?, whenReady?, destroy? }` object.
- * The framework normalizes defaults and stores `exports` by reference —
- * getters and object identity are preserved.
+ * Returns a flat object with custom exports + optional `whenReady` and `destroy`.
+ * The framework normalizes defaults via `defineExtension()`.
  *
  * @example Simple extension (works with any workspace)
  * ```typescript
  * const persistence: ExtensionFactory = ({ ydoc }) => {
  *   const provider = new IndexeddbPersistence(ydoc.guid, ydoc);
  *   return {
- *     exports: { provider },
+ *     provider,
  *     whenReady: provider.whenReady,
  *     destroy: () => provider.destroy(),
  *   };
@@ -1027,7 +1024,10 @@ export type ExtensionContext<
  */
 export type ExtensionFactory<
 	TExports extends Record<string, unknown> = Record<string, unknown>,
-> = (context: ExtensionContext) => Extension<TExports>;
+> = (context: ExtensionContext) => TExports & {
+	whenReady?: Promise<unknown>;
+	destroy?: () => MaybePromise<void>;
+};
 
 /** The workspace client returned by createWorkspace() */
 export type WorkspaceClient<
@@ -1053,7 +1053,19 @@ export type WorkspaceClient<
 	kv: KvHelper<TKvDefinitions>;
 	/** Typed awareness helper — always present, like tables and kv */
 	awareness: AwarenessHelper<TAwarenessDefinitions>;
-	/** Extension exports (accumulated via `.withExtension()` calls) */
+	/**
+	 * Extension exports (accumulated via `.withExtension()` calls).
+	 *
+	 * Each entry is the exports object returned by the extension factory.
+	 * Access exports directly — no wrapper:
+	 *
+	 * ```typescript
+	 * client.extensions.persistence.clearData();
+	 * client.extensions.sqlite.db.query('SELECT ...');
+	 * ```
+	 *
+	 * Use `client.whenReady` to wait for all extensions to initialize.
+	 */
 	extensions: TExtensions;
 
 	/**
