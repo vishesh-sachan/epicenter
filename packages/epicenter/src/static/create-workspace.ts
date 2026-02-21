@@ -144,14 +144,13 @@ export function createWorkspace<
 			const docTags: readonly string[] = docBinding.tags ?? [];
 
 			const binding = createDocumentBinding({
+				id,
 				guidKey: docBinding.guid as keyof BaseRow & string,
 				updatedAtKey: docBinding.updatedAt as keyof BaseRow & string,
 				tableHelper,
 				ydoc,
 				documentExtensions: documentExtensionRegistrations,
 				documentTags: docTags,
-				tableName,
-				documentName: docName,
 			});
 
 			docsNamespace[docName] = binding;

@@ -219,12 +219,13 @@ export function defineExtension<T extends Record<string, unknown>>(
 /**
  * Context passed to document extension factories registered via `withDocumentExtension()`.
  *
- * Flat object containing the content Y.Doc, binding metadata, and chain state.
- * Follows the same flat pattern as workspace `ExtensionContext`:
+ * Minimal context: the content Y.Doc, workspace ID, and chain state
+ * (composite whenReady + prior extensions). Intentionally lean — fields
+ * like `tableName` and `tags` are omitted until a real consumer needs them.
  *
  * ```typescript
  * .withDocumentExtension('persistence', ({ ydoc }) => { ... })
- * .withDocumentExtension('sync', ({ ydoc, binding, whenReady }) => { ... })
+ * .withDocumentExtension('sync', ({ id, ydoc, whenReady }) => { ... })
  * ```
  *
  * Extensions are optional because tag-filtered extensions may be skipped for certain
@@ -239,7 +240,9 @@ export function defineExtension<T extends Record<string, unknown>>(
  *
  * @example
  * ```typescript
- * .withDocumentExtension('sync', ({ ydoc, binding, whenReady, extensions }) => {
+ * .withDocumentExtension('sync', ({ id, ydoc, whenReady, extensions }) => {
+ *   const path = `${id}/${ydoc.guid}.yjs`;
+ *
  *   // Access prior document extension exports + lifecycle directly
  *   await extensions.persistence?.whenReady;
  *   extensions.persistence?.clearData();
@@ -252,18 +255,10 @@ export function defineExtension<T extends Record<string, unknown>>(
 export type DocumentContext<
 	TDocExtensions extends Record<string, unknown> = Record<string, unknown>,
 > = {
+	/** The workspace identifier. Matches ExtensionContext.id. */
+	id: string;
 	/** The content Y.Doc being created. */
 	ydoc: Y.Doc;
-	/**
-	 * Which table + binding this doc belongs to.
-	 * Enables per-binding behavior (e.g., skip sync for cover images).
-	 */
-	binding: {
-		tableName: string;
-		documentName: string;
-		/** The document's tags (from withDocument config). Empty if no tags declared. */
-		tags: readonly string[];
-	};
 	/** Composite whenReady of all PRIOR document extensions' results. */
 	whenReady: Promise<void>;
 	/**

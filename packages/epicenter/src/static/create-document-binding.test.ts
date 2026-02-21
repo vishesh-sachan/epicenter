@@ -13,6 +13,7 @@ import { describe, expect, test } from 'bun:test';
 import { type } from 'arktype';
 import * as Y from 'yjs';
 import {
+	type CreateDocumentBindingConfig,
 	createDocumentBinding,
 	DOCUMENT_BINDING_ORIGIN,
 } from './create-document-binding.js';
@@ -34,12 +35,8 @@ function setup() {
 
 function setupWithBinding(
 	overrides?: Pick<
-		Parameters<typeof createDocumentBinding>[0],
-		| 'documentExtensions'
-		| 'documentTags'
-		| 'tableName'
-		| 'documentName'
-		| 'onRowDeleted'
+		CreateDocumentBindingConfig<typeof fileSchema.infer>,
+		'documentExtensions' | 'documentTags' | 'onRowDeleted'
 	>,
 ) {
 	const { ydoc, tables } = setup();
@@ -456,43 +453,6 @@ describe('createDocumentBinding', () => {
 
 			const handle = await binding.open('f1');
 			expect(handle.ydoc).toBeInstanceOf(Y.Doc);
-		});
-
-		test('hook receives correct binding metadata with tags', async () => {
-			let capturedBinding:
-				| {
-						tableName: string;
-						documentName: string;
-						tags: readonly string[];
-				  }
-				| undefined;
-
-			const { ydoc, tables } = setup();
-			const binding = createDocumentBinding({
-				guidKey: 'id',
-				updatedAtKey: 'updatedAt',
-				tableHelper: tables.files,
-				ydoc,
-				tableName: 'files',
-				documentName: 'content',
-				documentTags: ['persistent', 'synced'],
-				documentExtensions: [
-					{
-						key: 'capture',
-						factory: ({ binding }) => {
-							capturedBinding = binding;
-							return { destroy: () => {} };
-						},
-						tags: [],
-					},
-				],
-			});
-
-			await binding.open('f1');
-			expect(capturedBinding).toBeDefined();
-			expect(capturedBinding!.tableName).toBe('files');
-			expect(capturedBinding!.documentName).toBe('content');
-			expect(capturedBinding!.tags).toEqual(['persistent', 'synced']);
 		});
 
 		test('tag matching: extension with no tags fires for all docs', async () => {

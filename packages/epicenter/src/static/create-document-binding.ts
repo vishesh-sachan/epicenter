@@ -122,6 +122,8 @@ function makeHandle(
  * @typeParam TRow - The row type of the bound table
  */
 export type CreateDocumentBindingConfig<TRow extends BaseRow> = {
+	/** The workspace identifier. Passed through to `DocumentContext.id`. */
+	id?: string;
 	/** Column name storing the Y.Doc GUID. */
 	guidKey: keyof TRow & string;
 	/** Column name to bump when the doc changes. */
@@ -141,16 +143,7 @@ export type CreateDocumentBindingConfig<TRow extends BaseRow> = {
 	 * Used for tag matching against document extension registrations.
 	 */
 	documentTags?: readonly string[];
-	/**
-	 * Table name for the `DocumentContext.binding` metadata.
-	 * Used by extensions to distinguish which table a doc belongs to.
-	 */
-	tableName?: string;
-	/**
-	 * Document binding name for the `DocumentContext.binding` metadata.
-	 * Used by extensions to distinguish which binding a doc belongs to.
-	 */
-	documentName?: string;
+
 	/**
 	 * Called when a row is deleted from the table.
 	 * Receives the GUID of the associated document.
@@ -176,14 +169,13 @@ export function createDocumentBinding<TRow extends BaseRow>(
 	config: CreateDocumentBindingConfig<TRow>,
 ): DocumentBinding<TRow> {
 	const {
+		id = '',
 		guidKey,
 		updatedAtKey,
 		tableHelper,
 		ydoc: workspaceYdoc,
 		documentExtensions = [],
 		documentTags = [],
-		tableName = '',
-		documentName = '',
 		onRowDeleted,
 	} = config;
 
@@ -262,8 +254,8 @@ export function createDocumentBinding<TRow extends BaseRow>(
 				factoryResult = runExtensionFactories({
 					entries,
 					buildContext: ({ whenReadyPromises, extensions }) => ({
+						id,
 						ydoc: contentYdoc,
-						binding: { tableName, documentName, tags: documentTags },
 						whenReady:
 							whenReadyPromises.length === 0
 								? Promise.resolve()
