@@ -40,7 +40,8 @@ export function tabToRow(deviceId: string, tab: Browser.tabs.Tab): Tab | null {
 		deviceId,
 		tabId: id,
 		windowId: createWindowCompositeId(deviceId, windowId),
-		groupId: createGroupCompositeId(deviceId, groupId),
+		groupId:
+			groupId !== -1 ? createGroupCompositeId(deviceId, groupId) : undefined,
 		openerTabId:
 			openerTabId !== undefined
 				? createTabCompositeId(deviceId, openerTabId)
