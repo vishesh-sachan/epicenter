@@ -48,7 +48,7 @@ function startTestServer(config?: SyncServerConfig) {
 		server,
 		port,
 		wsUrl(room: string) {
-			return `ws://localhost:${port}/rooms/${room}/sync`;
+			return `ws://localhost:${port}/rooms/${room}`;
 		},
 		httpUrl(path = '/') {
 			const actualPath = path === '/' ? '/rooms/health' : path;
@@ -73,7 +73,7 @@ function startIntegratedTestServer({
 		app,
 		port,
 		wsUrl(room: string) {
-			return `ws://localhost:${port}/${room}/sync`;
+			return `ws://localhost:${port}/${room}`;
 		},
 		httpUrl(path = '/') {
 			return `http://localhost:${port}${path}`;
@@ -473,7 +473,7 @@ describe('sync plugin REST document snapshot', () => {
 
 		try {
 			const room = uniqueRoom();
-			const res = await fetch(ctx.httpUrl(`/rooms/${room}/doc`));
+			const res = await fetch(ctx.httpUrl(`/rooms/${room}`));
 			expect(res.status).toBe(404);
 			expect(await res.json()).toEqual({ error: `Room not found: ${room}` });
 		} finally {
@@ -498,7 +498,7 @@ describe('sync plugin REST document snapshot', () => {
 			expect(provider.hasLocalChanges).toBe(true);
 			await waitForLocalChanges(provider, false);
 
-			const res = await fetch(ctx.httpUrl(`/rooms/${room}/doc`));
+			const res = await fetch(ctx.httpUrl(`/rooms/${room}`));
 			expect(res.status).toBe(200);
 			expect(res.headers.get('content-type')).toContain(
 				'application/octet-stream',
@@ -527,7 +527,7 @@ describe('sync plugin REST document update', () => {
 			sourceDoc.getMap('data').set('seed', 'from-rest');
 			const update = Y.encodeStateAsUpdate(sourceDoc);
 
-			const postRes = await fetch(ctx.httpUrl(`/rooms/${room}/doc`), {
+			const postRes = await fetch(ctx.httpUrl(`/rooms/${room}`), {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/octet-stream' },
 				body: toArrayBuffer(update),
@@ -556,7 +556,7 @@ describe('sync plugin REST document update', () => {
 		const room = uniqueRoom();
 
 		try {
-			const res = await fetch(ctx.httpUrl(`/rooms/${room}/doc`), {
+			const res = await fetch(ctx.httpUrl(`/rooms/${room}`), {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/octet-stream' },
 				body: new ArrayBuffer(0),
@@ -578,7 +578,7 @@ describe('sync plugin REST document update', () => {
 			sourceDoc.getMap('data').set('ignored', 'value');
 			const update = Y.encodeStateAsUpdate(sourceDoc);
 
-			const res = await fetch(ctx.httpUrl(`/${room}/doc`), {
+			const res = await fetch(ctx.httpUrl(`/${room}`), {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/octet-stream' },
 				body: toArrayBuffer(update),
@@ -628,7 +628,7 @@ describe('sync plugin REST auth', () => {
 			sourceDoc.getMap('data').set('k', 'v');
 			const update = Y.encodeStateAsUpdate(sourceDoc);
 
-			const postRes = await fetch(ctx.httpUrl(`/rooms/${room}/doc`), {
+			const postRes = await fetch(ctx.httpUrl(`/rooms/${room}`), {
 				method: 'POST',
 				headers: {
 					Authorization: 'Bearer secret',

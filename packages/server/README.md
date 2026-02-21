@@ -103,14 +103,12 @@ The server is built from modular Elysia plugins. You can use these to compose yo
 
 The sync sub-entry provides document synchronization (WebSocket real-time sync + HTTP document state access) without requiring the full workspace server.
 
-The plugin registers four routes:
+The plugin registers three routes:
 
-| Method | Route         | Description                               |
-| ------ | ------------- | ----------------------------------------- |
-| `GET`  | `/`           | List active rooms with connection counts  |
-| `WS`   | `/:room/sync` | Real-time y-websocket protocol            |
-| `GET`  | `/:room/doc`  | Full document state as binary Yjs update  |
-| `POST` | `/:room/doc`  | Apply a binary Yjs update to the document |
+| Method        | Route    | Description                                                     |
+| ------------- | -------- | --------------------------------------------------------------- |
+| `GET`         | `/`      | List active rooms with connection counts                        |
+| `WS/GET/POST` | `/:room` | Real-time sync (WS), document state (GET), apply updates (POST) |
 
 ```typescript
 import { createSyncPlugin, createSyncServer } from '@epicenter/server/sync';
@@ -143,14 +141,14 @@ const plugin = createSyncPlugin({
 
 Auth applies to both WebSocket and REST endpoints, each using the mechanism appropriate to its transport:
 
-- **WebSocket** (`/:room/sync`): `?token=xxx` query param (browser WebSocket API cannot set headers)
-- **REST** (`/:room/doc`, `/`): `Authorization: Bearer xxx` header (HTTP standard — keeps tokens out of logs)
+- **WebSocket** (`/:room`): `?token=xxx` query param (browser WebSocket API cannot set headers)
+- **REST** (`/:room`, `/`): `Authorization: Bearer xxx` header (HTTP standard — keeps tokens out of logs)
 
 **REST Document Access:**
 
 ```typescript
 // Get document state as binary
-const response = await fetch('http://localhost:3913/my-room/doc', {
+const response = await fetch('http://localhost:3913/my-room', {
 	headers: { Authorization: 'Bearer my-secret' },
 });
 const update = new Uint8Array(await response.arrayBuffer());
@@ -162,7 +160,7 @@ Y.applyUpdate(doc, update);
 
 // Push an update to the server
 const localUpdate = Y.encodeStateAsUpdate(doc);
-await fetch('http://localhost:3913/my-room/doc', {
+await fetch('http://localhost:3913/my-room', {
 	method: 'POST',
 	headers: {
 		'Content-Type': 'application/octet-stream',
@@ -194,8 +192,7 @@ The server package is designed for two deployment targets. The sync plugin is po
 
 ```
 createServer()
-├── Sync Plugin        → /rooms/:room/sync      (WebSocket sync)
-│                      → /rooms/:room/doc       (GET/POST document state)
+├── Sync Plugin        → /rooms/:room           (WebSocket sync + GET/POST document state)
 │                      → /rooms/                 (Room list)
 ├── Workspace Plugin   → /workspaces/:id/tables/...   (REST CRUD)
 │                      → /workspaces/:id/actions/...  (Query/Mutation endpoints)
@@ -249,9 +246,8 @@ Routes are namespaced by workspace ID:
 /                                              - API root/discovery
 /openapi                                       - Scalar UI documentation
 /openapi/json                                  - OpenAPI spec (JSON)
-/rooms/                                   - Active rooms with connection counts
-/rooms/{workspaceId}/sync                 - WebSocket sync (y-websocket protocol)
-/rooms/{workspaceId}/doc                  - Document state (GET = snapshot, POST = update)
+/rooms/                                        - Active rooms with connection counts
+/rooms/{workspaceId}                           - WebSocket sync + document state (GET/POST)
 /workspaces/{workspaceId}/tables/{table}       - RESTful table CRUD
 /workspaces/{workspaceId}/tables/{table}/{id}  - Single row operations
 /workspaces/{workspaceId}/actions/{action}     - Workspace action endpoints
@@ -266,7 +262,7 @@ The server's primary real-time feature is WebSocket-based Y.Doc synchronization.
 Clients connect to:
 
 ```
-ws://host:3913/rooms/{workspaceId}/sync
+ws://host:3913/rooms/{workspaceId}
 ```
 
 The recommended client is `@epicenter/sync` (via `createSyncExtension` from `@epicenter/hq/extensions/sync`):
@@ -280,7 +276,7 @@ const client = createClient(definition.id)
 	.withExtension(
 		'sync',
 		createSyncExtension({
-			url: 'ws://localhost:3913/rooms/{id}/sync',
+			url: 'ws://localhost:3913/rooms/{id}',
 		}),
 	);
 ```
@@ -319,14 +315,14 @@ The server exposes the WebSocket endpoint. `@epicenter/sync` is the client-side 
 // Server side
 const server = createServer(blogClient, { port: 3913 });
 server.start();
-// Exposes: ws://localhost:3913/rooms/blog/sync
+// Exposes: ws://localhost:3913/rooms/blog
 
 // Client side
 import { createSyncProvider } from '@epicenter/sync';
 
 const provider = createSyncProvider({
 	doc: myDoc,
-	url: 'ws://localhost:3913/rooms/blog/sync',
+	url: 'ws://localhost:3913/rooms/blog',
 });
 ```
 

@@ -47,7 +47,7 @@ const server = createEpicenterServer({
 
 // Client
 const provider = createSyncExtension({
-	url: 'ws://server:3913/rooms/{id}/sync',
+	url: 'ws://server:3913/rooms/{id}',
 	token: process.env.EPICENTER_PSK,
 });
 ```

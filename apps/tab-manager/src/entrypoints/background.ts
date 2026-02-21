@@ -135,7 +135,7 @@ export default defineBackground(() => {
 			 * Default: ws://127.0.0.1:3913
 			 */
 			createSyncExtension({
-				url: 'ws://127.0.0.1:3913/rooms/{id}/sync',
+				url: 'ws://127.0.0.1:3913/rooms/{id}',
 			}),
 		);
 

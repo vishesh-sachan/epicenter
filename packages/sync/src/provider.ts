@@ -64,7 +64,7 @@ const HEARTBEAT_TIMEOUT_MS = 3_000;
  * ```typescript
  * const provider = createSyncProvider({
  *   doc: myDoc,
- *   url: 'ws://localhost:3913/rooms/blog/sync',
+ *   url: 'ws://localhost:3913/rooms/blog',
  * });
  * ```
  *
@@ -72,7 +72,7 @@ const HEARTBEAT_TIMEOUT_MS = 3_000;
  * ```typescript
  * const provider = createSyncProvider({
  *   doc: myDoc,
- *   url: 'ws://my-server:3913/rooms/blog/sync',
+ *   url: 'ws://my-server:3913/rooms/blog',
  *   token: 'my-shared-secret',
  * });
  * ```
@@ -81,7 +81,7 @@ const HEARTBEAT_TIMEOUT_MS = 3_000;
  * ```typescript
  * const provider = createSyncProvider({
  *   doc: myDoc,
- *   url: 'wss://sync.epicenter.so/rooms/blog/sync',
+ *   url: 'wss://sync.epicenter.so/rooms/blog',
  *   getToken: async () => {
  *     const res = await fetch('/api/sync/token');
  *     return (await res.json()).token;

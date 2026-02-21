@@ -63,12 +63,12 @@ export type SyncPluginConfig = {
  *
  * Registers four routes:
  *
- * | Method | Route          | Description                                |
- * | ------ | -------------- | ------------------------------------------ |
- * | `GET`  | `/`            | List active rooms with connection counts   |
- * | `WS`   | `/:room/sync`  | Real-time y-websocket protocol             |
- * | `GET`  | `/:room/doc`   | Full document state as binary Yjs update   |
- * | `POST` | `/:room/doc`   | Apply a binary Yjs update to the document  |
+ * | Method | Route    | Description                                |
+ * | ------ | -------- | ------------------------------------------ |
+ * | `GET`  | `/`      | List active rooms with connection counts   |
+ * | `WS`   | `/:room` | Real-time y-websocket protocol             |
+ * | `GET`  | `/:room` | Full document state as binary Yjs update   |
+ * | `POST` | `/:room` | Apply a binary Yjs update to the document  |
  *
  * **Auth**: WebSocket uses `?token=` query param (browser WS API cannot set
  * headers). REST routes use `Authorization: Bearer` header.
@@ -95,7 +95,7 @@ export type SyncPluginConfig = {
  *   .listen(3913);
  *
  * // REST document access
- * const state = await fetch('http://localhost:3913/rooms/my-room/doc', {
+ * const state = await fetch('http://localhost:3913/rooms/my-room', {
  *   headers: { Authorization: 'Bearer my-secret' },
  * });
  * ```
@@ -152,7 +152,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 		.use(
 			restAuth
 				.get('/', () => ({ rooms: roomManager.roomInfo() }))
-				.get('/:room/doc', ({ params, set }) => {
+				.get('/:room', ({ params, set }) => {
 					const doc = roomManager.getDoc(params.room);
 					if (!doc) {
 						set.status = 404;
@@ -161,7 +161,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 					set.headers['content-type'] = 'application/octet-stream';
 					return Y.encodeStateAsUpdate(doc);
 				})
-				.post('/:room/doc', async ({ params, request, set }) => {
+				.post('/:room', async ({ params, request, set }) => {
 					const doc = roomManager.getOrCreateDoc(params.room);
 					if (!doc) {
 						set.status = 404;
@@ -191,7 +191,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 					return { ok: true };
 				}),
 		)
-		.ws('/:room/sync', {
+		.ws('/:room', {
 			query: t.Object({
 				token: t.Optional(t.String()),
 			}),
