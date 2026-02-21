@@ -19,7 +19,7 @@ server.start();
 
 console.log('');
 console.log('✓ Server running on http://localhost:3913');
-console.log('✓ Sync endpoint: ws://localhost:3913/rooms/tab-manager/sync');
+console.log('✓ Sync endpoint: ws://localhost:3913/rooms/tab-manager');
 console.log('');
 console.log('Press Ctrl+C to stop');
 
