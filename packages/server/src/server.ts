@@ -1,6 +1,7 @@
 import { openapi } from '@elysiajs/openapi';
 import type { AnyWorkspaceClient } from '@epicenter/hq/static';
 import { Elysia } from 'elysia';
+import * as Y from 'yjs';
 import { createAIPlugin } from './ai';
 import type { AuthConfig } from './sync/auth';
 import { createSyncPlugin } from './sync/plugin';
@@ -35,7 +36,7 @@ export type ServerOptions = {
  * ```typescript
  * import { createServer } from '@epicenter/server';
  *
- * const server = createServer(workspace, { port: 3913 });
+ * const server = createServer([workspace], { port: 3913 });
  * server.start();
  *
  * // Later:
@@ -53,6 +54,9 @@ export function createServer(
 	for (const client of clients) {
 		workspaces[client.id] = client;
 	}
+
+	/** Ephemeral Y.Docs for rooms with no pre-registered workspace client. */
+	const dynamicDocs = new Map<string, Y.Doc>();
 
 	const allActionPaths = clients.flatMap((client) => {
 		if (!client.actions) return [];
@@ -75,7 +79,14 @@ export function createServer(
 		.use(
 			new Elysia({ prefix: '/rooms' }).use(
 				createSyncPlugin({
-					getDoc: (room) => workspaces[room]?.ydoc,
+					getDoc: (room) => {
+						if (workspaces[room]) return workspaces[room].ydoc;
+
+						if (!dynamicDocs.has(room)) {
+							dynamicDocs.set(room, new Y.Doc());
+						}
+						return dynamicDocs.get(room);
+					},
 					auth: options?.auth,
 				}),
 			),
@@ -114,6 +125,8 @@ export function createServer(
 		async stop() {
 			app.stop();
 			await Promise.all(clients.map((c) => c.destroy()));
+			for (const doc of dynamicDocs.values()) doc.destroy();
+			dynamicDocs.clear();
 		},
 	};
 }

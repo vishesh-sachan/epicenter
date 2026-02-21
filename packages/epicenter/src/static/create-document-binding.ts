@@ -39,11 +39,11 @@
  */
 
 import * as Y from 'yjs';
+import type { Extension } from '../shared/lifecycle.js';
 import {
-	defineExtension,
-	type Extension,
-	type MaybePromise,
-} from '../shared/lifecycle.js';
+	type RunExtensionFactoriesResult,
+	runExtensionFactories,
+} from '../shared/run-extension-factories.js';
 import type {
 	BaseRow,
 	DocumentBinding,
@@ -122,6 +122,8 @@ function makeHandle(
  * @typeParam TRow - The row type of the bound table
  */
 export type CreateDocumentBindingConfig<TRow extends BaseRow> = {
+	/** The workspace identifier. Passed through to `DocumentContext.id`. */
+	id?: string;
 	/** Column name storing the Y.Doc GUID. */
 	guidKey: keyof TRow & string;
 	/** Column name to bump when the doc changes. */
@@ -141,16 +143,7 @@ export type CreateDocumentBindingConfig<TRow extends BaseRow> = {
 	 * Used for tag matching against document extension registrations.
 	 */
 	documentTags?: readonly string[];
-	/**
-	 * Table name for the `DocumentContext.binding` metadata.
-	 * Used by extensions to distinguish which table a doc belongs to.
-	 */
-	tableName?: string;
-	/**
-	 * Document binding name for the `DocumentContext.binding` metadata.
-	 * Used by extensions to distinguish which binding a doc belongs to.
-	 */
-	documentName?: string;
+
 	/**
 	 * Called when a row is deleted from the table.
 	 * Receives the GUID of the associated document.
@@ -176,14 +169,13 @@ export function createDocumentBinding<TRow extends BaseRow>(
 	config: CreateDocumentBindingConfig<TRow>,
 ): DocumentBinding<TRow> {
 	const {
+		id = '',
 		guidKey,
 		updatedAtKey,
 		tableHelper,
 		ydoc: workspaceYdoc,
 		documentExtensions = [],
 		documentTags = [],
-		tableName = '',
-		documentName = '',
 		onRowDeleted,
 	} = config;
 
@@ -252,37 +244,37 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			// concurrent open() calls for the same guid are safe.
 			// Build the extensions map incrementally so each factory sees prior
 			// extensions' resolved form.
-			// biome-ignore lint/suspicious/noExplicitAny: runtime storage uses wide type; type safety enforced at call sites
-			const resolvedExtensions: Record<string, Extension<any>> = {};
-			const destroys: (() => MaybePromise<void>)[] = [];
-			const whenReadyPromises: Promise<void>[] = [];
+			const entries = applicableExtensions.map((reg) => ({
+				key: reg.key,
+				factory: reg.factory,
+			}));
 
+			let factoryResult: RunExtensionFactoriesResult;
 			try {
-				for (const reg of applicableExtensions) {
-					const compositeWhenReady: Promise<void> =
-						whenReadyPromises.length === 0
-							? Promise.resolve()
-							: Promise.all(whenReadyPromises).then(() => {});
-
-					const raw = reg.factory({
+				factoryResult = runExtensionFactories({
+					entries,
+					buildContext: ({ whenReadyPromises, extensions }) => ({
+						id,
 						ydoc: contentYdoc,
-						whenReady: compositeWhenReady,
-						binding: { tableName, documentName, tags: documentTags },
-						extensions: { ...resolvedExtensions },
-					});
-
-					if (raw) {
-						const resolved = defineExtension(raw);
-						resolvedExtensions[reg.key] = resolved;
-						destroys.push(resolved.destroy);
-						whenReadyPromises.push(resolved.whenReady);
-					}
-				}
+						whenReady:
+							whenReadyPromises.length === 0
+								? Promise.resolve()
+								: Promise.all(whenReadyPromises).then(() => {}),
+						extensions: { ...extensions },
+					}),
+				});
 			} catch (err) {
-				await Promise.allSettled(destroys.map((d) => d()));
+				// Helper already cleaned up extension destroys (LIFO).
+				// Destroy the content Y.Doc as document-specific cleanup.
 				contentYdoc.destroy();
 				throw err;
 			}
+
+			const {
+				extensions: resolvedExtensions,
+				destroys,
+				whenReadyPromises,
+			} = factoryResult;
 
 			// Attach updatedAt observer — fires when content doc changes.
 			// The Y.Doc 'update' handler receives (update, origin, doc, transaction).
@@ -319,11 +311,23 @@ export function createDocumentBinding<TRow extends BaseRow>(
 					: Promise.all(whenReadyPromises)
 							.then(() => makeHandle(contentYdoc, resolvedExtensions))
 							.catch(async (err) => {
-								// If any provider's whenReady rejects, clean up everything
-								await Promise.allSettled(destroys.map((d) => d()));
+								// If any provider's whenReady rejects, clean up everything (LIFO)
+								const errors: unknown[] = [];
+								for (let i = destroys.length - 1; i >= 0; i--) {
+									try {
+										await destroys[i]!();
+									} catch (cleanupErr) {
+										errors.push(cleanupErr);
+									}
+								}
+
 								unobserve();
 								contentYdoc.destroy();
 								docs.delete(guid);
+
+								if (errors.length > 0) {
+									console.error('Document extension cleanup errors:', errors);
+								}
 								throw err;
 							});
 
@@ -346,10 +350,22 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			docs.delete(guid);
 			entry.unobserve();
 
-			await Promise.allSettled(
-				Object.values(entry.extensions).map((ext) => ext.destroy()),
-			);
+			// Destroy in LIFO order (reverse creation), continue on error
+			const errors: unknown[] = [];
+			const extensions = Object.values(entry.extensions);
+			for (let i = extensions.length - 1; i >= 0; i--) {
+				try {
+					await extensions[i]!.destroy();
+				} catch (err) {
+					errors.push(err);
+				}
+			}
+
 			entry.ydoc.destroy();
+
+			if (errors.length > 0) {
+				throw new Error(`Document extension cleanup errors: ${errors.length}`);
+			}
 		},
 
 		async closeAll(): Promise<void> {
@@ -360,10 +376,22 @@ export function createDocumentBinding<TRow extends BaseRow>(
 
 			for (const [, entry] of entries) {
 				entry.unobserve();
-				await Promise.allSettled(
-					Object.values(entry.extensions).map((ext) => ext.destroy()),
-				);
+
+				const errors: unknown[] = [];
+				const extensions = Object.values(entry.extensions);
+				for (let i = extensions.length - 1; i >= 0; i--) {
+					try {
+						await extensions[i]!.destroy();
+					} catch (err) {
+						errors.push(err);
+					}
+				}
+
 				entry.ydoc.destroy();
+
+				if (errors.length > 0) {
+					console.error('Document extension cleanup error:', errors);
+				}
 			}
 		},
 

@@ -219,12 +219,20 @@ export function defineExtension<T extends Record<string, unknown>>(
 /**
  * Context passed to document extension factories registered via `withDocumentExtension()`.
  *
- * Provides the content Y.Doc being created, a composite `whenReady` from
- * prior document extensions, metadata about which table/binding this doc belongs to,
- * and typed access to prior document extensions' exports + per-extension whenReady.
+ * Minimal context: the content Y.Doc, workspace ID, and chain state
+ * (composite whenReady + prior extensions). Intentionally lean — fields
+ * like `tableName` and `tags` are omitted until a real consumer needs them.
+ *
+ * ```typescript
+ * .withDocumentExtension('persistence', ({ ydoc }) => { ... })
+ * .withDocumentExtension('sync', ({ id, ydoc, whenReady }) => { ... })
+ * ```
  *
  * Extensions are optional because tag-filtered extensions may be skipped for certain
  * document types. Factories should guard access with optional chaining.
+ *
+ * Does NOT include `destroy` or `[Symbol.asyncDispose]` — factories return
+ * their own lifecycle hooks, they don't control the document's.
  *
  * @typeParam TDocExtensions - Accumulated document extension exports from prior
  *   `.withDocumentExtension()` calls. Defaults to `Record<string, unknown>` so
@@ -232,36 +240,27 @@ export function defineExtension<T extends Record<string, unknown>>(
  *
  * @example
  * ```typescript
- * .withDocumentExtension('sync', (context) => {
+ * .withDocumentExtension('sync', ({ id, ydoc, whenReady, extensions }) => {
+ *   const path = `${id}/${ydoc.guid}.yjs`;
+ *
  *   // Access prior document extension exports + lifecycle directly
- *   await context.extensions.persistence?.whenReady;
- *   context.extensions.persistence?.clearData();
+ *   await extensions.persistence?.whenReady;
+ *   extensions.persistence?.clearData();
  *
  *   // Composite: await ALL prior doc extensions
- *   await context.whenReady;
+ *   await whenReady;
  * })
  * ```
  */
 export type DocumentContext<
 	TDocExtensions extends Record<string, unknown> = Record<string, unknown>,
 > = {
+	/** The workspace identifier. Matches ExtensionContext.id. */
+	id: string;
 	/** The content Y.Doc being created. */
 	ydoc: Y.Doc;
-	/**
-	 * Composite whenReady of all PRIOR document extensions' results.
-	 * Named `whenReady` for consistency with `client.whenReady`.
-	 */
+	/** Composite whenReady of all PRIOR document extensions' results. */
 	whenReady: Promise<void>;
-	/**
-	 * Which table + binding this doc belongs to.
-	 * Enables per-binding behavior (e.g., skip sync for cover images).
-	 */
-	binding: {
-		tableName: string;
-		documentName: string;
-		/** The document's tags (from withDocument config). Empty if no tags declared. */
-		tags: readonly string[];
-	};
 	/**
 	 * Typed access to prior document extensions (resolved form with lifecycle hooks).
 	 *
@@ -270,8 +269,8 @@ export type DocumentContext<
 	 *
 	 * @example
 	 * ```typescript
-	 * await context.extensions.persistence?.whenReady;
-	 * context.extensions.persistence?.clearData();
+	 * await extensions.persistence?.whenReady;
+	 * extensions.persistence?.clearData();
 	 * ```
 	 */
 	extensions: {

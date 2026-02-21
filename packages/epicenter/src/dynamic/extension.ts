@@ -10,8 +10,8 @@
  *   (Head Doc, Registry Doc). Receive minimal context: `{ ydoc }`.
  *
  * - **Extensions** (workspace-level): Plugins that extend workspaces with features
- *   like SQLite queries, Markdown sync, revision history. Receive the client-so-far
- *   as context, including previously added extensions.
+ *   like SQLite queries, Markdown sync, revision history. Receive a flat context
+ *   with workspace resources and prior extension exports.
  *
  * Extension factories return flat objects `{ ...customExports, whenReady?, destroy? }`.
  * The framework normalizes defaults internally via `defineExtension()`.

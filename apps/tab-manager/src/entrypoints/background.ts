@@ -38,7 +38,7 @@ import {
 	parseWindowId,
 	type TabCompositeId,
 	type WindowCompositeId,
-} from '$lib/device/composite-id';
+} from '$lib/workspace';
 import {
 	generateDefaultDeviceName,
 	getBrowserName,

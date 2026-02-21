@@ -38,8 +38,8 @@
 
 import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
-import type { DocumentContext } from '../shared/lifecycle.js';
-import { defineExtension, type MaybePromise } from '../shared/lifecycle.js';
+import type { DocumentContext, MaybePromise } from '../shared/lifecycle.js';
+import { runExtensionFactories } from '../shared/run-extension-factories.js';
 import { createAwareness } from './create-awareness.js';
 import { createDocumentBinding } from './create-document-binding.js';
 import { createKv } from './create-kv.js';
@@ -108,10 +108,15 @@ export function createWorkspace<
 		awareness: awarenessDefs,
 	};
 
-	// Internal state: accumulated cleanup functions and whenReady promises.
-	// Shared across the builder chain (same ydoc).
-	const extensionCleanups: (() => MaybePromise<void>)[] = [];
-	const whenReadyPromises: Promise<unknown>[] = [];
+	/**
+	 * Immutable builder state passed through the builder chain.
+	 * Each `withExtension` creates new arrays instead of mutating shared state,
+	 * which fixes builder branching isolation.
+	 */
+	type BuilderState = {
+		extensionCleanups: (() => MaybePromise<void>)[];
+		whenReadyPromises: Promise<unknown>[];
+	};
 
 	// Accumulated document extension registrations (in chain order).
 	// Mutable array — grows as .withDocumentExtension() is called. Document
@@ -139,14 +144,13 @@ export function createWorkspace<
 			const docTags: readonly string[] = docBinding.tags ?? [];
 
 			const binding = createDocumentBinding({
+				id,
 				guidKey: docBinding.guid as keyof BaseRow & string,
 				updatedAtKey: docBinding.updatedAt as keyof BaseRow & string,
 				tableHelper,
 				ydoc,
 				documentExtensions: documentExtensionRegistrations,
 				documentTags: docTags,
-				tableName,
-				documentName: docName,
 			});
 
 			docsNamespace[docName] = binding;
@@ -164,6 +168,7 @@ export function createWorkspace<
 
 	function buildClient<TExtensions extends Record<string, unknown>>(
 		extensions: TExtensions,
+		state: BuilderState,
 	): WorkspaceClientBuilder<
 		TId,
 		TTableDefinitions,
@@ -171,21 +176,36 @@ export function createWorkspace<
 		TAwarenessDefinitions,
 		TExtensions
 	> {
-		const whenReady = Promise.all(whenReadyPromises).then(() => {});
-
 		const destroy = async (): Promise<void> => {
 			// Destroy document bindings first (before extensions they depend on)
 			for (const cleanup of documentBindingCleanups) {
 				await cleanup();
 			}
-			// Destroy extensions in reverse order (last added = first destroyed)
-			for (let i = extensionCleanups.length - 1; i >= 0; i--) {
-				await extensionCleanups[i]!();
+			// Destroy extensions in LIFO order (last added = first destroyed)
+			const errors: unknown[] = [];
+			for (let i = state.extensionCleanups.length - 1; i >= 0; i--) {
+				try {
+					await state.extensionCleanups[i]!();
+				} catch (err) {
+					errors.push(err);
+				}
 			}
 			// Destroy awareness
 			awareness.raw.destroy();
 			ydoc.destroy();
+
+			if (errors.length > 0) {
+				throw new Error(`Extension cleanup errors: ${errors.length}`);
+			}
 		};
+
+		const whenReady = Promise.all(state.whenReadyPromises)
+			.then(() => {})
+			.catch(async (err) => {
+				// If any extension's whenReady rejects, clean up everything
+				await destroy().catch(() => {}); // idempotent
+				throw err;
+			});
 
 		const client = {
 			id,
@@ -226,25 +246,46 @@ export function createWorkspace<
 					destroy?: () => MaybePromise<void>;
 				},
 			) {
-				const raw = factory(
-					client as unknown as ExtensionContext<
-						TId,
-						TTableDefinitions,
-						TKvDefinitions,
-						TAwarenessDefinitions,
-						TExtensions
-					>,
-				);
-				const resolved = defineExtension(raw ?? {});
-				extensionCleanups.push(resolved.destroy);
-				whenReadyPromises.push(resolved.whenReady);
+				const result = runExtensionFactories({
+					entries: [{ key, factory }],
+					buildContext: ({ whenReadyPromises }) => ({
+						id,
+						ydoc,
+						definitions,
+						tables,
+						kv,
+						awareness,
+						batch: (fn: () => void) => ydoc.transact(fn),
+						whenReady:
+							state.whenReadyPromises.length === 0 &&
+							whenReadyPromises.length === 0
+								? Promise.resolve()
+								: Promise.all([
+										...state.whenReadyPromises,
+										...whenReadyPromises,
+									]).then(() => {}),
+						extensions,
+					}),
+					priorDestroys: state.extensionCleanups,
+				});
+
+				// Void return means "not installed" — skip registration
+				if (Object.keys(result.extensions).length === 0) {
+					return buildClient(extensions, state);
+				}
 
 				const newExtensions = {
 					...extensions,
-					[key]: resolved,
+					...result.extensions,
 				} as TExtensions & Record<TKey, TExports>;
 
-				return buildClient(newExtensions);
+				return buildClient(newExtensions, {
+					extensionCleanups: [...state.extensionCleanups, ...result.destroys],
+					whenReadyPromises: [
+						...state.whenReadyPromises,
+						...result.whenReadyPromises,
+					],
+				});
 			},
 
 			withDocumentExtension(
@@ -262,7 +303,7 @@ export function createWorkspace<
 					factory,
 					tags: options?.tags ?? [],
 				});
-				return buildClient(extensions);
+				return buildClient(extensions, state);
 			},
 
 			withActions<TActions extends Actions>(
@@ -300,7 +341,10 @@ export function createWorkspace<
 		>;
 	}
 
-	return buildClient({} as Record<string, never>);
+	return buildClient({} as Record<string, never>, {
+		extensionCleanups: [],
+		whenReadyPromises: [],
+	});
 }
 
 export type { WorkspaceClient, WorkspaceClientBuilder };

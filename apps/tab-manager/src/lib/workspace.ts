@@ -14,11 +14,125 @@ import {
 	type InferTableRow,
 } from '@epicenter/hq/static';
 import { type } from 'arktype';
-import {
-	GroupCompositeId,
-	TabCompositeId,
-	WindowCompositeId,
-} from '$lib/device/composite-id';
+import type { Brand } from 'wellcrafted/brand';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Composite ID Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Device-scoped composite tab ID: `${deviceId}_${tabId}`.
+ *
+ * Prevents accidental mixing with plain strings, window IDs, or group IDs.
+ */
+export type TabCompositeId = string & Brand<'TabCompositeId'>;
+export const TabCompositeId = type('string').pipe(
+	(s): TabCompositeId => s as TabCompositeId,
+);
+
+/**
+ * Device-scoped composite window ID: `${deviceId}_${windowId}`.
+ *
+ * Prevents accidental mixing with plain strings, tab IDs, or group IDs.
+ */
+export type WindowCompositeId = string & Brand<'WindowCompositeId'>;
+export const WindowCompositeId = type('string').pipe(
+	(s): WindowCompositeId => s as WindowCompositeId,
+);
+
+/**
+ * Device-scoped composite group ID: `${deviceId}_${groupId}`.
+ *
+ * Prevents accidental mixing with plain strings, tab IDs, or window IDs.
+ */
+export type GroupCompositeId = string & Brand<'GroupCompositeId'>;
+export const GroupCompositeId = type('string').pipe(
+	(s): GroupCompositeId => s as GroupCompositeId,
+);
+
+/**
+ * Create a device-scoped composite tab ID: `${deviceId}_${tabId}`.
+ */
+export function createTabCompositeId(
+	deviceId: string,
+	tabId: number,
+): TabCompositeId {
+	return `${deviceId}_${tabId}` as TabCompositeId;
+}
+
+/**
+ * Create a device-scoped composite window ID: `${deviceId}_${windowId}`.
+ */
+export function createWindowCompositeId(
+	deviceId: string,
+	windowId: number,
+): WindowCompositeId {
+	return `${deviceId}_${windowId}` as WindowCompositeId;
+}
+
+/**
+ * Create a device-scoped composite group ID: `${deviceId}_${groupId}`.
+ */
+export function createGroupCompositeId(
+	deviceId: string,
+	groupId: number,
+): GroupCompositeId {
+	return `${deviceId}_${groupId}` as GroupCompositeId;
+}
+
+/**
+ * Internal helper to parse a composite ID.
+ */
+function parseCompositeIdInternal(
+	compositeId: string,
+): { deviceId: string; nativeId: number } | null {
+	const idx = compositeId.indexOf('_');
+	if (idx === -1) return null;
+
+	const deviceId = compositeId.slice(0, idx);
+	const nativeId = Number.parseInt(compositeId.slice(idx + 1), 10);
+
+	if (Number.isNaN(nativeId)) return null;
+
+	return { deviceId, nativeId };
+}
+
+/**
+ * Parse a composite tab ID into its parts.
+ */
+export function parseTabId(
+	compositeId: TabCompositeId,
+): { deviceId: string; tabId: number } | null {
+	const result = parseCompositeIdInternal(compositeId);
+	if (!result) return null;
+	return { deviceId: result.deviceId, tabId: result.nativeId };
+}
+
+/**
+ * Parse a composite window ID into its parts.
+ */
+export function parseWindowId(
+	compositeId: WindowCompositeId,
+): { deviceId: string; windowId: number } | null {
+	const result = parseCompositeIdInternal(compositeId);
+	if (!result) return null;
+	return { deviceId: result.deviceId, windowId: result.nativeId };
+}
+
+/**
+ * Parse a composite group ID into its parts.
+ */
+export function parseGroupId(
+	compositeId: GroupCompositeId,
+): { deviceId: string; groupId: number } | null {
+	const result = parseCompositeIdInternal(compositeId);
+	if (!result) return null;
+	return { deviceId: result.deviceId, groupId: result.nativeId };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workspace Definition
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
  * The workspace definition — shared by background and popup.

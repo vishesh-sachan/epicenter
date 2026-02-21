@@ -12,6 +12,9 @@
 
 import { describe, expect, test } from 'bun:test';
 import { type } from 'arktype';
+import * as Y from 'yjs';
+import { createDocumentBinding } from './create-document-binding.js';
+import { createTables } from './create-tables.js';
 import { createWorkspace } from './create-workspace.js';
 import { defineKv } from './define-kv.js';
 import { defineTable } from './define-table.js';
@@ -309,8 +312,8 @@ describe('createWorkspace', () => {
 						destroy: () => {},
 					};
 				})
-				.withExtension('second', (context) => {
-					receivedFirstExtension = context.extensions.first.value === 'first';
+				.withExtension('second', ({ extensions }) => {
+					receivedFirstExtension = extensions.first.value === 'first';
 					return { destroy: () => {} };
 				});
 
@@ -458,12 +461,12 @@ describe('createWorkspace', () => {
 						order.push('a-ready');
 					}),
 				}))
-				.withExtension('b', (ctx) => {
-					const whenReady = (async () => {
-						await ctx.extensions.a.whenReady;
+				.withExtension('b', ({ extensions }) => {
+					const whenReadyPromise = (async () => {
+						await extensions.a.whenReady;
 						order.push('b-ready');
 					})();
-					return { tag: 'b', whenReady };
+					return { tag: 'b', whenReady: whenReadyPromise };
 				});
 
 			// B should not resolve until A does
@@ -674,6 +677,191 @@ describe('createWorkspace', () => {
 			expect(fileDocs.content).toBeDefined();
 			expect(noteDocs.body).toBeDefined();
 			expect(fileDocs.content).not.toBe(noteDocs.body);
+		});
+	});
+
+	// ════════════════════════════════════════════════════════════════════════════
+	// BASELINE TESTS (Phase 0) — Verify lifecycle correctness
+	// ════════════════════════════════════════════════════════════════════════════
+
+	describe('lifecycle baseline', () => {
+		const def = defineWorkspace({ id: 'lifecycle-test' });
+
+		test('builder branching creates isolated extension sets', () => {
+			const base = createWorkspace(def).withExtension('a', () => ({
+				value: 'a',
+			}));
+			const b1 = base.withExtension('b', () => ({ value: 'b' }));
+			const b2 = base.withExtension('c', () => ({ value: 'c' }));
+
+			expect(Object.keys(base.extensions)).toEqual(['a']);
+			expect(Object.keys(b1.extensions)).toEqual(['a', 'b']);
+			expect(Object.keys(b2.extensions)).toEqual(['a', 'c']);
+		});
+
+		test('void-returning factory does not appear in extensions', () => {
+			const client = createWorkspace(def)
+				.withExtension(
+					'noop',
+					() => undefined as unknown as Record<string, unknown>,
+				)
+				.withExtension('real', () => ({ value: 42 }));
+
+			expect(client.extensions.noop).toBeUndefined();
+			expect(client.extensions.real).toBeDefined();
+			expect(client.extensions.real.value).toBe(42);
+		});
+
+		test('factory throw in workspace cleans up prior extensions in LIFO order', async () => {
+			const cleanupOrder: string[] = [];
+			const factory =
+				(name: string, shouldThrow = false) =>
+				() => {
+					if (shouldThrow) throw new Error(`${name} factory failed`);
+					return {
+						destroy: async () => {
+							cleanupOrder.push(name);
+						},
+					};
+				};
+
+			try {
+				createWorkspace(def)
+					.withExtension('first', factory('first'))
+					.withExtension('second', factory('second'))
+					.withExtension('third', factory('third', true)); // throws
+			} catch {
+				// expected
+			}
+
+			expect(cleanupOrder).toEqual(['second', 'first']); // LIFO, skips 'third'
+		});
+
+		test('document extension destroy order is LIFO', async () => {
+			const destroyOrder: string[] = [];
+			const factory = (name: string) => () => ({
+				destroy: async () => {
+					destroyOrder.push(name);
+				},
+			});
+
+			const mockYdoc = new Y.Doc({ guid: 'doc-lifo-test' });
+			const fileSchema = type({
+				id: 'string',
+				updatedAt: 'number',
+				_v: '1',
+			});
+			const tables = createTables(mockYdoc, {
+				files: defineTable(fileSchema),
+			});
+
+			const binding = createDocumentBinding({
+				guidKey: 'id',
+				updatedAtKey: 'updatedAt',
+				tableHelper: tables.files,
+				ydoc: mockYdoc,
+				documentExtensions: [
+					{ key: 'first', factory: factory('first'), tags: [] },
+					{ key: 'second', factory: factory('second'), tags: [] },
+					{ key: 'third', factory: factory('third'), tags: [] },
+				],
+			});
+
+			await binding.open('doc-1');
+			await binding.close('doc-1');
+
+			expect(destroyOrder).toEqual(['third', 'second', 'first']); // LIFO
+		});
+
+		test('whenReady rejection in workspace triggers cleanup', async () => {
+			const cleanupCalled = new Set<string>();
+			let rejectWhenReady: (() => void) | undefined;
+			const whenReadyPromise = new Promise<void>((_, reject) => {
+				rejectWhenReady = () => reject(new Error('provider failed'));
+			});
+
+			const client = createWorkspace(def)
+				.withExtension('first', () => ({
+					destroy: async () => {
+						cleanupCalled.add('first');
+					},
+				}))
+				.withExtension('second', () => ({
+					whenReady: whenReadyPromise,
+					destroy: async () => {
+						cleanupCalled.add('second');
+					},
+				}));
+
+			// Trigger rejection
+			rejectWhenReady?.();
+
+			try {
+				await client.whenReady;
+			} catch {
+				// expected
+			}
+
+			expect(cleanupCalled.has('first')).toBe(true);
+			expect(cleanupCalled.has('second')).toBe(true);
+		});
+
+		test('document extension whenReady rejection triggers cleanup', async () => {
+			const cleanupCalled = new Set<string>();
+			let rejectWhenReady: (() => void) | undefined;
+			const whenReadyPromise = new Promise<void>((_, reject) => {
+				rejectWhenReady = () => reject(new Error('provider failed'));
+			});
+
+			const mockYdoc = new Y.Doc({ guid: 'doc-reject-test' });
+			const fileSchema = type({
+				id: 'string',
+				updatedAt: 'number',
+				_v: '1',
+			});
+			const tables = createTables(mockYdoc, {
+				files: defineTable(fileSchema),
+			});
+
+			const binding = createDocumentBinding({
+				guidKey: 'id',
+				updatedAtKey: 'updatedAt',
+				tableHelper: tables.files,
+				ydoc: mockYdoc,
+				documentExtensions: [
+					{
+						key: 'first',
+						factory: () => ({
+							destroy: async () => {
+								cleanupCalled.add('first');
+							},
+						}),
+						tags: [],
+					},
+					{
+						key: 'second',
+						factory: () => ({
+							whenReady: whenReadyPromise,
+							destroy: async () => {
+								cleanupCalled.add('second');
+							},
+						}),
+						tags: [],
+					},
+				],
+			});
+
+			const handlePromise = binding.open('doc-1');
+			rejectWhenReady?.();
+
+			try {
+				await handlePromise;
+			} catch {
+				// expected
+			}
+
+			expect(cleanupCalled.has('first')).toBe(true);
+			expect(cleanupCalled.has('second')).toBe(true);
 		});
 	});
 });

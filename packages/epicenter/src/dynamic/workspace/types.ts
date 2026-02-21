@@ -42,15 +42,22 @@ import type { Tables } from '../tables/create-tables';
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * Context passed to extension factories — the full "client-so-far".
+ * Context passed to dynamic workspace extension factories.
  *
- * Each `.withExtension()` call passes the current `WorkspaceClient` to the factory.
- * The `extensions` field contains all previously added extensions, fully typed.
- * This enables progressive composition: extension N+1 can access extension N's exports.
+ * Flat object containing workspace resources alongside chain state. Extension
+ * factories destructure what they need directly:
  *
- * Includes `whenReady` (composite of all prior extensions' readiness), `destroy`,
- * and all other client fields — giving extensions full access to sequence after
- * prior extensions via `await context.whenReady`.
+ * ```typescript
+ * .withExtension('persistence', ({ ydoc }) => { ... })
+ * .withExtension('sync', ({ ydoc, whenReady }) => { ... })
+ * .withExtension('sqlite', ({ id, tables }) => { ... })
+ * ```
+ *
+ * `whenReady` is the composite promise from all PRIOR extensions — use it to
+ * sequence initialization (e.g., wait for persistence before connecting sync).
+ *
+ * Does NOT include `destroy` or `[Symbol.asyncDispose]` — factories return
+ * their own lifecycle hooks, they don't control the workspace's.
  *
  * @typeParam TTableDefinitions - Array of table definitions for this workspace
  * @typeParam TKvFields - Array of KV field definitions for this workspace
@@ -58,13 +65,13 @@ import type { Tables } from '../tables/create-tables';
  *
  * @example
  * ```typescript
- * .withExtension('sync', (context) => {
- *   const provider = createProvider(context.ydoc);
- *   const whenReady = (async () => {
- *     await context.whenReady; // wait for all prior extensions (persistence, etc.)
+ * .withExtension('sync', ({ ydoc, whenReady }) => {
+ *   const provider = createProvider(ydoc);
+ *   const ready = (async () => {
+ *     await whenReady; // wait for all prior extensions (persistence, etc.)
  *     provider.connect();
  *   })();
- *   return { exports: { provider }, whenReady, destroy: () => provider.destroy() };
+ *   return { provider, whenReady: ready, destroy: () => provider.destroy() };
  * })
  * ```
  */
@@ -73,7 +80,22 @@ export type ExtensionContext<
 		readonly TableDefinition[] = readonly TableDefinition[],
 	TKvFields extends readonly KvField[] = readonly KvField[],
 	TExtensions extends Record<string, unknown> = Record<string, unknown>,
-> = WorkspaceClient<TTableDefinitions, TKvFields, TExtensions>;
+> = {
+	/** Workspace identifier */
+	id: string;
+	/** The underlying Y.Doc instance */
+	ydoc: Y.Doc;
+	/** Typed table helpers */
+	tables: Tables<TTableDefinitions>;
+	/** Typed KV helper */
+	kv: Kv<TKvFields>;
+	/** Execute multiple operations atomically in a single Y.js transaction. */
+	batch: (fn: () => void) => void;
+	/** Composite promise from all prior extensions' whenReady. */
+	whenReady: Promise<void>;
+	/** Exports from previously registered extensions (typed). */
+	extensions: TExtensions;
+};
 
 /**
  * Factory function that creates an extension.
@@ -173,9 +195,10 @@ export type WorkspaceClientBuilder<
 	 *   .withExtension('persistence', ({ ydoc }) => {
 	 *     return { whenReady: loadFromDisk(), destroy: () => flush() };
 	 *   })
-	 *   .withExtension('sync', ({ extensions }) => {
+	 *   .withExtension('sync', ({ extensions, whenReady }) => {
 	 *     // extensions.persistence is fully typed here!
-	 *     return { provider, whenReady, destroy: () => provider.destroy() };
+	 *     // whenReady waits for all prior extensions
+	 *     return { provider, whenReady: syncReady, destroy: () => provider.destroy() };
 	 *   });
 	 * ```
 	 */
