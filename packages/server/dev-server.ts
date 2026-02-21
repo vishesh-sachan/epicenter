@@ -19,14 +19,14 @@ server.start();
 
 console.log('');
 console.log('✓ Server running on http://localhost:3913');
-console.log('✓ Sync endpoint: ws://localhost:3913/workspaces/tab-manager/sync');
+console.log('✓ Sync endpoint: ws://localhost:3913/rooms/tab-manager/sync');
 console.log('');
 console.log('Press Ctrl+C to stop');
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
 	console.log('\n\nShutting down...');
-	await server.destroy();
+	await server.stop();
 	console.log('✓ Server stopped');
 	process.exit(0);
 });
