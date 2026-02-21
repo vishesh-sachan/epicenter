@@ -1,20 +1,16 @@
 /**
- * YDoc Sync Utility Tests
+ * Y.Text / Y.XmlFragment String Update Tests
  *
- * These tests validate string-to-CRDT sync helpers for `Y.Text` and `Y.XmlFragment`.
- * They ensure updates are minimal when possible, transactional when required, and safe
- * when called with detached Yjs types.
- *
- * Key behaviors:
- * - Identical content is a no-op, while diffs apply expected text or fragment updates.
- * - Helpers preserve convergence guarantees and emit predictable transaction counts.
+ * Validates string-to-CRDT update helpers that use minimal diffs to preserve
+ * CRDT character identity. Ensures updates are transactional, no-op when
+ * content is identical, and safe when called with detached Yjs types.
  */
 import { describe, expect, test } from 'bun:test';
 import * as Y from 'yjs';
 import {
 	updateYTextFromString,
 	updateYXmlFragmentFromString,
-} from './y-doc-sync';
+} from './update-ytext';
 
 describe('updateYTextFromString', () => {
 	test('no-op when content is identical', () => {
