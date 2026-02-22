@@ -67,6 +67,10 @@ export async function run(argv: string[]): Promise<void> {
 	const resolution = await resolveWorkspace(parsed.baseDir);
 
 	if (resolution.status === 'not_found') {
+		if (parsed.remainingArgs[0] === 'serve') {
+			await createCLI().run(parsed.remainingArgs);
+			return;
+		}
 		throw new Error(
 			'No epicenter.config.ts found.\n' +
 				'Create one: export default createWorkspaceClient({...})',
