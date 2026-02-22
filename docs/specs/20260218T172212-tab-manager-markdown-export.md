@@ -50,6 +50,7 @@ Create a standalone peer client (`apps/tab-manager-markdown`) that connects to t
 ```
 
 **Key Properties:**
+
 - Server is **stateless** and **schema-agnostic** (just relays y-websocket messages)
 - Tab-manager and markdown exporter are **equal peers** (both sync clients)
 - **ONE-WAY sync**: Y.Doc → Markdown only (read-only export, no bidirectional complexity)
@@ -115,40 +116,40 @@ epicenter/
 
 \`\`\`json
 {
-  "device": {
-    "id": "xK2mP9qL",
-    "name": "Chrome on MacBook Pro",
-    "browser": "chrome",
-    "lastSeen": "2026-02-18T17:15:30Z",
-    "_v": 1
-  },
-  "windows": [
-    {
-      "id": "xK2mP9qL_1",
-      "deviceId": "xK2mP9qL",
-      "windowId": 1,
-      "focused": true,
-      "alwaysOnTop": false,
-      "incognito": false,
-      "_v": 1
-    }
-  ],
-  "tabs": [
-    {
-      "id": "xK2mP9qL_42",
-      "deviceId": "xK2mP9qL",
-      "tabId": 42,
-      "windowId": "xK2mP9qL_1",
-      "index": 0,
-      "pinned": false,
-      "active": true,
-      "url": "https://github.com/EpicenterHQ/epicenter",
-      "title": "Epicenter - GitHub",
-      "favIconUrl": "https://github.com/favicon.ico",
-      "_v": 1
-    }
-  ],
-  "tabGroups": []
+"device": {
+"id": "xK2mP9qL",
+"name": "Chrome on MacBook Pro",
+"browser": "chrome",
+"lastSeen": "2026-02-18T17:15:30Z",
+"\_v": 1
+},
+"windows": [
+{
+"id": "xK2mP9qL_1",
+"deviceId": "xK2mP9qL",
+"windowId": 1,
+"focused": true,
+"alwaysOnTop": false,
+"incognito": false,
+"_v": 1
+}
+],
+"tabs": [
+{
+"id": "xK2mP9qL_42",
+"deviceId": "xK2mP9qL",
+"tabId": 42,
+"windowId": "xK2mP9qL_1",
+"index": 0,
+"pinned": false,
+"active": true,
+"url": "https://github.com/EpicenterHQ/epicenter",
+"title": "Epicenter - GitHub",
+"favIconUrl": "https://github.com/favicon.ico",
+"_v": 1
+}
+],
+"tabGroups": []
 }
 \`\`\`
 
@@ -159,6 +160,7 @@ epicenter/
 ### Windows (1)
 
 **Window 1** (focused)
+
 - 5 tabs
 
 ### Tabs (5)
@@ -199,18 +201,20 @@ import { definition } from '@epicenter/tab-manager/workspace';
 import { createExporter } from './exporter';
 
 // Create sync-only client (peer to tab-manager)
-const client = createWorkspace(definition)
-  .withExtension('sync', createSyncExtension({
-    url: 'ws://localhost:3913/workspaces/{id}/sync',
-  }));
+const client = createWorkspace(definition).withExtension(
+	'sync',
+	createSyncExtension({
+		url: 'ws://localhost:3913/workspaces/{id}/sync',
+	}),
+);
 
 await client.whenReady;
 console.log('Connected to sync server');
 
 // Create exporter with debounced writes
 const exporter = createExporter({
-  outputDir: './markdown/devices',
-  debounceMs: 1000, // Wait 1s of inactivity before writing
+	outputDir: './markdown/devices',
+	debounceMs: 1000, // Wait 1s of inactivity before writing
 });
 
 // Observe all table changes
@@ -223,10 +227,10 @@ console.log('Listening for changes and exporting to markdown...');
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\nShutting down...');
-  await exporter.flush(); // Write any pending changes
-  await client.destroy();
-  process.exit(0);
+	console.log('\nShutting down...');
+	await exporter.flush(); // Write any pending changes
+	await client.destroy();
+	process.exit(0);
 });
 ```
 
@@ -238,92 +242,95 @@ import { dirname, join } from 'node:path';
 import type { Tables } from '@epicenter/tab-manager/workspace';
 
 export function createExporter(config: {
-  outputDir: string;
-  debounceMs: number;
+	outputDir: string;
+	debounceMs: number;
 }) {
-  const { outputDir, debounceMs } = config;
-  let timer: Timer | null = null;
-  let pendingExport = false;
+	const { outputDir, debounceMs } = config;
+	let timer: Timer | null = null;
+	let pendingExport = false;
 
-  async function exportAll(tables: Tables) {
-    // Group data by device
-    const deviceMap = new Map<string, {
-      device: Device;
-      windows: Window[];
-      tabs: Tab[];
-      tabGroups: TabGroup[];
-    }>();
+	async function exportAll(tables: Tables) {
+		// Group data by device
+		const deviceMap = new Map<
+			string,
+			{
+				device: Device;
+				windows: Window[];
+				tabs: Tab[];
+				tabGroups: TabGroup[];
+			}
+		>();
 
-    const devices = tables.devices.getAllValid();
-    for (const device of devices) {
-      deviceMap.set(device.id, {
-        device,
-        windows: tables.windows.filter(w => w.deviceId === device.id),
-        tabs: tables.tabs.filter(t => t.deviceId === device.id),
-        tabGroups: tables.tabGroups.filter(g => g.deviceId === device.id),
-      });
-    }
+		const devices = tables.devices.getAllValid();
+		for (const device of devices) {
+			deviceMap.set(device.id, {
+				device,
+				windows: tables.windows.filter((w) => w.deviceId === device.id),
+				tabs: tables.tabs.filter((t) => t.deviceId === device.id),
+				tabGroups: tables.tabGroups.filter((g) => g.deviceId === device.id),
+			});
+		}
 
-    // Write one markdown file per device
-    await fs.mkdir(outputDir, { recursive: true });
+		// Write one markdown file per device
+		await fs.mkdir(outputDir, { recursive: true });
 
-    for (const [deviceId, data] of deviceMap) {
-      const markdown = generateMarkdown(data);
-      const filePath = join(outputDir, `${deviceId}.md`);
-      await fs.writeFile(filePath, markdown, 'utf-8');
-      console.log(`Exported: ${filePath}`);
-    }
-  }
+		for (const [deviceId, data] of deviceMap) {
+			const markdown = generateMarkdown(data);
+			const filePath = join(outputDir, `${deviceId}.md`);
+			await fs.writeFile(filePath, markdown, 'utf-8');
+			console.log(`Exported: ${filePath}`);
+		}
+	}
 
-  return {
-    scheduleExport(tables: Tables) {
-      pendingExport = true;
-      
-      if (timer) clearTimeout(timer);
-      
-      timer = setTimeout(() => {
-        if (pendingExport) {
-          pendingExport = false;
-          exportAll(tables).catch(err => {
-            console.error('Export failed:', err);
-          });
-        }
-      }, debounceMs);
-    },
+	return {
+		scheduleExport(tables: Tables) {
+			pendingExport = true;
 
-    async flush() {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      if (pendingExport) {
-        // Force immediate export
-        pendingExport = false;
-        // tables reference would need to be captured
-      }
-    },
-  };
+			if (timer) clearTimeout(timer);
+
+			timer = setTimeout(() => {
+				if (pendingExport) {
+					pendingExport = false;
+					exportAll(tables).catch((err) => {
+						console.error('Export failed:', err);
+					});
+				}
+			}, debounceMs);
+		},
+
+		async flush() {
+			if (timer) {
+				clearTimeout(timer);
+				timer = null;
+			}
+			if (pendingExport) {
+				// Force immediate export
+				pendingExport = false;
+				// tables reference would need to be captured
+			}
+		},
+	};
 }
 
 function generateMarkdown(data: {
-  device: Device;
-  windows: Window[];
-  tabs: Tab[];
-  tabGroups: TabGroup[];
+	device: Device;
+	windows: Window[];
+	tabs: Tab[];
+	tabGroups: TabGroup[];
 }): string {
-  const { device, windows, tabs, tabGroups } = data;
+	const { device, windows, tabs, tabGroups } = data;
 
-  // Generate structured JSON payload
-  const jsonPayload = JSON.stringify(
-    { device, windows, tabs, tabGroups },
-    null,
-    2
-  );
+	// Generate structured JSON payload
+	const jsonPayload = JSON.stringify(
+		{ device, windows, tabs, tabGroups },
+		null,
+		2,
+	);
 
-  // Generate human-readable summary
-  const summary = generateSummary(data);
+	// Generate human-readable summary
+	const summary = generateSummary(data);
 
-  return `# Device: ${device.name}
+	return `# Device: ${device.name}
 
 **Device ID:** \`${device.id}\`  
 **Browser:** ${device.browser}  
@@ -348,48 +355,48 @@ ${summary}
 }
 
 function generateSummary(data: {
-  device: Device;
-  windows: Window[];
-  tabs: Tab[];
-  tabGroups: TabGroup[];
+	device: Device;
+	windows: Window[];
+	tabs: Tab[];
+	tabGroups: TabGroup[];
 }): string {
-  const { windows, tabs, tabGroups } = data;
+	const { windows, tabs, tabGroups } = data;
 
-  let summary = `## Summary\n\n`;
+	let summary = `## Summary\n\n`;
 
-  // Windows summary
-  summary += `### Windows (${windows.length})\n\n`;
-  for (const window of windows) {
-    const windowTabs = tabs.filter(t => t.windowId === window.id);
-    summary += `**Window ${window.windowId}**${window.focused ? ' (focused)' : ''}\n`;
-    summary += `- ${windowTabs.length} tabs\n\n`;
-  }
+	// Windows summary
+	summary += `### Windows (${windows.length})\n\n`;
+	for (const window of windows) {
+		const windowTabs = tabs.filter((t) => t.windowId === window.id);
+		summary += `**Window ${window.windowId}**${window.focused ? ' (focused)' : ''}\n`;
+		summary += `- ${windowTabs.length} tabs\n\n`;
+	}
 
-  // Tabs summary
-  summary += `### Tabs (${tabs.length})\n\n`;
-  const sortedTabs = [...tabs].sort((a, b) => a.index - b.index);
-  for (const tab of sortedTabs) {
-    const flags = [];
-    if (tab.active) flags.push('active');
-    if (tab.pinned) flags.push('pinned');
-    const flagStr = flags.length ? ` (${flags.join(', ')})` : '';
-    
-    summary += `${tab.index + 1}. **[${tab.title || 'Untitled'}](${tab.url || '#'})**${flagStr}\n`;
-  }
+	// Tabs summary
+	summary += `### Tabs (${tabs.length})\n\n`;
+	const sortedTabs = [...tabs].sort((a, b) => a.index - b.index);
+	for (const tab of sortedTabs) {
+		const flags = [];
+		if (tab.active) flags.push('active');
+		if (tab.pinned) flags.push('pinned');
+		const flagStr = flags.length ? ` (${flags.join(', ')})` : '';
 
-  // Tab groups summary
-  summary += `\n### Tab Groups (${tabGroups.length})\n\n`;
-  if (tabGroups.length === 0) {
-    summary += `_No tab groups_\n`;
-  } else {
-    for (const group of tabGroups) {
-      const groupTabs = tabs.filter(t => t.groupId === group.id);
-      summary += `**${group.title || 'Untitled Group'}** (${group.color})${group.collapsed ? ' [collapsed]' : ''}\n`;
-      summary += `- ${groupTabs.length} tabs\n\n`;
-    }
-  }
+		summary += `${tab.index + 1}. **[${tab.title || 'Untitled'}](${tab.url || '#'})**${flagStr}\n`;
+	}
 
-  return summary;
+	// Tab groups summary
+	summary += `\n### Tab Groups (${tabGroups.length})\n\n`;
+	if (tabGroups.length === 0) {
+		summary += `_No tab groups_\n`;
+	} else {
+		for (const group of tabGroups) {
+			const groupTabs = tabs.filter((t) => t.groupId === group.id);
+			summary += `**${group.title || 'Untitled Group'}** (${group.color})${group.collapsed ? ' [collapsed]' : ''}\n`;
+			summary += `- ${groupTabs.length} tabs\n\n`;
+		}
+	}
+
+	return summary;
 }
 ```
 
@@ -397,23 +404,23 @@ function generateSummary(data: {
 
 ```json
 {
-  "name": "@epicenter/tab-manager-markdown",
-  "version": "0.0.1",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "dev": "bun run src/index.ts",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@epicenter/hq": "workspace:*",
-    "@epicenter/tab-manager": "workspace:*",
-    "yjs": "^13.6.27"
-  },
-  "devDependencies": {
-    "@types/bun": "catalog:",
-    "typescript": "catalog:"
-  }
+	"name": "@epicenter/tab-manager-markdown",
+	"version": "0.0.1",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"dev": "bun run src/index.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@epicenter/hq": "workspace:*",
+		"@epicenter/tab-manager": "workspace:*",
+		"yjs": "^13.6.27"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"typescript": "catalog:"
+	}
 }
 ```
 
@@ -433,13 +440,15 @@ function generateSummary(data: {
 ### Starting the Stack
 
 **Terminal 1: Start sync server**
+
 ```bash
 cd packages/server
-bun run dev-server.ts
-# ✓ Server running on http://localhost:3913
+bun run start
+# Epicenter server running on http://localhost:3913
 ```
 
 **Terminal 2: Open tab-manager** (browser extension)
+
 ```bash
 # Open Chrome/Firefox
 # Load extension from apps/tab-manager/.output/chrome-mv3 (or firefox-mv3)
@@ -447,6 +456,7 @@ bun run dev-server.ts
 ```
 
 **Terminal 3: Start markdown exporter**
+
 ```bash
 cd apps/tab-manager-markdown
 bun run dev
@@ -455,6 +465,7 @@ bun run dev
 ```
 
 Now:
+
 - Open/close/move tabs in browser
 - Markdown files update in `apps/tab-manager-markdown/markdown/devices/`
 - Each device gets its own markdown file
@@ -463,6 +474,7 @@ Now:
 ### Stopping
 
 **Graceful shutdown:**
+
 ```bash
 # In Terminal 3 (markdown exporter)
 Ctrl+C  # Flushes pending writes before exit
@@ -476,16 +488,19 @@ Ctrl+C  # Closes all WebSocket connections
 ### Why One File Per Device?
 
 **Pros:**
+
 - ✅ Matches device-scoped composite ID architecture
 - ✅ Limits blast radius (changing one device doesn't rewrite all files)
 - ✅ Reasonable file count (devices, not tabs)
 - ✅ Easy to find specific device's tabs
 
 **Cons:**
+
 - ❌ Can't see all tabs across all devices in one file
 - ❌ Redundant metadata in each file
 
 **Alternative considered:** One file per table (e.g., `tabs.md`, `windows.md`)
+
 - **Rejected because:** Loses device grouping, harder to see full device state
 
 ### Why Debounced Writes?
@@ -494,7 +509,8 @@ Ctrl+C  # Closes all WebSocket connections
 
 **Solution:** Wait 1 second of inactivity before writing
 
-**Trade-off:** 
+**Trade-off:**
+
 - ✅ Disk-friendly
 - ✅ Batches rapid changes into single write
 - ❌ 1-second delay before markdown reflects latest state
@@ -502,12 +518,14 @@ Ctrl+C  # Closes all WebSocket connections
 ### Why ONE-WAY Sync Only?
 
 **Benefits:**
+
 - ✅ No echo loops (no risk of infinite write cycles)
 - ✅ No conflict resolution needed
 - ✅ Simpler implementation (no file watcher, no parser)
 - ✅ Deterministic behavior (markdown always reflects Y.Doc state)
 
 **Trade-off:**
+
 - ❌ Can't edit markdown and have changes sync back
 - ✅ But this is acceptable: markdown is for **archival/reference**, not editing
 
@@ -516,11 +534,13 @@ Ctrl+C  # Closes all WebSocket connections
 ### Why JSON Payload + Summary?
 
 **JSON Payload:**
+
 - ✅ Structured, parseable data (future-proof for bidirectional sync)
 - ✅ Complete state capture (no information loss)
 - ✅ Stable diffs (sorted keys, formatted JSON)
 
 **Human-Readable Summary:**
+
 - ✅ Quick scanning without parsing JSON
 - ✅ Renders nicely in markdown viewers
 - ✅ Searchable (grep for URLs, titles)
@@ -539,7 +559,8 @@ Ctrl+C  # Closes all WebSocket connections
 
 **Example:** 1000 tabs on one device = large JSON payload
 
-**Mitigation:** 
+**Mitigation:**
+
 - Phase 1: Accept it (most users have < 100 tabs/device)
 - Phase 2: Implement streaming writes or pagination if needed
 
@@ -589,6 +610,7 @@ Ctrl+C  # Closes all WebSocket connections
 **Estimated effort:** 1-2 days
 
 **Phase 1 (Day 1):**
+
 - [x] Create `apps/tab-manager-markdown` package structure
 - [x] Implement basic sync client connection
 - [x] Implement markdown export logic (JSON + summary)
@@ -596,6 +618,7 @@ Ctrl+C  # Closes all WebSocket connections
 - [x] Manual testing with tab-manager
 
 **Phase 2 (Day 2):**
+
 - [x] Add graceful shutdown
 - [x] Add error handling and logging
 - [x] Write README with usage instructions
@@ -603,6 +626,7 @@ Ctrl+C  # Closes all WebSocket connections
 - [x] Polish markdown formatting
 
 **Future enhancements:**
+
 - Incremental writes (only changed devices)
 - Device cleanup (remove markdown for deleted devices)
 - Custom output formats
@@ -612,7 +636,7 @@ Ctrl+C  # Closes all WebSocket connections
 
 1. **Should markdown files be git-tracked?**
    - Option A: Yes (tab history in git)
-   - Option B: No (gitignore *.md, keep only structure)
+   - Option B: No (gitignore \*.md, keep only structure)
    - **Recommendation:** User's choice, provide both .gitignore examples
 
 2. **Should savedTabs table be included in device files?**
