@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Offscreen</title>
+	</head>
+	<body>
+		<script>
+			setInterval(() => {
+				chrome.runtime.sendMessage({ type: 'keepalive' });
+			}, 20_000);
+		</script>
+	</body>
+</html>
