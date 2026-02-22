@@ -13,7 +13,7 @@
 import { describe, expect, test } from 'bun:test';
 import { type } from 'arktype';
 import * as Y from 'yjs';
-import { createDocumentBinding } from './create-document-binding.js';
+import { createDocument } from './create-document.js';
 import { createTables } from './create-tables.js';
 import { createWorkspace } from './create-workspace.js';
 import { defineKv } from './define-kv.js';
@@ -755,7 +755,7 @@ describe('createWorkspace', () => {
 				files: defineTable(fileSchema),
 			});
 
-			const binding = createDocumentBinding({
+			const binding = createDocument({
 				guidKey: 'id',
 				updatedAtKey: 'updatedAt',
 				tableHelper: tables.files,
@@ -823,7 +823,7 @@ describe('createWorkspace', () => {
 				files: defineTable(fileSchema),
 			});
 
-			const binding = createDocumentBinding({
+			const binding = createDocument({
 				guidKey: 'id',
 				updatedAtKey: 'updatedAt',
 				tableHelper: tables.files,

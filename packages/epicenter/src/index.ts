@@ -83,11 +83,11 @@ export { defineWorkspace } from './workspace/define-workspace';
 // WORKSPACE CREATION
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { CreateDocumentBindingConfig } from './workspace/create-document-binding';
+export type { CreateDocumentConfig } from './workspace/create-document';
 export {
-	createDocumentBinding,
+	createDocument,
 	DOCUMENT_BINDING_ORIGIN,
-} from './workspace/create-document-binding';
+} from './workspace/create-document';
 export { createWorkspace } from './workspace/create-workspace';
 
 // ════════════════════════════════════════════════════════════════════════════

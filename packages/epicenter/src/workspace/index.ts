@@ -108,11 +108,11 @@ export { defineWorkspace } from './define-workspace.js';
 // Workspace Creation
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { CreateDocumentBindingConfig } from './create-document-binding.js';
+export type { CreateDocumentConfig } from './create-document.js';
 export {
-	createDocumentBinding,
+	createDocument,
 	DOCUMENT_BINDING_ORIGIN,
-} from './create-document-binding.js';
+} from './create-document.js';
 export { createWorkspace } from './create-workspace.js';
 
 // ════════════════════════════════════════════════════════════════════════════

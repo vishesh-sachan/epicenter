@@ -39,7 +39,7 @@
 import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
 import { createAwareness } from './create-awareness.js';
-import { createDocumentBinding } from './create-document-binding.js';
+import { createDocument } from './create-document.js';
 import { createKv } from './create-kv.js';
 import { createTables } from './create-tables.js';
 import {
@@ -146,7 +146,7 @@ export function createWorkspace<
 		for (const [docName, docBinding] of Object.entries(docsDef)) {
 			const docTags: readonly string[] = docBinding.tags ?? [];
 
-			const binding = createDocumentBinding({
+			const binding = createDocument({
 				id,
 				guidKey: docBinding.guid as keyof BaseRow & string,
 				updatedAtKey: docBinding.updatedAt as keyof BaseRow & string,
