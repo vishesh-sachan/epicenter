@@ -1,7 +1,8 @@
 # Encrypted API Key Vault
 
 **Date**: 2026-02-13
-**Status**: Draft
+**Status**: Superseded
+**Superseded by**: `20260222T195800-server-side-api-key-management.md` — Server-side storage with auto-generated `master.key` encryption. The zero-knowledge approach described here is the wrong model for API keys because the server must read them to call providers. See the superseding spec's "Research Findings > Prior Art in This Codebase" section for the full rationale.
 
 ## Overview
 

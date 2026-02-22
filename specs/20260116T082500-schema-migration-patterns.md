@@ -656,7 +656,7 @@ Registry Y.Doc (global)
 │  AI-Generated Workspaces:                                                   │
 │  ────────────────────────                                                   │
 │  JSON schema files in user's workspace folder                               │
-│  ~/.epicenter/workspaces/habit-tracker/schema.json                          │
+│  <project>/.epicenter/workspaces/habit-tracker/schema.json                  │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
