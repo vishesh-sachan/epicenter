@@ -10,39 +10,70 @@ import { collectActionPaths } from './workspace/actions';
 
 export const DEFAULT_PORT = 3913;
 
-export type ServerOptions = {
+export type ServerConfig = {
+	/**
+	 * Workspace clients to expose via REST CRUD and action endpoints.
+	 *
+	 * Pass an empty array for a sync-only relay (no workspace routes).
+	 * Non-empty arrays mount table and action endpoints under `/workspaces/{id}`.
+	 */
+	clients: AnyWorkspaceClient[];
+
+	/**
+	 * Port to listen on.
+	 *
+	 * Falls back to the `PORT` environment variable, then {@link DEFAULT_PORT} (3913).
+	 */
 	port?: number;
-	/** Auth configuration passed through to the sync plugin. */
-	auth?: AuthConfig;
-	/** Called when a new sync room is created on demand. */
-	onRoomCreated?: (roomId: string, doc: Y.Doc) => void;
-	/** Called when an idle sync room is evicted. */
-	onRoomEvicted?: (roomId: string, doc: Y.Doc) => void;
+
+	/** Sync plugin options (WebSocket rooms, auth, lifecycle hooks). */
+	sync?: {
+		/** Auth for sync endpoints. Omit for open mode (no auth). */
+		auth?: AuthConfig;
+
+		/** Called when a new sync room is created on demand. */
+		onRoomCreated?: (roomId: string, doc: Y.Doc) => void;
+
+		/** Called when an idle sync room is evicted after all clients disconnect. */
+		onRoomEvicted?: (roomId: string, doc: Y.Doc) => void;
+	};
 };
 
 /**
  * Create an Epicenter HTTP server.
  *
- * Always includes sync (WebSocket + REST document state), OpenAPI docs, AI endpoints,
- * and a discovery root. When the clients array is non-empty, also mounts RESTful
- * table CRUD and action endpoints under `/workspaces`.
+ * Composes sync (WebSocket + REST document state), OpenAPI docs, AI endpoints,
+ * and a discovery root into a single Elysia app. When `clients` is non-empty,
+ * also mounts RESTful table CRUD and action endpoints under `/workspaces`.
+ *
+ * The server always provides:
+ * - `/` — API root with discovery info (workspace IDs, action paths)
+ * - `/openapi` — Interactive API documentation (Scalar UI)
+ * - `/rooms/{id}` — WebSocket sync + REST document state (GET/POST)
+ * - `/ai/chat` — Streaming AI chat via SSE
+ *
+ * With workspace clients, also provides:
+ * - `/workspaces/{id}/tables/{table}` — RESTful table CRUD
+ * - `/workspaces/{id}/actions/{action}` — Workspace action endpoints
  *
  * @example
  * ```typescript
- * // Sync relay only (no workspace config needed)
- * createServer([]).start();
+ * // Sync relay only — no workspace config needed
+ * createServer({ clients: [] }).start();
  *
  * // Full server with workspace REST + sync
- * createServer([client], { port: 3913 }).start();
+ * createServer({ clients: [blogClient], port: 3913 }).start();
  *
- * // Multiple workspaces
- * createServer([blogClient, authClient]).start();
+ * // Multiple workspaces with auth
+ * createServer({
+ *   clients: [blogClient, authClient],
+ *   sync: { auth: { token: 'my-secret' } },
+ * }).start();
  * ```
  */
-export function createServer(
-	clients: AnyWorkspaceClient[],
-	options?: ServerOptions,
-) {
+export function createServer(config: ServerConfig) {
+	const { clients, sync } = config;
+
 	const workspaces: Record<string, AnyWorkspaceClient> = {};
 	for (const client of clients) {
 		workspaces[client.id] = client;
@@ -83,9 +114,9 @@ export function createServer(
 									return dynamicDocs.get(room);
 								}
 							: undefined,
-					auth: options?.auth,
-					onRoomCreated: options?.onRoomCreated,
-					onRoomEvicted: options?.onRoomEvicted,
+					auth: sync?.auth,
+					onRoomCreated: sync?.onRoomCreated,
+					onRoomEvicted: sync?.onRoomEvicted,
 				}),
 			),
 		)
@@ -104,7 +135,7 @@ export function createServer(
 	}
 
 	const port =
-		options?.port ??
+		config.port ??
 		Number.parseInt(process.env.PORT ?? String(DEFAULT_PORT), 10);
 
 	return {
@@ -122,6 +153,8 @@ export function createServer(
 
 		/**
 		 * Stop the HTTP server and destroy all workspace clients.
+		 *
+		 * Cleans up workspace clients, ephemeral sync documents, and the HTTP listener.
 		 */
 		async stop() {
 			app.stop();

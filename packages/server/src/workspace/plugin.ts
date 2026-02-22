@@ -26,13 +26,7 @@ import { createTablesPlugin } from './tables';
  *   .listen(3913);
  * ```
  */
-export function createWorkspacePlugin(
-	clientOrClients: AnyWorkspaceClient | AnyWorkspaceClient[],
-) {
-	const clients = Array.isArray(clientOrClients)
-		? clientOrClients
-		: [clientOrClients];
-
+export function createWorkspacePlugin(clients: AnyWorkspaceClient[]) {
 	const app = new Elysia();
 
 	for (const client of clients) {

@@ -6,7 +6,7 @@ Expose your workspace tables as REST APIs and WebSocket sync endpoints.
 
 `createServer()` wraps workspace clients and:
 
-1. **Takes initialized clients** (single or array)
+1. **Takes initialized clients** (as an array in the config object)
 2. **Keeps them alive** (doesn't dispose until you stop the server)
 3. **Maps HTTP endpoints** to tables (REST CRUD, WebSocket sync)
 
@@ -39,7 +39,7 @@ const blogWorkspace = defineWorkspace({
 const blogClient = createWorkspace(blogWorkspace);
 
 // 3. Create and start server
-const server = createServer([blogClient], { port: 3913 });
+const server = createServer({ clients: [blogClient], port: 3913 });
 server.start();
 ```
 
@@ -50,19 +50,24 @@ Now your tables are available as REST endpoints:
 
 ## API
 
-### `createServer(clients, options?)`
+### `createServer(config)`
 
 **Signature:**
 
 ```typescript
-function createServer(
-	clients: WorkspaceClient[],
-	options?: ServerOptions,
-): Server;
+function createServer(config: ServerConfig): Server;
 
-type ServerOptions = {
-	port?: number; // Default: 3913
-	auth?: AuthConfig; // See "Auth Modes" below
+type ServerConfig = {
+	/** Workspace clients to expose via REST CRUD and action endpoints. Empty array = sync relay only. */
+	clients: AnyWorkspaceClient[];
+	/** Port to listen on. Defaults to 3913 (or PORT env var). */
+	port?: number;
+	/** Sync plugin options. */
+	sync?: {
+		auth?: AuthConfig;
+		onRoomCreated?: (roomId: string, doc: Y.Doc) => void;
+		onRoomEvicted?: (roomId: string, doc: Y.Doc) => void;
+	};
 };
 ```
 
@@ -70,20 +75,21 @@ type ServerOptions = {
 
 ```typescript
 // No workspaces (dynamic docs only)
-createServer([]);
-createServer([], { port: 8080 });
+createServer({ clients: [] });
+createServer({ clients: [], port: 8080 });
 
 // Single workspace
-createServer([blogClient]);
-createServer([blogClient], { port: 8080 });
+createServer({ clients: [blogClient] });
+createServer({ clients: [blogClient], port: 8080 });
 
 // Multiple workspaces
-createServer([blogClient, authClient]);
-createServer([blogClient, authClient], { port: 8080 });
+createServer({ clients: [blogClient, authClient] });
+createServer({ clients: [blogClient, authClient], port: 8080 });
 ```
 
 **Why array, not object?**
 
+- Clients is always an array inside the config object.
 - Workspace IDs come from `defineWorkspace({ id: 'blog' })`
 - No redundancy (don't type 'blog' twice)
 - Less error-prone (can't mismatch key and workspace ID)
@@ -91,7 +97,7 @@ createServer([blogClient, authClient], { port: 8080 });
 ### Server Methods
 
 ```typescript
-const server = createServer([blogClient], { port: 3913 });
+const server = createServer({ clients: [blogClient], port: 3913 });
 
 server.app; // Underlying Elysia instance
 server.start(); // Start the HTTP server
@@ -234,7 +240,7 @@ const blogClient = createWorkspace(blogWorkspace);
 const authClient = createWorkspace(authWorkspace);
 
 // Pass array of clients
-const server = createServer([blogClient, authClient], { port: 3913 });
+const server = createServer({ clients: [blogClient, authClient], port: 3913 });
 server.start();
 ```
 
@@ -316,7 +322,7 @@ The server exposes the WebSocket endpoint. `@epicenter/sync` is the client-side 
 
 ```typescript
 // Server side
-const server = createServer([blogClient], { port: 3913 });
+const server = createServer({ clients: [blogClient], port: 3913 });
 server.start();
 // Exposes: ws://localhost:3913/rooms/blog
 
@@ -353,7 +359,7 @@ See `@epicenter/sync` for the client-side API (auth modes, status model, `hasLoc
 ```typescript
 const client = createWorkspace(blogWorkspace);
 
-const server = createServer([client], { port: 3913 });
+const server = createServer({ clients: [client], port: 3913 });
 server.start();
 // Clients stay alive until Ctrl+C
 ```
@@ -410,7 +416,7 @@ Tables are automatically exposed as CRUD endpoints:
 Write regular functions that use your client and expose them via custom routes:
 
 ```typescript
-const server = createServer([blogClient], { port: 3913 });
+const server = createServer({ clients: [blogClient], port: 3913 });
 
 // Define functions that use the client
 function createPost(title: string) {
@@ -429,7 +435,7 @@ server.start();
 ## Lifecycle Management
 
 ```typescript
-const server = createServer([blogClient, authClient], { port: 3913 });
+const server = createServer({ clients: [blogClient, authClient], port: 3913 });
 
 // Start the server
 server.start();

@@ -23,7 +23,8 @@ export function createCLI(client?: AnyWorkspaceClient) {
 					default: 3913,
 				}),
 			async (argv) => {
-				const server = createServer(client ? [client] : [], {
+				const server = createServer({
+					clients: client ? [client] : [],
 					port: argv.port,
 				});
 				server.start();

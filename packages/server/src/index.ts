@@ -1,2 +1,2 @@
-export { createServer, DEFAULT_PORT, type ServerOptions } from './server';
+export { createServer, DEFAULT_PORT, type ServerConfig } from './server';
 export { createWorkspacePlugin } from './workspace';

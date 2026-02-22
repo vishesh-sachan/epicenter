@@ -16,10 +16,13 @@ import { createServer } from './server';
 
 const port = Number.parseInt(process.env.PORT ?? '3913', 10);
 
-const server = createServer([], {
+const server = createServer({
+	clients: [],
 	port,
-	onRoomCreated: (roomId) => console.log(`[Sync] Room created: ${roomId}`),
-	onRoomEvicted: (roomId) => console.log(`[Sync] Room evicted: ${roomId}`),
+	sync: {
+		onRoomCreated: (roomId) => console.log(`[Sync] Room created: ${roomId}`),
+		onRoomEvicted: (roomId) => console.log(`[Sync] Room evicted: ${roomId}`),
+	},
 });
 
 server.start();
