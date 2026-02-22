@@ -1,7 +1,9 @@
+import {
+	type Actions,
+	iterateActions,
+	standardSchemaToJsonSchema,
+} from '@epicenter/hq';
 import type { CommandModule } from 'yargs';
-import type { Actions } from '../shared/actions';
-import { iterateActions } from '../shared/actions';
-import { standardSchemaToJsonSchema } from '../shared/standard-schema/to-json-schema';
 import { jsonSchemaToYargsOptions } from './json-schema-to-yargs';
 
 /**

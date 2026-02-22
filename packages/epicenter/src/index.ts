@@ -115,6 +115,7 @@ export { describeWorkspace } from './workspace/describe-workspace';
 // VALIDATION UTILITIES
 // ════════════════════════════════════════════════════════════════════════════
 
+export { standardSchemaToJsonSchema } from './shared/standard-schema';
 export { createUnionSchema } from './workspace/schema-union';
 
 // ════════════════════════════════════════════════════════════════════════════
