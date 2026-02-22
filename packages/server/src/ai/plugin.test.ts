@@ -28,8 +28,8 @@ describe('createAIPlugin', () => {
 		);
 
 		expect(response.status).toBe(401);
-		const body = await response.json();
-		expect(body.error).toContain('Missing API key');
+		const body = await response.text();
+		expect(body).toContain('Missing API key');
 	});
 
 	test('returns 400 for unsupported provider', async () => {
@@ -48,8 +48,8 @@ describe('createAIPlugin', () => {
 		);
 
 		expect(response.status).toBe(400);
-		const body = await response.json();
-		expect(body.error).toBe('Unsupported provider: mistral');
+		const body = await response.text();
+		expect(body).toBe('Unsupported provider: mistral');
 	});
 
 	test('returns 422 when required body fields are missing', async () => {
@@ -100,8 +100,8 @@ describe('createAIPlugin', () => {
 		);
 
 		expect(response.status).toBe(400);
-		const body = await response.json();
-		expect(body.error).toBe('Unsupported provider: anthropic');
+		const body = await response.text();
+		expect(body).toBe('Unsupported provider: anthropic');
 	});
 
 	test('route is reachable through Elysia prefix mount', async () => {
@@ -160,8 +160,8 @@ describe('createAIPlugin', () => {
 		);
 
 		expect(response.status).toBe(401);
-		const body = await response.json();
-		expect(body.error).toContain('OPENAI_API_KEY');
+		const body = await response.text();
+		expect(body).toContain('OPENAI_API_KEY');
 	});
 
 	test('plugin accepts request without header when env var set', async () => {

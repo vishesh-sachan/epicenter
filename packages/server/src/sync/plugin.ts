@@ -138,12 +138,11 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 	// ── REST routes (Bearer auth) ──────────────────────────────────────────
 
 	const restAuth = new Elysia().guard({
-		async beforeHandle({ headers, set }) {
+		async beforeHandle({ headers, status }) {
 			const token = extractBearerToken(headers.authorization);
 			const authorized = await validateAuth(config?.auth, token);
 			if (!authorized) {
-				set.status = 401;
-				return { error: 'Unauthorized' };
+				return status('Unauthorized', 'Unauthorized');
 			}
 		},
 	});
@@ -152,28 +151,25 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 		.use(
 			restAuth
 				.get('/', () => ({ rooms: roomManager.roomInfo() }))
-				.get('/:room', ({ params, set }) => {
+				.get('/:room', ({ params, set, status }) => {
 					const doc = roomManager.getDoc(params.room);
 					if (!doc) {
-						set.status = 404;
-						return { error: `Room not found: ${params.room}` };
+						return status('Not Found', `Room not found: ${params.room}`);
 					}
 					set.headers['content-type'] = 'application/octet-stream';
 					return Y.encodeStateAsUpdate(doc);
 				})
-				.post('/:room', async ({ params, request, set }) => {
+				.post('/:room', async ({ params, request, status }) => {
 					const doc = roomManager.getOrCreateDoc(params.room);
 					if (!doc) {
-						set.status = 404;
-						return { error: `Room not found: ${params.room}` };
+						return status('Not Found', `Room not found: ${params.room}`);
 					}
 
 					const arrayBuffer = await request.arrayBuffer();
 					const update = new Uint8Array(arrayBuffer);
 
 					if (update.length === 0) {
-						set.status = 400;
-						return { error: 'Empty update body' };
+						return status('Bad Request', 'Empty update body');
 					}
 
 					const { error } = trySync({
@@ -184,8 +180,7 @@ export function createSyncPlugin(config?: SyncPluginConfig) {
 					});
 
 					if (error) {
-						set.status = 400;
-						return { error: 'Invalid Yjs update' };
+						return status('Bad Request', 'Invalid Yjs update');
 					}
 
 					return { ok: true };

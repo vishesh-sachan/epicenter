@@ -50,7 +50,7 @@ export function createAIPlugin(config?: AIPluginConfig) {
 
 	return new Elysia().post(
 		'/chat',
-		async ({ body, headers, set }) => {
+		async ({ body, headers, status }) => {
 			const headerApiKey = headers['x-provider-api-key'];
 			const {
 				messages,
@@ -62,29 +62,26 @@ export function createAIPlugin(config?: AIPluginConfig) {
 			} = body;
 
 			if (!allowedProviders.includes(provider)) {
-				set.status = 400;
-				return { error: `Unsupported provider: ${provider}` };
+				return status('Bad Request', `Unsupported provider: ${provider}`);
 			}
 
 			if (!isSupportedProvider(provider)) {
-				set.status = 400;
-				return { error: `Unsupported provider: ${provider}` };
+				return status('Bad Request', `Unsupported provider: ${provider}`);
 			}
 
 			const apiKey = resolveApiKey(provider, headerApiKey);
 
 			if (provider !== 'ollama' && !apiKey) {
 				const envVarName = PROVIDER_ENV_VARS[provider];
-				set.status = 401;
-				return {
-					error: `Missing API key: set x-provider-api-key header or configure ${envVarName} environment variable`,
-				};
+				return status(
+					'Unauthorized',
+					`Missing API key: set x-provider-api-key header or configure ${envVarName} environment variable`,
+				);
 			}
 
 			const adapter = createAdapter(provider, model, apiKey ?? '');
 			if (!adapter) {
-				set.status = 400;
-				return { error: `Unsupported provider: ${provider}` };
+				return status('Bad Request', `Unsupported provider: ${provider}`);
 			}
 
 			// AbortController for cleanup when client disconnects mid-stream.
@@ -106,21 +103,20 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				return toServerSentEventsResponse(stream, { abortController });
 			} catch (error) {
 				// Distinguish client disconnects from provider errors.
-				// TanStack AI reference pattern: return 499 for aborted requests.
+				// TanStack AI reference pattern: 499 for aborted requests.
+				// 499 is non-standard (nginx), so use numeric literal.
 				if (
 					error instanceof Error &&
 					(error.name === 'AbortError' || abortController.signal.aborted)
 				) {
-					set.status = 499;
-					return { error: 'Client closed request' };
+					throw status(499, 'Client closed request');
 				}
 
 				// Provider errors (bad API key, rate limit, model not found)
 				// may throw synchronously before streaming starts.
 				const message =
 					error instanceof Error ? error.message : 'Unknown error';
-				set.status = 502;
-				return { error: `Provider error: ${message}` };
+				throw status('Bad Gateway', `Provider error: ${message}`);
 			}
 		},
 		{
@@ -132,6 +128,12 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				systemPrompt: t.Optional(t.String()),
 				modelOptions: t.Optional(t.Any()), // Provider-specific options (temperature, thinking, etc.)
 			}),
+			response: {
+				400: t.String(),
+				401: t.String(),
+				499: t.String(),
+				502: t.String(),
+			},
 		},
 	);
 }
