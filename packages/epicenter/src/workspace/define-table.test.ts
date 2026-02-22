@@ -262,7 +262,7 @@ describe('defineTable', () => {
 
 			expect(files.documents.content.guid).toBe('id');
 			expect(files.documents.content.updatedAt).toBe('updatedAt');
-			expect(files.documents.content.tags).toBeUndefined();
+			expect(files.documents.content.tags).toEqual([]);
 		});
 
 		test('builder path adds documents to definition', () => {
@@ -283,7 +283,7 @@ describe('defineTable', () => {
 
 			expect(notes.documents.content.guid).toBe('docId');
 			expect(notes.documents.content.updatedAt).toBe('modifiedAt');
-			expect(notes.documents.content.tags).toBeUndefined();
+			expect(notes.documents.content.tags).toEqual([]);
 		});
 
 		test('multiple withDocument chains accumulate documents', () => {
@@ -348,12 +348,12 @@ describe('defineTable', () => {
 			expect(files.documents.content.tags).toEqual(['persistent', 'synced']);
 		});
 
-		test('withDocument without tags omits tags from documents', () => {
+		test('withDocument without tags defaults to empty array', () => {
 			const files = defineTable(
 				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
 			).withDocument('content', { guid: 'id', updatedAt: 'updatedAt' });
 
-			expect(files.documents.content.tags).toBeUndefined();
+			expect(files.documents.content.tags).toEqual([]);
 		});
 
 		test('withDocument preserves schema validation and migrate behavior', () => {

@@ -153,7 +153,7 @@ export function createWorkspace<
 		const tableDocsNamespace: Record<string, Documents<BaseRow>> = {};
 
 		for (const [docName, documentConfig] of Object.entries(documentsDef)) {
-			const docTags: readonly string[] = documentConfig.tags ?? [];
+			const docTags: readonly string[] = documentConfig.tags;
 
 			const documents = createDocuments({
 				id,

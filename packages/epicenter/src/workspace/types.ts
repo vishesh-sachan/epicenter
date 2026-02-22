@@ -173,18 +173,15 @@ export type DocumentConfig<
 	guid: TGuid;
 	updatedAt: TUpdatedAt;
 	/**
-	 * Optional tag literals for document extension targeting.
+	 * Tag literals for document extension targeting.
 	 *
-	 * Uses `[TTags] extends [never]` (bracketed) to detect when no tags were provided.
-	 * The brackets make this a non-distributive conditional — without them,
-	 * `never extends never` distributes over the empty union and resolves to `never`
-	 * instead of `true`, silently breaking the check.
+	 * Always present — defaults to `[]` when no tags are declared.
 	 *
-	 * - `TTags = never` (no tags on document) → `undefined`
+	 * - `TTags = never` (no tags on document) → `readonly never[]` (only accepts `[]`)
 	 * - `TTags = 'persistent' | 'synced'` → `readonly ('persistent' | 'synced')[]`
 	 * - `TTags = string` (bare `DocumentConfig`) → `readonly string[]`
 	 */
-	tags?: [TTags] extends [never] ? undefined : readonly TTags[];
+	tags: readonly TTags[];
 };
 
 /**
@@ -207,10 +204,6 @@ export type DocumentExtensionRegistration = {
 	tags: readonly string[];
 };
 
-/** Extract tags from a single DocumentConfig. */
-export type ExtractDocumentTags<T> =
-	T extends DocumentConfig<string, string, infer TTags> ? TTags : never;
-
 /**
  * Extract all tags across all tables' document configs.
  *
@@ -225,10 +218,10 @@ export type ExtractDocumentTags<T> =
  * ```
  */
 export type ExtractAllDocumentTags<TTableDefs extends TableDefinitions> = {
-	[K in keyof TTableDefs]: TTableDefs[K] extends { documents: infer TDocuments }
-		? TDocuments extends Record<string, infer TBinding>
-			? ExtractDocumentTags<TBinding>
-			: never
+	[K in keyof TTableDefs]: TTableDefs[K] extends {
+		documents: Record<string, DocumentConfig<string, string, infer TTags>>;
+	}
+		? TTags
 		: never;
 }[keyof TTableDefs];
 

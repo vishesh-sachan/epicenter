@@ -100,7 +100,7 @@ type TableDefinitionWithDocBuilder<
 			StandardSchemaV1.InferOutput<LastSchema<TVersions>>
 		>,
 		// Defaults to `never` when no tags are passed. This flows into
-		// DocumentConfig<..., never>, making its `tags` property `undefined`.
+		// DocumentConfig<..., never>, making `tags: readonly never[]` (only accepts `[]`).
 		const TTags extends string = never,
 	>(
 		name: TName,
@@ -251,7 +251,7 @@ function attachDocumentBuilder<
 				...def,
 				documents: {
 					...def.documents,
-					[name]: config,
+					[name]: { ...config, tags: config.tags ?? [] },
 				},
 			});
 		},
