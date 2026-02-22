@@ -14,7 +14,7 @@ It's structured in three layers. Start at the top, drop down when you need contr
 ├────────────────────────────────────────────────┤
 │  defineWorkspace() → createWorkspace()         │ ← Most apps
 │  ↓ Result: WorkspaceClient                     │
-│  { tables, kv, extensions, ydoc }               │
+│  { tables, kv, documents, awareness, extensions } │
 ├────────────────────────────────────────────────┤
 │  createTables(ydoc, {...})                     │ ← Need control
 │  createKv(ydoc, {...})                         │
@@ -58,7 +58,8 @@ const client = createWorkspace({
 }).withExtension('persistence', ({ ydoc }) => {
 	const provider = new IndexeddbPersistence(ydoc.guid, ydoc);
 	return {
-		exports: { provider },
+		provider,
+		whenReady: provider.whenSynced,
 		destroy: () => provider.destroy(),
 	};
 });
@@ -67,7 +68,7 @@ await client.whenReady;
 client.tables.posts.set({ id: '1', title: 'Hello' });
 ```
 
-Extensions receive `{ ydoc, tables, kv, id, ..., whenReady, extensions }` — all workspace resources at the top level. They return a plain `{ exports?, whenReady?, destroy? }` object — the framework normalizes defaults internally.
+Extensions receive `{ id, ydoc, tables, kv, documents, awareness, whenReady, extensions }` — all workspace resources at the top level. They return a flat object with custom properties alongside optional `whenReady` and `destroy` — the framework normalizes defaults internally.
 
 ### Lower-Level APIs
 

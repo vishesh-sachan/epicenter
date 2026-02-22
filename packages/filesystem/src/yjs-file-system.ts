@@ -1,4 +1,4 @@
-import type { DocumentBinding, TableHelper } from '@epicenter/hq';
+import type { Documents, TableHelper } from '@epicenter/hq';
 import type { IFileSystem } from 'just-bash';
 import {
 	type ContentHelpers,
@@ -8,14 +8,6 @@ import { FileTree } from './file-tree.js';
 import { posixResolve } from './path-utils.js';
 import type { FileId, FileRow } from './types.js';
 import { disambiguateNames, FS_ERRORS } from './validation.js';
-
-/**
- * Table helper with a document binding attached via `.withDocument()`.
- * This is the shape that `createWorkspace()` produces for tables with document declarations.
- */
-type FilesTableWithDocs = TableHelper<FileRow> & {
-	docs: { content: DocumentBinding<FileRow> };
-};
 
 /** Validate `fs` extends {@link IFileSystem} while preserving the full inferred type (avoids excess-property errors from `satisfies`). */
 function FileSystem<T extends IFileSystem>(fs: T): T {
@@ -27,7 +19,7 @@ function FileSystem<T extends IFileSystem>(fs: T): T {
  *
  * Thin orchestrator that delegates metadata operations to {@link FileTree}
  * and content I/O to {@link ContentHelpers} (backed by a
- * {@link DocumentBinding}). Every method applies `cwd` via
+ * {@link Documents}). Every method applies `cwd` via
  * {@link posixResolve}, then calls the appropriate sub-service.
  *
  * The returned object satisfies the `IFileSystem` interface from `just-bash`,
@@ -42,15 +34,16 @@ function FileSystem<T extends IFileSystem>(fs: T): T {
  * @example
  * ```typescript
  * const ws = createWorkspace({ id: 'app', tables: { files: filesTable } });
- * const fs = createYjsFileSystem(ws.tables.files);
+ * const fs = createYjsFileSystem(ws.tables.files, ws.documents.files.content);
  * ```
  */
 export function createYjsFileSystem(
-	filesTable: FilesTableWithDocs,
+	filesTable: TableHelper<FileRow>,
+	contentDocuments: Documents<FileRow>,
 	cwd: string = '/',
 ) {
 	const tree = new FileTree(filesTable);
-	const content = createContentHelpers(filesTable.docs.content);
+	const content = createContentHelpers(contentDocuments);
 
 	return FileSystem({
 		/** Content I/O operations — exposed for direct content reads/writes by UI layers. */
@@ -65,13 +58,13 @@ export function createYjsFileSystem(
 		 * Look up the internal file ID for a resolved absolute path.
 		 *
 		 * Returns `undefined` if the path doesn't exist. Useful for content-layer
-		 * operations that need the ID to open a document binding directly.
+		 * operations that need the ID to open a document directly.
 		 *
 		 * @example
 		 * ```typescript
 		 * const fileId = fs.lookupId('/docs/readme.md');
 		 * if (fileId) {
-		 *   const doc = await binding.open(fileId);
+		 *   const doc = await documents.open(fileId);
 		 * }
 		 * ```
 		 */
@@ -83,7 +76,7 @@ export function createYjsFileSystem(
 		/**
 		 * Tear down reactive indexes.
 		 *
-		 * Content doc cleanup is handled by the workspace's document binding
+		 * Content doc cleanup is handled by the workspace's documents manager
 		 * destroy cascade — no need to call `destroyAll()` here.
 		 */
 		destroy() {
@@ -272,7 +265,7 @@ export function createYjsFileSystem(
 				if (tree.activeChildren(id).length > 0) throw FS_ERRORS.ENOTEMPTY(abs);
 			}
 
-			// Soft-delete the row. The document binding's table observer
+			// Soft-delete the row. The documents manager's table observer
 			// automatically cleans up the associated content doc.
 			tree.softDelete(id);
 

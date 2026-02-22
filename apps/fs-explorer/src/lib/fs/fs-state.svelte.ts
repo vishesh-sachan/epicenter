@@ -37,7 +37,7 @@ function createFsState() {
 		.withDocumentExtension('persistence', indexeddbPersistence, {
 			tags: ['persistent'],
 		});
-	const fs = createYjsFileSystem(ws.tables.files);
+	const fs = createYjsFileSystem(ws.tables.files, ws.documents.files.content);
 
 	// ── Reactive state ────────────────────────────────────────────────
 	let version = $state(0);
@@ -227,14 +227,14 @@ function createFsState() {
 			},
 
 			/**
-			 * Read file content as string via the document binding.
+			 * Read file content as string via the documents manager.
 			 *
 			 * Opens (or reuses) the per-file Y.Doc via the document handle,
 			 * then reads the text content synchronously.
 			 */
 			async readContent(id: FileId): Promise<string | null> {
 				try {
-					const handle = await ws.tables.files.docs.content.open(id);
+					const handle = await ws.documents.files.content.open(id);
 					return handle.read();
 				} catch (err) {
 					console.error('Failed to read content:', err);
@@ -243,14 +243,14 @@ function createFsState() {
 			},
 
 			/**
-			 * Write file content via the document binding.
+			 * Write file content via the documents manager.
 			 *
-			 * The binding automatically bumps `updatedAt` on the file row
+			 * The documents manager automatically bumps `updatedAt` on the file row
 			 * when content changes. Toasts only on error.
 			 */
 			async writeContent(id: FileId, data: string): Promise<void> {
 				try {
-					const handle = await ws.tables.files.docs.content.open(id);
+					const handle = await ws.documents.files.content.open(id);
 					handle.write(data);
 				} catch (err) {
 					toast.error(

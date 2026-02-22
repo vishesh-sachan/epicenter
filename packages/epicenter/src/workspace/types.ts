@@ -112,14 +112,14 @@ export type LastSchema<T extends readonly CombinedStandardSchema[]> =
  * A table definition created by defineTable().version().migrate()
  *
  * @typeParam TVersions - Tuple of schema versions (each must include `{ id: string }`)
- * @typeParam TDocs - Record of named document bindings declared via `.withDocument()`
+ * @typeParam TDocuments - Record of named document configs declared via `.withDocument()`
  */
 export type TableDefinition<
 	TVersions extends readonly CombinedStandardSchema<{
 		id: string;
 		_v: number;
 	}>[],
-	TDocs extends Record<string, DocBinding> = Record<string, never>,
+	TDocuments extends Record<string, DocumentConfig> = Record<string, never>,
 > = {
 	schema: CombinedStandardSchema<
 		unknown,
@@ -128,7 +128,7 @@ export type TableDefinition<
 	migrate: (
 		row: StandardSchemaV1.InferOutput<TVersions[number]>,
 	) => StandardSchemaV1.InferOutput<LastSchema<TVersions>>;
-	docs: TDocs;
+	documents: TDocuments;
 };
 
 /** Extract the row type from a TableDefinition */
@@ -146,11 +146,11 @@ export type InferTableVersionUnion<T> = T extends {
 	: never;
 
 // ════════════════════════════════════════════════════════════════════════════
-// DOCUMENT BINDING TYPES
+// DOCUMENT CONFIG TYPES
 // ════════════════════════════════════════════════════════════════════════════
 
 /**
- * A named document binding declared via `.withDocument()`.
+ * A named document declared via `.withDocument()`.
  *
  * Maps a document concept (e.g., 'content') to two columns on the table:
  * - `guid`: The column storing the Y.Doc GUID (must be a string column)
@@ -160,12 +160,12 @@ export type InferTableVersionUnion<T> = T extends {
  * @typeParam TGuid - Literal string type of the guid column name
  * @typeParam TUpdatedAt - Literal string type of the updatedAt column name
  * @typeParam TTags - Literal union of tag strings for document extension targeting.
- *   Defaults to `string` so bare `DocBinding` works as a wide constraint (accepts any tags).
+ *   Defaults to `string` so bare `DocumentConfig` works as a wide constraint (accepts any tags).
  *   When `.withDocument()` is called without tags, `TTags` infers as `never` via the
  *   method's own default, which makes the `tags` property `undefined` — preventing
- *   tags on untagged bindings.
+ *   tags on untagged documents.
  */
-export type DocBinding<
+export type DocumentConfig<
 	TGuid extends string = string,
 	TUpdatedAt extends string = string,
 	TTags extends string = string,
@@ -173,18 +173,15 @@ export type DocBinding<
 	guid: TGuid;
 	updatedAt: TUpdatedAt;
 	/**
-	 * Optional tag literals for document extension targeting.
+	 * Tag literals for document extension targeting.
 	 *
-	 * Uses `[TTags] extends [never]` (bracketed) to detect when no tags were provided.
-	 * The brackets make this a non-distributive conditional — without them,
-	 * `never extends never` distributes over the empty union and resolves to `never`
-	 * instead of `true`, silently breaking the check.
+	 * Always present — defaults to `[]` when no tags are declared.
 	 *
-	 * - `TTags = never` (no tags on binding) → `undefined`
+	 * - `TTags = never` (no tags on document) → `readonly never[]` (only accepts `[]`)
 	 * - `TTags = 'persistent' | 'synced'` → `readonly ('persistent' | 'synced')[]`
-	 * - `TTags = string` (bare `DocBinding`) → `readonly string[]`
+	 * - `TTags = string` (bare `DocumentConfig`) → `readonly string[]`
 	 */
-	tags?: [TTags] extends [never] ? undefined : readonly TTags[];
+	tags: readonly TTags[];
 };
 
 /**
@@ -207,12 +204,8 @@ export type DocumentExtensionRegistration = {
 	tags: readonly string[];
 };
 
-/** Extract tags from a single DocBinding. */
-export type ExtractDocTags<T> =
-	T extends DocBinding<string, string, infer TTags> ? TTags : never;
-
 /**
- * Extract all tags across all tables' document bindings.
+ * Extract all tags across all tables' document configs.
  *
  * Collects all tag literal types from all table definitions into a union
  * for type-safe autocomplete in `withDocumentExtension({ tags: [...] })`.
@@ -220,15 +213,15 @@ export type ExtractDocTags<T> =
  * @example
  * ```typescript
  * // Given tables with tags ['persistent', 'synced'] and ['ephemeral']:
- * type Tags = ExtractAllDocTags<typeof tables>;
+ * type Tags = ExtractAllDocumentTags<typeof tables>;
  * // => 'persistent' | 'synced' | 'ephemeral'
  * ```
  */
-export type ExtractAllDocTags<TTableDefs extends TableDefinitions> = {
-	[K in keyof TTableDefs]: TTableDefs[K] extends { docs: infer TDocs }
-		? TDocs extends Record<string, infer TBinding>
-			? ExtractDocTags<TBinding>
-			: never
+export type ExtractAllDocumentTags<TTableDefs extends TableDefinitions> = {
+	[K in keyof TTableDefs]: TTableDefs[K] extends {
+		documents: Record<string, DocumentConfig<string, string, infer TTags>>;
+	}
+		? TTags
 		: never;
 }[keyof TTableDefs];
 
@@ -249,7 +242,7 @@ export type NumberKeysOf<TRow> = {
 }[keyof TRow & string];
 
 /**
- * A handle to an open content Y.Doc, returned by `binding.open()`.
+ * A handle to an open content Y.Doc, returned by `documents.open()`.
  *
  * All operations are scoped to this specific document. Content methods
  * (read, write) are synchronous because the Y.Doc is already open.
@@ -273,7 +266,7 @@ export type DocumentHandle = {
 	 *
 	 * @example
 	 * ```typescript
-	 * const handle = await binding.open(guid);
+	 * const handle = await documents.open(guid);
 	 * await handle.exports.persistence?.clearData?.();
 	 * ```
 	 */
@@ -281,26 +274,26 @@ export type DocumentHandle = {
 };
 
 /**
- * Runtime binding between a table and its associated content Y.Docs.
+ * Runtime manager for a table's associated content Y.Docs.
  *
  * Manages Y.Doc creation, provider lifecycle, `updatedAt` auto-bumping,
  * and cleanup on row deletion. Most users access this via
- * `client.tables.files.docs.content`.
+ * `client.documents.files.content`.
  *
  * @typeParam TRow - The row type of the bound table
  *
  * @example
  * ```typescript
- * const handle = await binding.open(row);
+ * const handle = await documents.open(row);
  * handle.ydoc.getText('body').insert(0, 'hello');
  * // updatedAt on the row is bumped automatically
  *
  * const text = handle.read();
  * handle.write('new content');
- * await binding.close(row);
+ * await documents.close(row);
  * ```
  */
-export type DocumentBinding<TRow extends BaseRow> = {
+export type Documents<TRow extends BaseRow> = {
 	/**
 	 * Open a content Y.Doc for a row.
 	 *
@@ -324,41 +317,57 @@ export type DocumentBinding<TRow extends BaseRow> = {
 	 * Close all open documents. Called automatically by workspace destroy().
 	 */
 	closeAll(): Promise<void>;
-
-	/** Extract the GUID from a row (reads the bound guid column). */
-	guidOf(row: TRow): string;
 };
 
 /**
- * Conditionally adds a `docs` property to a table helper when the table
- * has document bindings declared via `.withDocument()`.
+ * Does this table definition have a non-empty `documents` record?
  *
- * - Tables with no `.withDocument()` → no `docs` property (empty intersection)
- * - Tables with `.withDocument()` → `{ docs: { [name]: DocumentBinding<TRow> } }`
- *
- * @example
- * ```typescript
- * // Table with docs
- * client.tables.files.docs.content.open(row)
- *
- * // Table without docs — TypeScript error
- * client.tables.tags.docs // Property 'docs' does not exist
- * ```
+ * Used by `DocumentsHelper` to filter the `documents` namespace — only tables
+ * with `.withDocument()` declarations appear in `client.documents`.
  */
-export type DocsPropertyOf<T> = T extends {
-	docs: infer TDocs;
+export type HasDocuments<T> = T extends { documents: infer TDocuments }
+	? keyof TDocuments extends never
+		? false
+		: true
+	: false;
+
+/**
+ * Extract the document map for a single table definition.
+ *
+ * Maps each doc name to a `Documents<TLatest>` where `TLatest` is the
+ * table's latest row type (inferred from the `migrate` function's return type).
+ */
+export type DocumentsOf<T> = T extends {
+	documents: infer TDocuments;
 	migrate: (...args: never[]) => infer TLatest;
 }
 	? TLatest extends BaseRow
-		? keyof TDocs extends never
-			? {} // no .withDocument() → no .docs property
-			: {
-					docs: {
-						[K in keyof TDocs]: DocumentBinding<TLatest>;
-					};
-				}
-		: {}
-	: {};
+		? { [K in keyof TDocuments]: Documents<TLatest> }
+		: never
+	: never;
+
+/**
+ * Top-level document namespace — parallel to `TablesHelper`.
+ *
+ * Only includes tables that have document configs declared via `.withDocument()`.
+ * Tables without documents are filtered out via key remapping.
+ *
+ * @example
+ * ```typescript
+ * // Table with .withDocument('content', ...)
+ * client.documents.files.content.open(row)
+ *
+ * // Table without .withDocument() — TypeScript error
+ * client.documents.tags // Property 'tags' does not exist
+ * ```
+ */
+export type DocumentsHelper<TTableDefinitions extends TableDefinitions> = {
+	[K in keyof TTableDefinitions as HasDocuments<
+		TTableDefinitions[K]
+	> extends true
+		? K
+		: never]: DocumentsOf<TTableDefinitions[K]>;
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // KV DEFINITION TYPES
@@ -700,12 +709,16 @@ export type KvDefinitions = Record<
 	KvDefinition<any>
 >;
 
-/** Tables helper object with all table helpers, including .docs when declared */
+/**
+ * Tables helper — pure CRUD, no document management.
+ *
+ * Document managers live in the separate `documents` namespace on the client.
+ * This type is a plain mapped type over table definitions.
+ */
 export type TablesHelper<TTableDefinitions extends TableDefinitions> = {
 	[K in keyof TTableDefinitions]: TableHelper<
 		InferTableRow<TTableDefinitions[K]>
-	> &
-		DocsPropertyOf<TTableDefinitions[K]>;
+	>;
 };
 
 /** KV helper with dictionary-style access */
@@ -875,13 +888,13 @@ export type WorkspaceClientBuilder<
 
 	/**
 	 * Register a document extension that fires when content Y.Docs are opened
-	 * via a table's document binding.
+	 * via a table's documents manager.
 	 *
 	 * Document extensions are separate from workspace extensions — they operate on
 	 * content Y.Docs (not the workspace Y.Doc). Use optional `{ tags }` to target
 	 * specific document types declared via `withDocument(..., { tags })`.
 	 *
-	 * If no `tags` option is provided, the extension is universal (fires for all content docs).
+	 * If no `tags` option is provided, the extension is universal (fires for all content documents).
 	 * If `tags` is provided, the extension fires only for documents whose tags share at
 	 * least one value with the extension's tags (set intersection).
 	 *
@@ -908,7 +921,7 @@ export type WorkspaceClientBuilder<
 					destroy?: () => MaybePromise<void>;
 			  })
 			| void,
-		options?: { tags?: ExtractAllDocTags<TTableDefinitions>[] },
+		options?: { tags?: ExtractAllDocumentTags<TTableDefinitions>[] },
 	): WorkspaceClientBuilder<
 		TId,
 		TTableDefinitions,
@@ -1013,8 +1026,10 @@ export type ExtensionContext<
 		kv: TKvDefinitions;
 		awareness: TAwarenessDefinitions;
 	};
-	/** Typed table helpers */
+	/** Typed table helpers — pure CRUD, no document management */
 	tables: TablesHelper<TTableDefinitions>;
+	/** Document managers — only tables with `.withDocument()` appear here */
+	documents: DocumentsHelper<TTableDefinitions>;
 	/** Typed KV helper */
 	kv: KvHelper<TKvDefinitions>;
 	/** Typed awareness helper */
@@ -1072,8 +1087,10 @@ export type WorkspaceClient<
 		kv: TKvDefinitions;
 		awareness: TAwarenessDefinitions;
 	};
-	/** Typed table helpers */
+	/** Typed table helpers — pure CRUD, no document management */
 	tables: TablesHelper<TTableDefinitions>;
+	/** Document managers — only tables with `.withDocument()` appear here */
+	documents: DocumentsHelper<TTableDefinitions>;
 	/** Typed KV helper */
 	kv: KvHelper<TKvDefinitions>;
 	/** Typed awareness helper — always present, like tables and kv */

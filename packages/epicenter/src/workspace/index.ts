@@ -108,11 +108,6 @@ export { defineWorkspace } from './define-workspace.js';
 // Workspace Creation
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { CreateDocumentConfig } from './create-document.js';
-export {
-	createDocument,
-	DOCUMENT_BINDING_ORIGIN,
-} from './create-document.js';
 export { createWorkspace } from './create-workspace.js';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -156,11 +151,11 @@ export type {
 	// Base row type
 	BaseRow,
 	DeleteResult,
-	// Document binding types
-	DocBinding,
-	DocsPropertyOf,
-	DocumentBinding,
+	// Document types
+	DocumentConfig,
 	DocumentHandle,
+	Documents,
+	DocumentsHelper,
 	// Extension types
 	ExtensionContext,
 	ExtensionFactory,
@@ -175,10 +170,8 @@ export type {
 	KvGetResult,
 	KvHelper,
 	NotFoundResult,
-	NumberKeysOf,
 	// Result types - composed
 	RowResult,
-	StringKeysOf,
 	// Definition types
 	TableDefinition,
 	// Map types
