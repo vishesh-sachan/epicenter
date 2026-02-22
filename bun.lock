@@ -131,6 +131,8 @@
         "@epicenter/hq": "workspace:*",
         "@epicenter/ui": "workspace:*",
         "@lucide/svelte": "catalog:",
+        "@tanstack/ai": "^0.5.1",
+        "@tanstack/ai-svelte": "^0.5.4",
         "@wxt-dev/storage": "^1.2.6",
         "arktype": "catalog:",
         "clsx": "catalog:",
@@ -1143,6 +1145,8 @@
 
     "@tanstack/ai-anthropic": ["@tanstack/ai-anthropic@0.5.0", "", { "dependencies": { "@anthropic-ai/sdk": "^0.71.2" }, "peerDependencies": { "@tanstack/ai": "^0.5.0", "zod": "^4.0.0" } }, "sha512-PiQx4Kpw+NNjXvVhes29LoO/IvD8M9GGQsNvtLCd+dDhZt3FzdNwHWMZBCpaQWPW142iuhowagh79X//onNjDw=="],
 
+    "@tanstack/ai-client": ["@tanstack/ai-client@0.4.5", "", { "dependencies": { "@tanstack/ai": "0.5.1" } }, "sha512-L5pAuwtBs/iLFgiFB3acq/NNj/xBCMWTCZvOKC2PQsMHBnxjU5l8cZNYVCGk8Tzf/a9fe6s4wHOgckcHxkHStA=="],
+
     "@tanstack/ai-gemini": ["@tanstack/ai-gemini@0.5.0", "", { "dependencies": { "@google/genai": "^1.30.0" }, "peerDependencies": { "@tanstack/ai": "^0.5.0" } }, "sha512-gunJgwRG+38fbYSE83/XJMHFy/7hDN4Fb91vAAZLK3nh4DoN0ReVbRB4BK9cY9iVYQqGq2PA8d5ruDgfcKO2hQ=="],
 
     "@tanstack/ai-grok": ["@tanstack/ai-grok@0.5.0", "", { "dependencies": { "openai": "^6.9.1" }, "peerDependencies": { "@tanstack/ai": "^0.5.0", "zod": "^4.0.0" } }, "sha512-X2ix/NmAXC1EyE3UIDSdX+T9A3VwWvQrnAomMyxqGDbDHHm+yQbjioloGOcwQ6Z3yzONeVcO36T6apoX2UPLsw=="],
@@ -1150,6 +1154,8 @@
     "@tanstack/ai-ollama": ["@tanstack/ai-ollama@0.5.0", "", { "dependencies": { "ollama": "^0.6.3" }, "peerDependencies": { "@tanstack/ai": "^0.5.0" } }, "sha512-CR/f6OS7WzrC1VIK819lDSHeEJWfpaEVyO0bSmE7EGUAfbv+JmDLd8tI2Pk/DhIRVw/rk0Zlcn35jWvvXLjwTg=="],
 
     "@tanstack/ai-openai": ["@tanstack/ai-openai@0.5.0", "", { "dependencies": { "openai": "^6.9.1" }, "peerDependencies": { "@tanstack/ai": "^0.5.0", "zod": "^4.0.0" } }, "sha512-0xJg+BkqVgIRbl4LyiPQWCLOapfGpK4lSzqjaWRkz2Hf1C3m4exg76rBuv1mvr4G3XAR5SnMRSj3XxlWMuRImA=="],
+
+    "@tanstack/ai-svelte": ["@tanstack/ai-svelte@0.5.4", "", { "dependencies": { "@tanstack/ai-client": "0.4.5" }, "peerDependencies": { "@tanstack/ai": "^0.5.1", "svelte": "^5.0.0" } }, "sha512-IZkQMnS4j1z3i99hSXwRxrk5bIdHgcThagLQLJ8EfZKJKctsG+YIOH2lJXZ3qjlmjkL2pTNUtdkVOo9GbSMzwg=="],
 
     "@tanstack/devtools-event-client": ["@tanstack/devtools-event-client@0.4.0", "", {}, "sha512-RPfGuk2bDZgcu9bAJodvO2lnZeHuz4/71HjZ0bGb/SPg8+lyTA+RLSKQvo7fSmPSi8/vcH3aKQ8EM9ywf1olaw=="],
 
