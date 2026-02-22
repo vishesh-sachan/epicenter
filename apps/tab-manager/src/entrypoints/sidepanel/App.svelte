@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AiChat from '$lib/components/AiChat.svelte';
 	import FlatTabList from '$lib/components/FlatTabList.svelte';
 	import SavedTabList from '$lib/components/SavedTabList.svelte';
 	import { browserState } from '$lib/state/browser-state.svelte';
@@ -6,6 +7,7 @@
 	import { Badge } from '@epicenter/ui/badge';
 	import * as Tabs from '@epicenter/ui/tabs';
 	import * as Tooltip from '@epicenter/ui/tooltip';
+	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 
 	const totalTabs = $derived(
 		browserState.windows.reduce(
@@ -37,6 +39,10 @@
 							</Badge>
 						{/if}
 					</Tabs.Trigger>
+					<Tabs.Trigger value="ai" class="flex-1 gap-1.5">
+						<SparklesIcon class="size-3.5" />
+						AI
+					</Tabs.Trigger>
 				</Tabs.List>
 			</header>
 			<!-- Gate on browser state seed so child components can read data synchronously -->
@@ -52,6 +58,9 @@
 					<SavedTabList />
 				</Tabs.Content>
 			{/await}
+			<Tabs.Content value="ai" class="flex-1 min-h-0 mt-0">
+				<AiChat />
+			</Tabs.Content>
 		</Tabs.Root>
 	</main>
 </Tooltip.Provider>
