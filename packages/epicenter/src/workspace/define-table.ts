@@ -45,7 +45,7 @@ import type {
 import { createUnionSchema } from './schema-union.js';
 import type {
 	BaseRow,
-	DocBinding,
+	DocumentConfig,
 	LastSchema,
 	NumberKeysOf,
 	StringKeysOf,
@@ -63,7 +63,7 @@ import type {
  */
 type TableDefinitionWithDocBuilder<
 	TVersions extends readonly CombinedStandardSchema<BaseRow>[],
-	TDocs extends Record<string, DocBinding>,
+	TDocs extends Record<string, DocumentConfig>,
 > = TableDefinition<TVersions, TDocs> & {
 	/**
 	 * Declare a named document binding on this table.
@@ -100,7 +100,7 @@ type TableDefinitionWithDocBuilder<
 			StandardSchemaV1.InferOutput<LastSchema<TVersions>>
 		>,
 		// Defaults to `never` when no tags are passed. This flows into
-		// DocBinding<..., never>, making its `tags` property `undefined`.
+		// DocumentConfig<..., never>, making its `tags` property `undefined`.
 		const TTags extends string = never,
 	>(
 		name: TName,
@@ -111,7 +111,7 @@ type TableDefinitionWithDocBuilder<
 		},
 	): TableDefinitionWithDocBuilder<
 		TVersions,
-		TDocs & Record<TName, DocBinding<TGuid, TUpdatedAt, TTags>>
+		TDocs & Record<TName, DocumentConfig<TGuid, TUpdatedAt, TTags>>
 	>;
 };
 
@@ -237,16 +237,16 @@ function addWithDocument<
 	T extends {
 		schema: CombinedStandardSchema;
 		migrate: unknown;
-		docs: Record<string, DocBinding>;
+		docs: Record<string, DocumentConfig>;
 	},
 >(
 	def: T,
 ): T & {
-	withDocument(name: string, binding: DocBinding): T;
+	withDocument(name: string, binding: DocumentConfig): T;
 } {
 	return {
 		...def,
-		withDocument(name: string, binding: DocBinding) {
+		withDocument(name: string, binding: DocumentConfig) {
 			return addWithDocument({
 				...def,
 				docs: {
@@ -256,6 +256,6 @@ function addWithDocument<
 			});
 		},
 	} as T & {
-		withDocument(name: string, binding: DocBinding): T;
+		withDocument(name: string, binding: DocumentConfig): T;
 	};
 }

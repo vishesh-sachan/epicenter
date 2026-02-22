@@ -1,4 +1,4 @@
-import type { DocumentBinding, TableHelper } from '@epicenter/hq';
+import type { Documents, TableHelper } from '@epicenter/hq';
 import type { IFileSystem } from 'just-bash';
 import {
 	type ContentHelpers,
@@ -19,7 +19,7 @@ function FileSystem<T extends IFileSystem>(fs: T): T {
  *
  * Thin orchestrator that delegates metadata operations to {@link FileTree}
  * and content I/O to {@link ContentHelpers} (backed by a
- * {@link DocumentBinding}). Every method applies `cwd` via
+ * {@link Documents}). Every method applies `cwd` via
  * {@link posixResolve}, then calls the appropriate sub-service.
  *
  * The returned object satisfies the `IFileSystem` interface from `just-bash`,
@@ -39,7 +39,7 @@ function FileSystem<T extends IFileSystem>(fs: T): T {
  */
 export function createYjsFileSystem(
 	filesTable: TableHelper<FileRow>,
-	contentBinding: DocumentBinding<FileRow>,
+	contentBinding: Documents<FileRow>,
 	cwd: string = '/',
 ) {
 	const tree = new FileTree(filesTable);

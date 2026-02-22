@@ -1,10 +1,10 @@
-import type { DocumentBinding } from '@epicenter/hq';
+import type { Documents } from '@epicenter/hq';
 import { parseSheetFromCsv } from './sheet-helpers.js';
 import { createTimeline } from './timeline-helpers.js';
 import type { FileId, FileRow } from './types.js';
 
 /**
- * Content I/O backed by a {@link DocumentBinding}.
+ * Content I/O backed by a {@link Documents}.
  *
  * Thin wrappers around `binding.open()` + timeline for mode-specific
  * operations (binary, sheet, text append) that the binding's built-in
@@ -45,7 +45,7 @@ export type ContentHelpers = {
  * ```
  */
 export function createContentHelpers(
-	binding: DocumentBinding<FileRow>,
+	binding: Documents<FileRow>,
 ): ContentHelpers {
 	return {
 		async read(fileId) {

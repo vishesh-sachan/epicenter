@@ -1,5 +1,5 @@
 /**
- * createDocument() — runtime factory for bidirectional document bindings.
+ * createDocuments() — runtime factory for bidirectional document bindings.
  *
  * Creates a binding between a table and its associated content Y.Docs.
  * The binding:
@@ -12,7 +12,7 @@
  *
  * @example
  * ```typescript
- * import { createDocument, createTables, defineTable } from '@epicenter/hq';
+ * import { createDocuments, createTables, defineTable } from '@epicenter/hq';
  * import * as Y from 'yjs';
  * import { type } from 'arktype';
  *
@@ -23,7 +23,7 @@
  * const ydoc = new Y.Doc({ guid: 'my-workspace' });
  * const tables = createTables(ydoc, { files: filesTable });
  *
- * const contentBinding = createDocument({
+ * const contentBinding = createDocuments({
  *   guidKey: 'id',
  *   updatedAtKey: 'updatedAt',
  *   tableHelper: tables.files,
@@ -46,23 +46,23 @@ import {
 } from './lifecycle.js';
 import type {
 	BaseRow,
-	DocumentBinding,
 	DocumentExtensionRegistration,
 	DocumentHandle,
+	Documents,
 	TableHelper,
 } from './types.js';
 
 /**
  * Sentinel symbol used as the Y.js transaction origin when the document binding
- * bumps `updatedAt` on a row. Consumers can check `transaction.origin === DOCUMENT_BINDING_ORIGIN`
+ * bumps `updatedAt` on a row. Consumers can check `transaction.origin === DOCUMENTS_ORIGIN`
  * to distinguish auto-bumps from user-initiated row changes.
  *
  * @example
  * ```typescript
- * import { DOCUMENT_BINDING_ORIGIN } from '@epicenter/hq';
+ * import { DOCUMENTS_ORIGIN } from '@epicenter/hq';
  *
  * client.tables.files.observe((changedIds, transaction) => {
- *   if (transaction.origin === DOCUMENT_BINDING_ORIGIN) {
+ *   if (transaction.origin === DOCUMENTS_ORIGIN) {
  *     // This was an auto-bump from a content doc edit
  *     return;
  *   }
@@ -70,7 +70,7 @@ import type {
  * });
  * ```
  */
-export const DOCUMENT_BINDING_ORIGIN = Symbol('document-binding');
+export const DOCUMENTS_ORIGIN = Symbol('documents');
 
 /**
  * Internal entry for an open document.
@@ -117,11 +117,11 @@ function makeHandle(
 }
 
 /**
- * Configuration for `createDocument()`.
+ * Configuration for `createDocuments()`.
  *
  * @typeParam TRow - The row type of the bound table
  */
-export type CreateDocumentConfig<TRow extends BaseRow> = {
+export type CreateDocumentsConfig<TRow extends BaseRow> = {
 	/** The workspace identifier. Passed through to `DocumentContext.id`. */
 	id?: string;
 	/** Column name storing the Y.Doc GUID. */
@@ -149,7 +149,7 @@ export type CreateDocumentConfig<TRow extends BaseRow> = {
 	 * Receives the GUID of the associated document.
 	 * Default: close (free memory, preserve persisted data).
 	 */
-	onRowDeleted?: (binding: DocumentBinding<TRow>, guid: string) => void;
+	onRowDeleted?: (binding: Documents<TRow>, guid: string) => void;
 };
 
 /**
@@ -163,11 +163,11 @@ export type CreateDocumentConfig<TRow extends BaseRow> = {
  * - Automatic cleanup when rows are deleted from the table
  *
  * @param config - Binding configuration
- * @returns A `DocumentBinding<TRow>` with open/close/closeAll/guidOf methods
+ * @returns A `Documents<TRow>` with open/close/closeAll/guidOf methods
  */
-export function createDocument<TRow extends BaseRow>(
-	config: CreateDocumentConfig<TRow>,
-): DocumentBinding<TRow> {
+export function createDocuments<TRow extends BaseRow>(
+	config: CreateDocumentsConfig<TRow>,
+): Documents<TRow> {
 	const {
 		id = '',
 		guidKey,
@@ -222,7 +222,7 @@ export function createDocument<TRow extends BaseRow>(
 		}
 	});
 
-	const binding: DocumentBinding<TRow> = {
+	const binding: Documents<TRow> = {
 		async open(input: TRow | string): Promise<DocumentHandle> {
 			const guid = resolveGuid(input);
 
@@ -305,7 +305,7 @@ export function createDocument<TRow extends BaseRow>(
 				transaction: Y.Transaction,
 			) => {
 				// Skip updates from the document binding itself to avoid loops
-				if (origin === DOCUMENT_BINDING_ORIGIN) return;
+				if (origin === DOCUMENTS_ORIGIN) return;
 				// Skip remote updates — only local edits bump updatedAt
 				if (!transaction.local) return;
 
@@ -315,7 +315,7 @@ export function createDocument<TRow extends BaseRow>(
 					tableHelper.update(guid, {
 						[updatedAtKey]: Date.now(),
 					} as Partial<Omit<TRow, 'id'>>);
-				}, DOCUMENT_BINDING_ORIGIN);
+				}, DOCUMENTS_ORIGIN);
 			};
 
 			contentYdoc.on('update', updateHandler);

@@ -119,7 +119,7 @@ export type TableDefinition<
 		id: string;
 		_v: number;
 	}>[],
-	TDocs extends Record<string, DocBinding> = Record<string, never>,
+	TDocs extends Record<string, DocumentConfig> = Record<string, never>,
 > = {
 	schema: CombinedStandardSchema<
 		unknown,
@@ -160,12 +160,12 @@ export type InferTableVersionUnion<T> = T extends {
  * @typeParam TGuid - Literal string type of the guid column name
  * @typeParam TUpdatedAt - Literal string type of the updatedAt column name
  * @typeParam TTags - Literal union of tag strings for document extension targeting.
- *   Defaults to `string` so bare `DocBinding` works as a wide constraint (accepts any tags).
+ *   Defaults to `string` so bare `DocumentConfig` works as a wide constraint (accepts any tags).
  *   When `.withDocument()` is called without tags, `TTags` infers as `never` via the
  *   method's own default, which makes the `tags` property `undefined` — preventing
  *   tags on untagged bindings.
  */
-export type DocBinding<
+export type DocumentConfig<
 	TGuid extends string = string,
 	TUpdatedAt extends string = string,
 	TTags extends string = string,
@@ -182,7 +182,7 @@ export type DocBinding<
 	 *
 	 * - `TTags = never` (no tags on binding) → `undefined`
 	 * - `TTags = 'persistent' | 'synced'` → `readonly ('persistent' | 'synced')[]`
-	 * - `TTags = string` (bare `DocBinding`) → `readonly string[]`
+	 * - `TTags = string` (bare `DocumentConfig`) → `readonly string[]`
 	 */
 	tags?: [TTags] extends [never] ? undefined : readonly TTags[];
 };
@@ -207,9 +207,9 @@ export type DocumentExtensionRegistration = {
 	tags: readonly string[];
 };
 
-/** Extract tags from a single DocBinding. */
-export type ExtractDocTags<T> =
-	T extends DocBinding<string, string, infer TTags> ? TTags : never;
+/** Extract tags from a single DocumentConfig. */
+export type ExtractDocumentTags<T> =
+	T extends DocumentConfig<string, string, infer TTags> ? TTags : never;
 
 /**
  * Extract all tags across all tables' document bindings.
@@ -220,14 +220,14 @@ export type ExtractDocTags<T> =
  * @example
  * ```typescript
  * // Given tables with tags ['persistent', 'synced'] and ['ephemeral']:
- * type Tags = ExtractAllDocTags<typeof tables>;
+ * type Tags = ExtractAllDocumentTags<typeof tables>;
  * // => 'persistent' | 'synced' | 'ephemeral'
  * ```
  */
-export type ExtractAllDocTags<TTableDefs extends TableDefinitions> = {
+export type ExtractAllDocumentTags<TTableDefs extends TableDefinitions> = {
 	[K in keyof TTableDefs]: TTableDefs[K] extends { docs: infer TDocs }
 		? TDocs extends Record<string, infer TBinding>
-			? ExtractDocTags<TBinding>
+			? ExtractDocumentTags<TBinding>
 			: never
 		: never;
 }[keyof TTableDefs];
@@ -300,7 +300,7 @@ export type DocumentHandle = {
  * await binding.close(row);
  * ```
  */
-export type DocumentBinding<TRow extends BaseRow> = {
+export type Documents<TRow extends BaseRow> = {
 	/**
 	 * Open a content Y.Doc for a row.
 	 *
@@ -341,7 +341,7 @@ export type HasDocs<T> = T extends { docs: infer TDocs }
 /**
  * Extract the document binding map for a single table definition.
  *
- * Maps each doc name to a `DocumentBinding<TLatest>` where `TLatest` is the
+ * Maps each doc name to a `Documents<TLatest>` where `TLatest` is the
  * table's latest row type (inferred from the `migrate` function's return type).
  */
 export type DocumentsOf<T> = T extends {
@@ -349,7 +349,7 @@ export type DocumentsOf<T> = T extends {
 	migrate: (...args: never[]) => infer TLatest;
 }
 	? TLatest extends BaseRow
-		? { [K in keyof TDocs]: DocumentBinding<TLatest> }
+		? { [K in keyof TDocs]: Documents<TLatest> }
 		: never
 	: never;
 
@@ -926,7 +926,7 @@ export type WorkspaceClientBuilder<
 					destroy?: () => MaybePromise<void>;
 			  })
 			| void,
-		options?: { tags?: ExtractAllDocTags<TTableDefinitions>[] },
+		options?: { tags?: ExtractAllDocumentTags<TTableDefinitions>[] },
 	): WorkspaceClientBuilder<
 		TId,
 		TTableDefinitions,

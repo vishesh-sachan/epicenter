@@ -152,9 +152,9 @@ export type {
 	BaseRow,
 	DeleteResult,
 	// Document binding types
-	DocBinding,
-	DocumentBinding,
+	DocumentConfig,
 	DocumentHandle,
+	Documents,
 	DocumentsHelper,
 	// Extension types
 	ExtensionContext,

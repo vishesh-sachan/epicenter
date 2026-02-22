@@ -39,7 +39,7 @@
 import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
 import { createAwareness } from './create-awareness.js';
-import { createDocument } from './create-document.js';
+import { createDocuments } from './create-document.js';
 import { createKv } from './create-kv.js';
 import { createTables } from './create-tables.js';
 import {
@@ -50,9 +50,9 @@ import {
 import type {
 	AwarenessDefinitions,
 	BaseRow,
-	DocBinding,
-	DocumentBinding,
+	DocumentConfig,
 	DocumentExtensionRegistration,
+	Documents,
 	DocumentsHelper,
 	ExtensionContext,
 	KvDefinitions,
@@ -128,19 +128,20 @@ export function createWorkspace<
 	// all document extensions are registered.
 	const documentExtensionRegistrations: DocumentExtensionRegistration[] = [];
 
-	// Create document bindings for tables that have .withDocument() declarations.
-	// Bindings are created eagerly but reference documentExtensionRegistrations by closure,
+	// Create documents for tables that have .withDocument() declarations.
+	// Documents are created eagerly but reference documentExtensionRegistrations by closure,
 	// so they pick up extensions added later via .withDocumentExtension().
-	const documentBindingCleanups: (() => Promise<void>)[] = [];
-	// Runtime type is Record<string, Record<string, DocumentBinding<BaseRow>>> —
+	const documentCleanups: (() => Promise<void>)[] = [];
+	// Runtime type is Record<string, Record<string, Documents<BaseRow>>> —
 	// cast to DocumentsHelper at the end so it satisfies WorkspaceClient/ExtensionContext.
 	const documentsNamespace: Record<
 		string,
-		Record<string, DocumentBinding<BaseRow>>
+		Record<string, Documents<BaseRow>>
 	> = {};
 
 	for (const [tableName, tableDef] of Object.entries(tableDefs)) {
-		const docsDef = (tableDef as { docs?: Record<string, DocBinding> }).docs;
+		const docsDef = (tableDef as { docs?: Record<string, DocumentConfig> })
+			.docs;
 		if (!docsDef || Object.keys(docsDef).length === 0) continue;
 
 		const tableHelper = (tables as Record<string, TableHelper<BaseRow>>)[
@@ -148,23 +149,23 @@ export function createWorkspace<
 		];
 		if (!tableHelper) continue;
 
-		const tableDocsNamespace: Record<string, DocumentBinding<BaseRow>> = {};
+		const tableDocsNamespace: Record<string, Documents<BaseRow>> = {};
 
-		for (const [docName, docBinding] of Object.entries(docsDef)) {
-			const docTags: readonly string[] = docBinding.tags ?? [];
+		for (const [docName, documentConfig] of Object.entries(docsDef)) {
+			const docTags: readonly string[] = documentConfig.tags ?? [];
 
-			const binding = createDocument({
+			const documents = createDocuments({
 				id,
-				guidKey: docBinding.guid as keyof BaseRow & string,
-				updatedAtKey: docBinding.updatedAt as keyof BaseRow & string,
+				guidKey: documentConfig.guid as keyof BaseRow & string,
+				updatedAtKey: documentConfig.updatedAt as keyof BaseRow & string,
 				tableHelper,
 				ydoc,
 				documentExtensions: documentExtensionRegistrations,
 				documentTags: docTags,
 			});
 
-			tableDocsNamespace[docName] = binding;
-			documentBindingCleanups.push(() => binding.closeAll());
+			tableDocsNamespace[docName] = documents;
+			documentCleanups.push(() => documents.closeAll());
 		}
 
 		documentsNamespace[tableName] = tableDocsNamespace;
@@ -182,7 +183,7 @@ export function createWorkspace<
 	> {
 		const destroy = async (): Promise<void> => {
 			// Destroy document bindings first (before extensions they depend on)
-			for (const cleanup of documentBindingCleanups) {
+			for (const cleanup of documentCleanups) {
 				await cleanup();
 			}
 			// Destroy extensions in LIFO order (last added = first destroyed)

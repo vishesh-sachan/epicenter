@@ -1,7 +1,7 @@
 /**
  * createWorkspace Tests
  *
- * Verifies workspace client behavior for batching, observer delivery, and document-binding wiring.
+ * Verifies workspace client behavior for batching, observer delivery, and documents wiring.
  * These tests protect the runtime contract that table/KV operations stay consistent across transactions
  * and that optional document bindings are attached only when configured.
  *
@@ -13,7 +13,7 @@
 import { describe, expect, test } from 'bun:test';
 import { type } from 'arktype';
 import * as Y from 'yjs';
-import { createDocument } from './create-document.js';
+import { createDocuments } from './create-document.js';
 import { createTables } from './create-tables.js';
 import { createWorkspace } from './create-workspace.js';
 import { defineKv } from './define-kv.js';
@@ -730,7 +730,7 @@ describe('createWorkspace', () => {
 				files: defineTable(fileSchema),
 			});
 
-			const binding = createDocument({
+			const binding = createDocuments({
 				guidKey: 'id',
 				updatedAtKey: 'updatedAt',
 				tableHelper: tables.files,
@@ -798,7 +798,7 @@ describe('createWorkspace', () => {
 				files: defineTable(fileSchema),
 			});
 
-			const binding = createDocument({
+			const binding = createDocuments({
 				guidKey: 'id',
 				updatedAtKey: 'updatedAt',
 				tableHelper: tables.files,
