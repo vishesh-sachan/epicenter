@@ -375,7 +375,7 @@ export default defineBackground(() => {
 	// ─────────────────────────────────────────────────────────────────────────
 	// Browser Keepalive (Chrome MV3 only)
 	// Chrome service workers go dormant after ~30 seconds of inactivity.
-	// We use Chrome Alarms API to wake the service worker periodically,
+	// We use an offscreen document that sends runtime messages every 20 seconds,
 	// keeping the WebSocket connection alive for real-time Y.Doc sync.
 	// Firefox doesn't have this limitation (uses Event Pages, not service workers).
 	//
@@ -384,19 +384,26 @@ export default defineBackground(() => {
 	// (alarms, tabs, runtime messages, etc.) can wake the worker.
 	// ─────────────────────────────────────────────────────────────────────────
 
-	if (import.meta.env.CHROME && browser.alarms) {
-		const KEEPALIVE_ALARM = 'keepalive';
-		const KEEPALIVE_INTERVAL_MINUTES = 0.4; // ~24 seconds (under 30s threshold)
+	if (import.meta.env.CHROME) {
+		const ensureOffscreenDocument = async () => {
+			if (await browser.offscreen.hasDocument()) return;
+			await browser.offscreen.createDocument({
+				url: 'offscreen.html',
+				reasons: ['WORKERS'],
+				justification:
+					'Sends keepalive messages to prevent service worker dormancy',
+			});
+		};
 
-		// Create the keepalive alarm
-		browser.alarms.create(KEEPALIVE_ALARM, {
-			periodInMinutes: KEEPALIVE_INTERVAL_MINUTES,
-		});
+		ensureOffscreenDocument();
 
-		// Handle alarm - the act of waking the service worker keeps the WebSocket alive
-		browser.alarms.onAlarm.addListener((alarm) => {
-			if (alarm.name === KEEPALIVE_ALARM) {
-				// No-op: just waking the service worker is sufficient
+		browser.runtime.onStartup.addListener(() => ensureOffscreenDocument());
+
+		// Handle keepalive messages — receiving the message resets the
+		// service worker's inactivity timer. No action needed.
+		browser.runtime.onMessage.addListener((message) => {
+			if (message.type === 'keepalive') {
+				// No-op: receiving the message is sufficient
 			}
 		});
 	}
