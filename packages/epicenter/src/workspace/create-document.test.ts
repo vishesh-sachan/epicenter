@@ -1,5 +1,5 @@
 /**
- * createDocumentBinding Tests
+ * createDocument Tests
  *
  * Validates document binding lifecycle, handle read/write behavior, and integration with table row metadata.
  * The suite protects contracts around open/close idempotency, handle pattern, cleanup semantics, and hook orchestration.
@@ -13,10 +13,10 @@ import { describe, expect, test } from 'bun:test';
 import { type } from 'arktype';
 import * as Y from 'yjs';
 import {
-	type CreateDocumentBindingConfig,
-	createDocumentBinding,
+	type CreateDocumentConfig,
+	createDocument,
 	DOCUMENT_BINDING_ORIGIN,
-} from './create-document-binding.js';
+} from './create-document.js';
 import { createTables } from './create-tables.js';
 import { defineTable } from './define-table.js';
 
@@ -35,12 +35,12 @@ function setup() {
 
 function setupWithBinding(
 	overrides?: Pick<
-		CreateDocumentBindingConfig<typeof fileSchema.infer>,
+		CreateDocumentConfig<typeof fileSchema.infer>,
 		'documentExtensions' | 'documentTags' | 'onRowDeleted'
 	>,
 ) {
 	const { ydoc, tables } = setup();
-	const binding = createDocumentBinding({
+	const binding = createDocument({
 		guidKey: 'id',
 		updatedAtKey: 'updatedAt',
 		tableHelper: tables.files,
@@ -50,7 +50,7 @@ function setupWithBinding(
 	return { ydoc, tables, binding };
 }
 
-describe('createDocumentBinding', () => {
+describe('createDocument', () => {
 	describe('open', () => {
 		test('returns a handle with a Y.Doc (gc: false)', async () => {
 			const { tables, binding } = setupWithBinding();
@@ -322,7 +322,7 @@ describe('createDocumentBinding', () => {
 			let deletedGuid = '';
 			const { tables } = setup();
 
-			const binding = createDocumentBinding({
+			const binding = createDocument({
 				guidKey: 'id',
 				updatedAtKey: 'updatedAt',
 				tableHelper: tables.files,

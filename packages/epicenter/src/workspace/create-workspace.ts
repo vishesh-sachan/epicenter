@@ -39,11 +39,14 @@
 import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
 import { createAwareness } from './create-awareness.js';
-import { createDocumentBinding } from './create-document-binding.js';
+import { createDocument } from './create-document.js';
 import { createKv } from './create-kv.js';
 import { createTables } from './create-tables.js';
-import type { DocumentContext, MaybePromise } from './lifecycle.js';
-import { runExtensionFactories } from './run-extension-factories.js';
+import {
+	type DocumentContext,
+	defineExtension,
+	type MaybePromise,
+} from './lifecycle.js';
 import type {
 	AwarenessDefinitions,
 	BaseRow,
@@ -143,7 +146,7 @@ export function createWorkspace<
 		for (const [docName, docBinding] of Object.entries(docsDef)) {
 			const docTags: readonly string[] = docBinding.tags ?? [];
 
-			const binding = createDocumentBinding({
+			const binding = createDocument({
 				id,
 				guidKey: docBinding.guid as keyof BaseRow & string,
 				updatedAtKey: docBinding.updatedAt as keyof BaseRow & string,
@@ -246,46 +249,65 @@ export function createWorkspace<
 					destroy?: () => MaybePromise<void>;
 				},
 			) {
-				const result = runExtensionFactories({
-					entries: [{ key, factory }],
-					buildContext: ({ whenReadyPromises }) => ({
-						id,
-						ydoc,
-						definitions,
-						tables,
-						kv,
-						awareness,
-						batch: (fn: () => void) => ydoc.transact(fn),
-						whenReady:
-							state.whenReadyPromises.length === 0 &&
-							whenReadyPromises.length === 0
-								? Promise.resolve()
-								: Promise.all([
-										...state.whenReadyPromises,
-										...whenReadyPromises,
-									]).then(() => {}),
-						extensions,
-					}),
-					priorDestroys: state.extensionCleanups,
-				});
+				const ctx = {
+					id,
+					ydoc,
+					definitions,
+					tables,
+					kv,
+					awareness,
+					batch: (fn: () => void) => ydoc.transact(fn),
+					whenReady:
+						state.whenReadyPromises.length === 0
+							? Promise.resolve()
+							: Promise.all(state.whenReadyPromises).then(() => {}),
+					extensions,
+				};
 
-				// Void return means "not installed" — skip registration
-				if (Object.keys(result.extensions).length === 0) {
-					return buildClient(extensions, state);
+				try {
+					const raw = factory(ctx);
+
+					// Void return means "not installed" — skip registration
+					if (!raw) return buildClient(extensions, state);
+
+					const resolved = defineExtension(raw);
+
+					return buildClient(
+						{
+							...extensions,
+							[key]: resolved,
+						} as TExtensions & Record<TKey, TExports>,
+						{
+							extensionCleanups: [...state.extensionCleanups, resolved.destroy],
+							whenReadyPromises: [
+								...state.whenReadyPromises,
+								resolved.whenReady,
+							],
+						},
+					);
+				} catch (err) {
+					// LIFO cleanup: prior extensions in reverse order
+					const errors: unknown[] = [];
+					for (let i = state.extensionCleanups.length - 1; i >= 0; i--) {
+						try {
+							const result = state.extensionCleanups[i]!();
+							if (result instanceof Promise) {
+								result.catch(() => {}); // Fire and forget in sync context
+							}
+						} catch (cleanupErr) {
+							errors.push(cleanupErr);
+						}
+					}
+
+					if (errors.length > 0) {
+						console.error(
+							'Extension cleanup errors during factory failure:',
+							errors,
+						);
+					}
+
+					throw err;
 				}
-
-				const newExtensions = {
-					...extensions,
-					...result.extensions,
-				} as TExtensions & Record<TKey, TExports>;
-
-				return buildClient(newExtensions, {
-					extensionCleanups: [...state.extensionCleanups, ...result.destroys],
-					whenReadyPromises: [
-						...state.whenReadyPromises,
-						...result.whenReadyPromises,
-					],
-				});
 			},
 
 			withDocumentExtension(
