@@ -1,6 +1,12 @@
 import { chat, toServerSentEventsResponse } from '@tanstack/ai';
 import { Elysia, t } from 'elysia';
-import { createAdapter, SUPPORTED_PROVIDERS } from './adapters';
+import {
+	createAdapter,
+	isSupportedProvider,
+	PROVIDER_ENV_VARS,
+	resolveApiKey,
+	SUPPORTED_PROVIDERS,
+} from './adapters';
 
 /**
  * Configuration for the AI plugin.
@@ -45,7 +51,7 @@ export function createAIPlugin(config?: AIPluginConfig) {
 	return new Elysia().post(
 		'/chat',
 		async ({ body, headers, set }) => {
-			const apiKey = headers['x-provider-api-key'];
+			const headerApiKey = headers['x-provider-api-key'];
 			const {
 				messages,
 				provider,
@@ -55,18 +61,27 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				modelOptions,
 			} = body;
 
-			// Ollama is local — no API key needed
-			if (provider !== 'ollama' && !apiKey) {
-				set.status = 401;
-				return { error: 'Missing x-provider-api-key header' };
-			}
-
 			if (!allowedProviders.includes(provider)) {
 				set.status = 400;
 				return { error: `Unsupported provider: ${provider}` };
 			}
 
-			const adapter = createAdapter(provider, model, apiKey);
+			if (!isSupportedProvider(provider)) {
+				set.status = 400;
+				return { error: `Unsupported provider: ${provider}` };
+			}
+
+			const apiKey = resolveApiKey(provider, headerApiKey);
+
+			if (provider !== 'ollama' && !apiKey) {
+				const envVarName = PROVIDER_ENV_VARS[provider];
+				set.status = 401;
+				return {
+					error: `Missing API key: set x-provider-api-key header or configure ${envVarName} environment variable`,
+				};
+			}
+
+			const adapter = createAdapter(provider, model, apiKey ?? '');
 			if (!adapter) {
 				set.status = 400;
 				return { error: `Unsupported provider: ${provider}` };

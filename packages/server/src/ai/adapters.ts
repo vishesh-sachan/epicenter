@@ -75,3 +75,28 @@ export function isSupportedProvider(
 ): provider is SupportedProvider {
 	return SUPPORTED_PROVIDERS.includes(provider as SupportedProvider);
 }
+
+/** Environment variable names for each provider's API key. */
+export const PROVIDER_ENV_VARS: Record<SupportedProvider, string> = {
+	openai: 'OPENAI_API_KEY',
+	anthropic: 'ANTHROPIC_API_KEY',
+	gemini: 'GEMINI_API_KEY',
+	grok: 'GROK_API_KEY',
+	ollama: '', // no key needed
+};
+
+/**
+ * Resolve an API key for the given provider.
+ *
+ * Priority: (1) per-request header key, (2) server env var, (3) undefined.
+ * Reads env vars at request time (not module load) so they can change at runtime.
+ */
+export function resolveApiKey(
+	provider: SupportedProvider,
+	headerKey?: string,
+): string | undefined {
+	if (headerKey) return headerKey;
+	const envVarName = PROVIDER_ENV_VARS[provider];
+	if (envVarName) return process.env[envVarName];
+	return undefined;
+}
