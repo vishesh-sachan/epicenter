@@ -112,14 +112,14 @@ export type LastSchema<T extends readonly CombinedStandardSchema[]> =
  * A table definition created by defineTable().version().migrate()
  *
  * @typeParam TVersions - Tuple of schema versions (each must include `{ id: string }`)
- * @typeParam TDocs - Record of named document configs declared via `.withDocument()`
+ * @typeParam TDocuments - Record of named document configs declared via `.withDocument()`
  */
 export type TableDefinition<
 	TVersions extends readonly CombinedStandardSchema<{
 		id: string;
 		_v: number;
 	}>[],
-	TDocs extends Record<string, DocumentConfig> = Record<string, never>,
+	TDocuments extends Record<string, DocumentConfig> = Record<string, never>,
 > = {
 	schema: CombinedStandardSchema<
 		unknown,
@@ -128,7 +128,7 @@ export type TableDefinition<
 	migrate: (
 		row: StandardSchemaV1.InferOutput<TVersions[number]>,
 	) => StandardSchemaV1.InferOutput<LastSchema<TVersions>>;
-	docs: TDocs;
+	documents: TDocuments;
 };
 
 /** Extract the row type from a TableDefinition */
@@ -225,8 +225,8 @@ export type ExtractDocumentTags<T> =
  * ```
  */
 export type ExtractAllDocumentTags<TTableDefs extends TableDefinitions> = {
-	[K in keyof TTableDefs]: TTableDefs[K] extends { docs: infer TDocs }
-		? TDocs extends Record<string, infer TBinding>
+	[K in keyof TTableDefs]: TTableDefs[K] extends { documents: infer TDocuments }
+		? TDocuments extends Record<string, infer TBinding>
 			? ExtractDocumentTags<TBinding>
 			: never
 		: never;
@@ -327,13 +327,13 @@ export type Documents<TRow extends BaseRow> = {
 };
 
 /**
- * Does this table definition have a non-empty `docs` record?
+ * Does this table definition have a non-empty `documents` record?
  *
  * Used by `DocumentsHelper` to filter the `documents` namespace — only tables
  * with `.withDocument()` declarations appear in `client.documents`.
  */
-export type HasDocs<T> = T extends { docs: infer TDocs }
-	? keyof TDocs extends never
+export type HasDocuments<T> = T extends { documents: infer TDocuments }
+	? keyof TDocuments extends never
 		? false
 		: true
 	: false;
@@ -345,11 +345,11 @@ export type HasDocs<T> = T extends { docs: infer TDocs }
  * table's latest row type (inferred from the `migrate` function's return type).
  */
 export type DocumentsOf<T> = T extends {
-	docs: infer TDocs;
+	documents: infer TDocuments;
 	migrate: (...args: never[]) => infer TLatest;
 }
 	? TLatest extends BaseRow
-		? { [K in keyof TDocs]: Documents<TLatest> }
+		? { [K in keyof TDocuments]: Documents<TLatest> }
 		: never
 	: never;
 
@@ -369,7 +369,9 @@ export type DocumentsOf<T> = T extends {
  * ```
  */
 export type DocumentsHelper<TTableDefinitions extends TableDefinitions> = {
-	[K in keyof TTableDefinitions as HasDocs<TTableDefinitions[K]> extends true
+	[K in keyof TTableDefinitions as HasDocuments<
+		TTableDefinitions[K]
+	> extends true
 		? K
 		: never]: DocumentsOf<TTableDefinitions[K]>;
 };

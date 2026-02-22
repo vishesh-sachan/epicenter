@@ -56,15 +56,15 @@ import type {
  * A table definition with a chainable `.withDocument()` method.
  *
  * Returned by both the shorthand `defineTable(schema)` and the builder's `.migrate()`.
- * Each `.withDocument()` call accumulates a named document config into `TDocs`.
+ * Each `.withDocument()` call accumulates a named document config into `TDocuments`.
  *
  * @typeParam TVersions - Tuple of schema versions
- * @typeParam TDocs - Accumulated document configs
+ * @typeParam TDocuments - Accumulated document configs
  */
 type TableDefinitionWithDocBuilder<
 	TVersions extends readonly CombinedStandardSchema<BaseRow>[],
-	TDocs extends Record<string, DocumentConfig>,
-> = TableDefinition<TVersions, TDocs> & {
+	TDocuments extends Record<string, DocumentConfig>,
+> = TableDefinition<TVersions, TDocuments> & {
 	/**
 	 * Declare a named document on this table.
 	 *
@@ -111,7 +111,7 @@ type TableDefinitionWithDocBuilder<
 		},
 	): TableDefinitionWithDocBuilder<
 		TVersions,
-		TDocs & Record<TName, DocumentConfig<TGuid, TUpdatedAt, TTags>>
+		TDocuments & Record<TName, DocumentConfig<TGuid, TUpdatedAt, TTags>>
 	>;
 };
 
@@ -193,10 +193,10 @@ export function defineTable<TSchema extends CombinedStandardSchema<BaseRow>>(
 	| TableDefinitionWithDocBuilder<[TSchema], Record<string, never>>
 	| TableBuilder<[]> {
 	if (schema) {
-		return addWithDocument({
+		return attachDocumentBuilder({
 			schema,
 			migrate: (row: unknown) => row as BaseRow,
-			docs: {} as Record<string, never>,
+			documents: {} as Record<string, never>,
 		}) as unknown as TableDefinitionWithDocBuilder<
 			[TSchema],
 			Record<string, never>
@@ -216,10 +216,10 @@ export function defineTable<TSchema extends CombinedStandardSchema<BaseRow>>(
 				throw new Error('defineTable() requires at least one .version() call');
 			}
 
-			return addWithDocument({
+			return attachDocumentBuilder({
 				schema: createUnionSchema(versions),
 				migrate: fn,
-				docs: {},
+				documents: {},
 			});
 		},
 	};
@@ -231,13 +231,13 @@ export function defineTable<TSchema extends CombinedStandardSchema<BaseRow>>(
  * Create a new definition object with a `.withDocument()` chainable method.
  *
  * Each `.withDocument()` call returns a fresh object with the new document config
- * accumulated into `docs` — the original definition is never mutated.
+ * accumulated into `documents` — the original definition is never mutated.
  */
-function addWithDocument<
+function attachDocumentBuilder<
 	T extends {
 		schema: CombinedStandardSchema;
 		migrate: unknown;
-		docs: Record<string, DocumentConfig>;
+		documents: Record<string, DocumentConfig>;
 	},
 >(
 	def: T,
@@ -247,10 +247,10 @@ function addWithDocument<
 	return {
 		...def,
 		withDocument(name: string, config: DocumentConfig) {
-			return addWithDocument({
+			return attachDocumentBuilder({
 				...def,
-				docs: {
-					...def.docs,
+				documents: {
+					...def.documents,
 					[name]: config,
 				},
 			});

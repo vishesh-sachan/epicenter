@@ -255,17 +255,17 @@ describe('defineTable', () => {
 	});
 
 	describe('withDocument', () => {
-		test('shorthand path adds docs to definition', () => {
+		test('shorthand path adds documents to definition', () => {
 			const files = defineTable(
 				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
 			).withDocument('content', { guid: 'id', updatedAt: 'updatedAt' });
 
-			expect(files.docs.content.guid).toBe('id');
-			expect(files.docs.content.updatedAt).toBe('updatedAt');
-			expect(files.docs.content.tags).toBeUndefined();
+			expect(files.documents.content.guid).toBe('id');
+			expect(files.documents.content.updatedAt).toBe('updatedAt');
+			expect(files.documents.content.tags).toBeUndefined();
 		});
 
-		test('builder path adds docs to definition', () => {
+		test('builder path adds documents to definition', () => {
 			const notes = defineTable()
 				.version(
 					type({
@@ -281,12 +281,12 @@ describe('defineTable', () => {
 					updatedAt: 'modifiedAt',
 				});
 
-			expect(notes.docs.content.guid).toBe('docId');
-			expect(notes.docs.content.updatedAt).toBe('modifiedAt');
-			expect(notes.docs.content.tags).toBeUndefined();
+			expect(notes.documents.content.guid).toBe('docId');
+			expect(notes.documents.content.updatedAt).toBe('modifiedAt');
+			expect(notes.documents.content.tags).toBeUndefined();
 		});
 
-		test('multiple withDocument chains accumulate docs', () => {
+		test('multiple withDocument chains accumulate documents', () => {
 			const notes = defineTable(
 				type({
 					id: 'string',
@@ -306,18 +306,18 @@ describe('defineTable', () => {
 					updatedAt: 'coverUpdatedAt',
 				});
 
-			expect(notes.docs.body.guid).toBe('bodyDocId');
-			expect(notes.docs.body.updatedAt).toBe('bodyUpdatedAt');
-			expect(notes.docs.cover.guid).toBe('coverDocId');
-			expect(notes.docs.cover.updatedAt).toBe('coverUpdatedAt');
+			expect(notes.documents.body.guid).toBe('bodyDocId');
+			expect(notes.documents.body.updatedAt).toBe('bodyUpdatedAt');
+			expect(notes.documents.cover.guid).toBe('coverDocId');
+			expect(notes.documents.cover.updatedAt).toBe('coverUpdatedAt');
 		});
 
-		test('table without withDocument keeps docs map empty', () => {
+		test('table without withDocument keeps documents map empty', () => {
 			const tags = defineTable(
 				type({ id: 'string', label: 'string', _v: '1' }),
 			);
 
-			expect(Object.keys(tags.docs)).toHaveLength(0);
+			expect(Object.keys(tags.documents)).toHaveLength(0);
 		});
 
 		test('withDocument accepts a single-element tag array', () => {
@@ -329,9 +329,9 @@ describe('defineTable', () => {
 				tags: ['persistent'],
 			});
 
-			expect(files.docs.content.guid).toBe('id');
-			expect(files.docs.content.updatedAt).toBe('updatedAt');
-			expect(files.docs.content.tags).toEqual(['persistent']);
+			expect(files.documents.content.guid).toBe('id');
+			expect(files.documents.content.updatedAt).toBe('updatedAt');
+			expect(files.documents.content.tags).toEqual(['persistent']);
 		});
 
 		test('withDocument accepts an array of tags', () => {
@@ -343,17 +343,17 @@ describe('defineTable', () => {
 				tags: ['persistent', 'synced'] as const,
 			});
 
-			expect(files.docs.content.guid).toBe('id');
-			expect(files.docs.content.updatedAt).toBe('updatedAt');
-			expect(files.docs.content.tags).toEqual(['persistent', 'synced']);
+			expect(files.documents.content.guid).toBe('id');
+			expect(files.documents.content.updatedAt).toBe('updatedAt');
+			expect(files.documents.content.tags).toEqual(['persistent', 'synced']);
 		});
 
-		test('withDocument without tags omits tags from docs', () => {
+		test('withDocument without tags omits tags from documents', () => {
 			const files = defineTable(
 				type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
 			).withDocument('content', { guid: 'id', updatedAt: 'updatedAt' });
 
-			expect(files.docs.content.tags).toBeUndefined();
+			expect(files.documents.content.tags).toBeUndefined();
 		});
 
 		test('withDocument preserves schema validation and migrate behavior', () => {

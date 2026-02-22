@@ -7,7 +7,7 @@
  *
  * Key behaviors:
  * - Batch transactions coalesce notifications while preserving applied mutations.
- * - Document-bound tables expose `docs`, while non-bound tables do not.
+ * - Document-bound tables expose `documents`, while non-bound tables do not.
  */
 
 import { describe, expect, test } from 'bun:test';

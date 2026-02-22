@@ -140,9 +140,10 @@ export function createWorkspace<
 	> = {};
 
 	for (const [tableName, tableDef] of Object.entries(tableDefs)) {
-		const docsDef = (tableDef as { docs?: Record<string, DocumentConfig> })
-			.docs;
-		if (!docsDef || Object.keys(docsDef).length === 0) continue;
+		const documentsDef = (
+			tableDef as { documents?: Record<string, DocumentConfig> }
+		).documents;
+		if (!documentsDef || Object.keys(documentsDef).length === 0) continue;
 
 		const tableHelper = (tables as Record<string, TableHelper<BaseRow>>)[
 			tableName
@@ -151,7 +152,7 @@ export function createWorkspace<
 
 		const tableDocsNamespace: Record<string, Documents<BaseRow>> = {};
 
-		for (const [docName, documentConfig] of Object.entries(docsDef)) {
+		for (const [docName, documentConfig] of Object.entries(documentsDef)) {
 			const docTags: readonly string[] = documentConfig.tags ?? [];
 
 			const documents = createDocuments({
