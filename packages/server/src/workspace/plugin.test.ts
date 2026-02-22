@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { defineQuery } from '@epicenter/hq';
 import {
 	createWorkspace,
+	defineQuery,
 	defineTable,
 	defineWorkspace,
-} from '@epicenter/hq/static';
+} from '@epicenter/hq';
 import { type } from 'arktype';
 import { Elysia } from 'elysia';
 import { createWorkspacePlugin } from './plugin';

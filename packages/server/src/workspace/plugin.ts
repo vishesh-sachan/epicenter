@@ -1,4 +1,4 @@
-import type { AnyWorkspaceClient } from '@epicenter/hq/static';
+import type { AnyWorkspaceClient } from '@epicenter/hq';
 import { Elysia } from 'elysia';
 import { createActionsRouter } from './actions';
 import { createTablesPlugin } from './tables';

@@ -1,6 +1,6 @@
 import { join, resolve } from 'node:path';
 import type { ProjectDir } from '../shared/types';
-import type { AnyWorkspaceClient } from '../static/types';
+import type { AnyWorkspaceClient } from '../workspace/types';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EXPORTED TYPES

@@ -1,5 +1,5 @@
 /**
- * Stress test for the Static Workspace API.
+ * Stress test for the Workspace API.
  *
  * Simulates an event/command log table: adds N events, deletes them all,
  * repeats for several cycles, then measures the final Y.Doc binary size
@@ -11,7 +11,7 @@
 import { unlinkSync } from 'node:fs';
 import { type } from 'arktype';
 import * as Y from 'yjs';
-import { createTables, defineTable } from '../src/static/index.js';
+import { createTables, defineTable } from '../src/workspace/index.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Config — tweak these

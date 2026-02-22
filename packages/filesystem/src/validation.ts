@@ -1,4 +1,4 @@
-import type { TableHelper } from '@epicenter/hq/static';
+import type { TableHelper } from '@epicenter/hq';
 import type { FileId, FileRow } from './types.js';
 
 export type FsErrorCode =

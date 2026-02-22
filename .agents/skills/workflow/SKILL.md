@@ -15,10 +15,4 @@ description: Standard workflow for implementing features with specs and planning
 
 # Spec Placement
 
-Specs always live at the root level of their scope (not inside `docs/`):
-
-- **`/specs/`** - Cross-cutting features, architecture decisions, general tooling
-- **`/apps/[app]/specs/`** - Features specific to one app only
-- **`/packages/[pkg]/specs/`** - Package-specific implementation details
-
-When in doubt, use `/specs/`. Move to app/package-specific only if the spec truly belongs there.
+All specs live in the root `/specs/` directory. Do not create nested specs in `apps/` or `packages/`.

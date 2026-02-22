@@ -81,8 +81,6 @@ export const workspaces = {
 				name: input.name,
 				description: input.template?.description ?? '',
 				icon: input.template?.icon ?? null,
-				tables: [...(input.template?.tables ?? [])],
-				kv: [...(input.template?.kv ?? [])],
 			});
 
 			console.log(`[createWorkspace] Created workspace:`, {

@@ -1,18 +1,7 @@
-import type { ExtensionContext } from '@epicenter/hq/dynamic';
+import type { ExtensionContext } from '@epicenter/hq';
 import { appLocalDataDir, join } from '@tauri-apps/api/path';
 import { mkdir, readFile, writeFile } from '@tauri-apps/plugin-fs';
 import * as Y from 'yjs';
-
-/**
- * Configuration for the workspace persistence extension.
- */
-export type WorkspacePersistenceConfig = {
-	/**
-	 * Debounce interval in milliseconds for JSON file writes.
-	 * @default 500
-	 */
-	jsonDebounceMs?: number;
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // File Names
@@ -21,8 +10,6 @@ export type WorkspacePersistenceConfig = {
 const FILE_NAMES = {
 	/** Full Y.Doc binary - sync source of truth */
 	WORKSPACE_YJS: 'workspace.yjs',
-	/** Settings values from Y.Map('kv') */
-	KV_JSON: 'kv.json',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -30,28 +17,19 @@ const FILE_NAMES = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Persist a workspace Y.Doc to disk with multiple outputs.
+ * Persist a workspace Y.Doc to disk as a binary file.
  *
- * This is the persistence provider for workspace documents. It creates:
- *
- * 1. **Binary (workspace.yjs)**: The source of truth for Y.Doc state
- *    - Saved immediately on every Y.Doc update
- *    - Loaded on startup to restore state
- *
- * 2. **KV JSON (kv.json)**: Human-readable settings mirror
- *    - Extracted from Y.Map('kv')
- *    - Debounced writes (default 500ms)
+ * The Y.Doc binary is the single source of truth for all workspace data
+ * (tables, KV, etc.). It is saved on every Y.Doc update and loaded on startup.
  *
  * **Storage Layout:**
  * ```
  * {appLocalDataDir}/workspaces/{workspaceId}/
- * ├── definition.json   # Workspace definition (schema + metadata)
- * ├── workspace.yjs     # Y.Doc binary (source of truth)
- * └── kv.json           # KV values mirror
+ * ├── definition.json   # Workspace metadata (name, icon, etc.)
+ * └── workspace.yjs     # Y.Doc binary (source of truth)
  * ```
  *
- * @param ctx - The extension context
- * @param config - Optional configuration for debounce timing
+ * @param ctx - The extension context (only `ydoc` and `id` are used)
  * @returns Flat extension with `whenReady` promise and `destroy` cleanup
  *
  * @example
@@ -60,12 +38,8 @@ const FILE_NAMES = {
  *   .withExtension('persistence', (ctx) => workspacePersistence(ctx));
  * ```
  */
-export function workspacePersistence(
-	ctx: ExtensionContext,
-	config: WorkspacePersistenceConfig = {},
-) {
-	const { ydoc, id, kv } = ctx;
-	const { jsonDebounceMs = 500 } = config;
+export function workspacePersistence(ctx: ExtensionContext) {
+	const { ydoc, id } = ctx;
 
 	// For logging
 	const logPath = `workspaces/${id}`;
@@ -75,17 +49,12 @@ export function workspacePersistence(
 		const baseDir = await appLocalDataDir();
 		const workspaceDir = await join(baseDir, 'workspaces', id);
 		const workspaceYjsPath = await join(workspaceDir, FILE_NAMES.WORKSPACE_YJS);
-		const kvJsonPath = await join(workspaceDir, FILE_NAMES.KV_JSON);
 
-		return {
-			workspaceDir,
-			workspaceYjsPath,
-			kvJsonPath,
-		};
+		return { workspaceDir, workspaceYjsPath };
 	})();
 
 	// =========================================================================
-	// 1. Y.Doc Binary Persistence (workspace.yjs)
+	// Y.Doc Binary Persistence (workspace.yjs)
 	// =========================================================================
 
 	const saveYDoc = async () => {
@@ -103,35 +72,6 @@ export function workspacePersistence(
 
 	// Attach Y.Doc update handler
 	ydoc.on('update', saveYDoc);
-
-	// =========================================================================
-	// 2. KV JSON Persistence (kv.json)
-	// =========================================================================
-
-	let kvDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-	const saveKvJson = async () => {
-		const { kvJsonPath } = await pathsPromise;
-		try {
-			const kvData = kv.toJSON();
-			const json = JSON.stringify(kvData, null, '\t');
-			await writeFile(kvJsonPath, new TextEncoder().encode(json));
-			console.log(`[WorkspacePersistence] Saved kv.json for ${id}`);
-		} catch (error) {
-			console.error(`[WorkspacePersistence] Failed to save kv.json:`, error);
-		}
-	};
-
-	const scheduleKvSave = () => {
-		if (kvDebounceTimer) clearTimeout(kvDebounceTimer);
-		kvDebounceTimer = setTimeout(async () => {
-			kvDebounceTimer = null;
-			await saveKvJson();
-		}, jsonDebounceMs);
-	};
-
-	// Observe KV changes using the kv helper's observe method
-	const unsubscribeKv = kv.observe(scheduleKvSave);
 
 	// =========================================================================
 	// Return Lifecycle
@@ -161,23 +101,10 @@ export function workspacePersistence(
 			if (isNewFile) {
 				await saveYDoc();
 			}
-
-			// Initial KV JSON save
-			await saveKvJson();
 		})(),
 
 		destroy() {
-			// Clear debounce timer
-			if (kvDebounceTimer) {
-				clearTimeout(kvDebounceTimer);
-				kvDebounceTimer = null;
-			}
-
-			// Remove Y.Doc observer
 			ydoc.off('update', saveYDoc);
-
-			// Remove KV observer
-			unsubscribeKv();
 		},
 	};
 }

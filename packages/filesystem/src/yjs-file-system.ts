@@ -1,4 +1,4 @@
-import type { DocumentBinding, TableHelper } from '@epicenter/hq/static';
+import type { DocumentBinding, TableHelper } from '@epicenter/hq';
 import type { IFileSystem } from 'just-bash';
 import {
 	type ContentHelpers,

@@ -7,23 +7,23 @@ import type { LayoutLoad } from './$types';
  * Load a workspace by ID.
  *
  * Flow:
- * 1. Load definition from JSON file
- * 2. Create workspace client with persistence
- * 3. Return client for use in child routes
+ * 1. Load metadata from JSON file (for display: name, icon, etc.)
+ * 2. Create workspace client from Static definition with persistence
+ * 3. Return both for use in child routes
  */
 export const load: LayoutLoad = async ({ params }) => {
 	const workspaceId = params.id;
 	console.log(`[Layout] Loading workspace: ${workspaceId}`);
 
-	// Load definition from JSON file
+	// Load metadata from JSON file (for display purposes)
 	const definition = await getWorkspace(workspaceId);
 	if (!definition) {
 		console.error(`[Layout] Workspace not found: ${workspaceId}`);
 		error(404, { message: `Workspace "${workspaceId}" not found` });
 	}
 
-	// Create workspace client with persistence
-	const client = createWorkspaceClient(definition);
+	// Create workspace client from Static definition with persistence
+	const client = createWorkspaceClient(workspaceId);
 	await client.whenReady;
 
 	console.log(
@@ -31,7 +31,7 @@ export const load: LayoutLoad = async ({ params }) => {
 	);
 
 	return {
-		/** The workspace definition. */
+		/** The workspace metadata (name, icon, etc.). */
 		definition,
 		/** The live workspace client for CRUD operations. */
 		client,
