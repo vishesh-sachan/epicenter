@@ -50,19 +50,35 @@ import {
 import type {
 	AwarenessDefinitions,
 	BaseRow,
-	DocumentConfig,
 	DocumentExtensionRegistration,
 	Documents,
 	DocumentsHelper,
 	ExtensionContext,
 	KvDefinitions,
 	TableDefinitions,
-	TableHelper,
 	WorkspaceClient,
 	WorkspaceClientBuilder,
 	WorkspaceClientWithActions,
 	WorkspaceDefinition,
 } from './types.js';
+
+/**
+ * Run cleanups in LIFO order (last registered = first destroyed).
+ * Continues on error and returns accumulated errors.
+ */
+async function destroyLifo(
+	cleanups: (() => MaybePromise<void>)[],
+): Promise<unknown[]> {
+	const errors: unknown[] = [];
+	for (let i = cleanups.length - 1; i >= 0; i--) {
+		try {
+			await cleanups[i]!();
+		} catch (err) {
+			errors.push(err);
+		}
+	}
+	return errors;
+}
 
 /**
  * Create a workspace client with chainable extension support.
@@ -140,20 +156,17 @@ export function createWorkspace<
 	> = {};
 
 	for (const [tableName, tableDef] of Object.entries(tableDefs)) {
-		const documentsDef = (
-			tableDef as { documents?: Record<string, DocumentConfig> }
-		).documents;
-		if (!documentsDef || Object.keys(documentsDef).length === 0) continue;
+		if (Object.keys(tableDef.documents).length === 0) continue;
 
-		const tableHelper = (tables as Record<string, TableHelper<BaseRow>>)[
-			tableName
-		];
+		const tableHelper = tables[tableName];
 		if (!tableHelper) continue;
 
-		const tableDocsNamespace: Record<string, Documents<BaseRow>> = {};
+		const tableDocumentsNamespace: Record<string, Documents<BaseRow>> = {};
 
-		for (const [docName, documentConfig] of Object.entries(documentsDef)) {
-			const docTags: readonly string[] = documentConfig.tags;
+		for (const [docName, documentConfig] of Object.entries(
+			tableDef.documents,
+		)) {
+			const docTags: readonly string[] = documentConfig.tags ?? [];
 
 			const documents = createDocuments({
 				id,
@@ -165,12 +178,15 @@ export function createWorkspace<
 				documentTags: docTags,
 			});
 
-			tableDocsNamespace[docName] = documents;
+			tableDocumentsNamespace[docName] = documents;
 			documentCleanups.push(() => documents.closeAll());
 		}
 
-		documentsNamespace[tableName] = tableDocsNamespace;
+		documentsNamespace[tableName] = tableDocumentsNamespace;
 	}
+
+	const typedDocuments =
+		documentsNamespace as unknown as DocumentsHelper<TTableDefinitions>;
 
 	function buildClient<TExtensions extends Record<string, unknown>>(
 		extensions: TExtensions,
@@ -187,16 +203,7 @@ export function createWorkspace<
 			for (const cleanup of documentCleanups) {
 				await cleanup();
 			}
-			// Destroy extensions in LIFO order (last added = first destroyed)
-			const errors: unknown[] = [];
-			for (let i = state.extensionCleanups.length - 1; i >= 0; i--) {
-				try {
-					await state.extensionCleanups[i]!();
-				} catch (err) {
-					errors.push(err);
-				}
-			}
-			// Destroy awareness
+			const errors = await destroyLifo(state.extensionCleanups);
 			awareness.raw.destroy();
 			ydoc.destroy();
 
@@ -218,8 +225,7 @@ export function createWorkspace<
 			ydoc,
 			definitions,
 			tables,
-			documents:
-				documentsNamespace as unknown as DocumentsHelper<TTableDefinitions>,
+			documents: typedDocuments,
 			kv,
 			awareness,
 			// Each extension entry is the exports object stored by reference.
@@ -254,21 +260,18 @@ export function createWorkspace<
 					destroy?: () => MaybePromise<void>;
 				},
 			) {
+				const {
+					destroy: _destroy,
+					[Symbol.asyncDispose]: _dispose,
+					whenReady: _whenReady,
+					...clientContext
+				} = client;
 				const ctx = {
-					id,
-					ydoc,
-					definitions,
-					tables,
-					documents:
-						documentsNamespace as unknown as DocumentsHelper<TTableDefinitions>,
-					kv,
-					awareness,
-					batch: (fn: () => void) => ydoc.transact(fn),
+					...clientContext,
 					whenReady:
 						state.whenReadyPromises.length === 0
 							? Promise.resolve()
 							: Promise.all(state.whenReadyPromises).then(() => {}),
-					extensions,
 				};
 
 				try {
@@ -293,25 +296,15 @@ export function createWorkspace<
 						},
 					);
 				} catch (err) {
-					// LIFO cleanup: prior extensions in reverse order
-					const errors: unknown[] = [];
-					for (let i = state.extensionCleanups.length - 1; i >= 0; i--) {
-						try {
-							const result = state.extensionCleanups[i]!();
-							if (result instanceof Promise) {
-								result.catch(() => {}); // Fire and forget in sync context
-							}
-						} catch (cleanupErr) {
-							errors.push(cleanupErr);
+					// Fire-and-forget: withExtension is sync so we can't await
+					destroyLifo(state.extensionCleanups).then((errors) => {
+						if (errors.length > 0) {
+							console.error(
+								'Extension cleanup errors during factory failure:',
+								errors,
+							);
 						}
-					}
-
-					if (errors.length > 0) {
-						console.error(
-							'Extension cleanup errors during factory failure:',
-							errors,
-						);
-					}
+					});
 
 					throw err;
 				}
