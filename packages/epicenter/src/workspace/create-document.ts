@@ -411,10 +411,6 @@ export function createDocument<TRow extends BaseRow>(
 				}
 			}
 		},
-
-		guidOf(row: TRow): string {
-			return String(row[guidKey]);
-		},
 	};
 
 	return binding;

@@ -153,9 +153,6 @@ type DocumentBinding<TRow extends BaseRow> = {
 	 * Close all open documents. Called automatically by workspace destroy().
 	 */
 	closeAll(): Promise<void>;
-
-	/** Extract the GUID from a row (reads the bound guid column). */
-	guidOf(row: TRow): string;
 };
 ````
 
@@ -177,7 +174,7 @@ type DocumentBinding<TRow extends BaseRow> = {
 - `open()` still accepts `TRow | string`
 - The binding still auto-bumps `updatedAt` on content changes
 - The binding still auto-cleans docs when rows are deleted
-- `guidOf(row)` stays on the binding (it's about the binding's column mapping)
+- `guidOf(row)` was removed (column extraction is no longer exposed on the binding)
 - `createDocumentBinding()` config is unchanged
 - `withDocument()` declaration API is unchanged
 - `withDocumentExtension()` is unchanged
@@ -296,10 +293,10 @@ function makeHandle(
 
 ## Simplifications
 
-### 1. Binding surface area shrinks from 8 methods to 4
+### 1. Binding surface area shrinks from 8 methods to 3
 
 Before: `open`, `read`, `write`, `destroy`, `destroyAll`, `getExports`, `guidOf`, `updatedAtOf`
-After: `open`, `close`, `closeAll`, `guidOf`
+After: `open`, `close`, `closeAll`
 
 The binding becomes single-responsibility: manage Y.Doc lifecycle. Content operations and extension access move to the handle.
 
@@ -386,7 +383,7 @@ If a consumer holds a handle and someone else calls `binding.close(guid)`, the h
 
 ## Success Criteria
 
-- [x] `DocumentBinding` has 4 methods: `open`, `close`, `closeAll`, `guidOf`
+- [x] `DocumentBinding` has 3 methods: `open`, `close`, `closeAll`
 - [x] `DocumentHandle` has `ydoc`, `read()`, `write()`, `exports`
 - [x] All existing tests pass (adapted to new API) — 1118 pass, 0 fail
 - [x] No `destroy` / `destroyAll` / `getExports` / `updatedAtOf` references remain on `DocumentBinding`
@@ -400,7 +397,7 @@ If a consumer holds a handle and someone else calls `binding.close(guid)`, the h
 **Types (`types.ts`)**:
 
 - Added `DocumentHandle` type with `ydoc`, `read()`, `write()`, `exports`
-- Replaced 8-method `DocumentBinding` with 4-method version: `open` (returns `DocumentHandle`), `close`, `closeAll`, `guidOf`
+- Replaced 8-method `DocumentBinding` with 3-method version: `open` (returns `DocumentHandle`), `close`, `closeAll`
 - Exported `DocumentHandle` from `index.ts`
 
 **Implementation (`create-document-binding.ts`)**:

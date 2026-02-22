@@ -346,15 +346,6 @@ describe('createDocument', () => {
 		});
 	});
 
-	describe('guidOf', () => {
-		test('guidOf extracts the guid column value', () => {
-			const { binding } = setupWithBinding();
-			expect(
-				binding.guidOf({ id: 'f1', name: 'test.txt', updatedAt: 123, _v: 1 }),
-			).toBe('f1');
-		});
-	});
-
 	describe('document extension hooks', () => {
 		test('hooks are called in order', async () => {
 			const order: number[] = [];

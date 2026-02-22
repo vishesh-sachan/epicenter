@@ -324,9 +324,6 @@ export type DocumentBinding<TRow extends BaseRow> = {
 	 * Close all open documents. Called automatically by workspace destroy().
 	 */
 	closeAll(): Promise<void>;
-
-	/** Extract the GUID from a row (reads the bound guid column). */
-	guidOf(row: TRow): string;
 };
 
 /**

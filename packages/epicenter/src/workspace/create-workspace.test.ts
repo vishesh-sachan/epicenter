@@ -509,7 +509,6 @@ describe('createWorkspace', () => {
 			expect(typeof content!.open).toBe('function');
 			expect(typeof content!.close).toBe('function');
 			expect(typeof content!.closeAll).toBe('function');
-			expect(typeof content!.guidOf).toBe('function');
 		});
 
 		test('table without withDocument does not expose docs property', () => {
