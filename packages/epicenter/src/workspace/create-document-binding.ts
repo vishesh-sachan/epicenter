@@ -39,11 +39,11 @@
  */
 
 import * as Y from 'yjs';
-import type { Extension } from './lifecycle.js';
 import {
-	type RunExtensionFactoriesResult,
-	runExtensionFactories,
-} from './run-extension-factories.js';
+	defineExtension,
+	type Extension,
+	type MaybePromise,
+} from './lifecycle.js';
 import type {
 	BaseRow,
 	DocumentBinding,
@@ -244,37 +244,54 @@ export function createDocumentBinding<TRow extends BaseRow>(
 			// concurrent open() calls for the same guid are safe.
 			// Build the extensions map incrementally so each factory sees prior
 			// extensions' resolved form.
-			const entries = applicableExtensions.map((reg) => ({
-				key: reg.key,
-				factory: reg.factory,
-			}));
+			// biome-ignore lint/suspicious/noExplicitAny: runtime storage uses wide type
+			const resolvedExtensions: Record<string, Extension<any>> = {};
+			const destroys: (() => MaybePromise<void>)[] = [];
+			const whenReadyPromises: Promise<unknown>[] = [];
 
-			let factoryResult: RunExtensionFactoriesResult;
 			try {
-				factoryResult = runExtensionFactories({
-					entries,
-					buildContext: ({ whenReadyPromises, extensions }) => ({
+				for (const { key, factory } of applicableExtensions) {
+					const ctx = {
 						id,
 						ydoc: contentYdoc,
 						whenReady:
 							whenReadyPromises.length === 0
 								? Promise.resolve()
 								: Promise.all(whenReadyPromises).then(() => {}),
-						extensions: { ...extensions },
-					}),
-				});
+						extensions: { ...resolvedExtensions },
+					};
+					const raw = factory(ctx);
+					if (!raw) continue;
+
+					const resolved = defineExtension(raw);
+					resolvedExtensions[key] = resolved;
+					destroys.push(resolved.destroy);
+					whenReadyPromises.push(resolved.whenReady);
+				}
 			} catch (err) {
-				// Helper already cleaned up extension destroys (LIFO).
-				// Destroy the content Y.Doc as document-specific cleanup.
+				// LIFO cleanup of accumulated extensions
+				const errors: unknown[] = [];
+				for (let i = destroys.length - 1; i >= 0; i--) {
+					try {
+						const result = destroys[i]!();
+						if (result instanceof Promise) {
+							result.catch(() => {}); // Fire and forget in sync context
+						}
+					} catch (cleanupErr) {
+						errors.push(cleanupErr);
+					}
+				}
+
+				if (errors.length > 0) {
+					console.error(
+						'Extension cleanup errors during factory failure:',
+						errors,
+					);
+				}
+
 				contentYdoc.destroy();
 				throw err;
 			}
-
-			const {
-				extensions: resolvedExtensions,
-				destroys,
-				whenReadyPromises,
-			} = factoryResult;
 
 			// Attach updatedAt observer — fires when content doc changes.
 			// The Y.Doc 'update' handler receives (update, origin, doc, transaction).
