@@ -22,30 +22,32 @@
  * - Coordination flags prevent infinite loops between the two directions
  */
 
+import { createWorkspace } from '@epicenter/hq';
 import { createSyncExtension } from '@epicenter/hq/extensions/sync';
 import { indexeddbPersistence } from '@epicenter/hq/extensions/sync/web';
-import { createWorkspace } from '@epicenter/hq/static';
 import { Ok, tryAsync } from 'wellcrafted/result';
 import { defineBackground } from 'wxt/utils/define-background';
 import type { Transaction } from 'yjs';
-import {
-	createGroupCompositeId,
-	createTabCompositeId,
-	createWindowCompositeId,
-	type GroupCompositeId,
-	parseGroupId,
-	parseTabId,
-	parseWindowId,
-	type TabCompositeId,
-	type WindowCompositeId,
-} from '$lib/workspace';
 import {
 	generateDefaultDeviceName,
 	getBrowserName,
 	getDeviceId,
 } from '$lib/device/device-id';
 import { tabGroupToRow, tabToRow, windowToRow } from '$lib/sync/row-converters';
-import { definition, type Tab, type Window } from '$lib/workspace';
+import {
+	createGroupCompositeId,
+	createTabCompositeId,
+	createWindowCompositeId,
+	definition,
+	type GroupCompositeId,
+	parseGroupId,
+	parseTabId,
+	parseWindowId,
+	type Tab,
+	type TabCompositeId,
+	type Window,
+	type WindowCompositeId,
+} from '$lib/workspace';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Sync Coordination

@@ -31,7 +31,7 @@
  * ```
  */
 
-import { generateId } from '@epicenter/hq/dynamic';
+import { generateId } from '@epicenter/hq';
 import { getDeviceId } from '$lib/device/device-id';
 import type { SavedTab, Tab } from '$lib/workspace';
 import { popupWorkspace } from '$lib/workspace-popup';

@@ -1,4 +1,3 @@
-import type { WorkspaceDefinition } from '@epicenter/hq/dynamic';
 import { appLocalDataDir, join } from '@tauri-apps/api/path';
 import {
 	mkdir,
@@ -7,6 +6,19 @@ import {
 	remove,
 	writeTextFile,
 } from '@tauri-apps/plugin-fs';
+
+/**
+ * Stored workspace metadata (persisted as JSON on disk).
+ *
+ * Schemas are defined in code via workspace definitions (see templates).
+ * Only display metadata is stored.
+ */
+export type WorkspaceDefinition = {
+	id: string;
+	name: string;
+	description: string;
+	icon: string | null;
+};
 
 /**
  * Get the base workspaces directory path.
@@ -100,8 +112,6 @@ export async function createWorkspaceDefinition(
 		name: input.name,
 		description: input.description,
 		icon: input.icon,
-		tables: input.tables,
-		kv: input.kv,
 	};
 
 	const dataFolderPath = await getDataFolderPath(id);

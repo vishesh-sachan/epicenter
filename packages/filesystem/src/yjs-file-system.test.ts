@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { createWorkspace } from '@epicenter/hq/static';
+import { createWorkspace } from '@epicenter/hq';
 import { Bash } from 'just-bash';
 import { filesTable } from './file-table.js';
 import { createTimeline } from './timeline-helpers.js';

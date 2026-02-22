@@ -1,8 +1,4 @@
-import type {
-	AnyWorkspaceClient,
-	BaseRow,
-	TableHelper,
-} from '@epicenter/hq/static';
+import type { AnyWorkspaceClient, BaseRow, TableHelper } from '@epicenter/hq';
 import { Elysia } from 'elysia';
 
 /**

@@ -29,7 +29,7 @@ export type TimelineEntry =
 /** Content modes supported by timeline entries */
 export type ContentMode = TimelineEntry['type'];
 
-import type { InferTableRow } from '@epicenter/hq/static';
+import type { InferTableRow } from '@epicenter/hq';
 import type { filesTable } from './file-table.js';
 
 /** Branded file identifier — a Guid that is specifically a file ID */

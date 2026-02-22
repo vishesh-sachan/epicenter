@@ -13,7 +13,7 @@ import {
 	previewRedditExport,
 	redditWorkspace,
 } from '../src/ingest/reddit/index.js';
-import { createWorkspace } from '../src/static/index.js';
+import { createWorkspace } from '../src/workspace/index.js';
 
 async function main() {
 	const zipPath = process.argv[2] ?? 'reddit_export.zip';

@@ -1,29 +1,74 @@
 /**
- * Epicenter: YJS-First Collaborative Workspace System
+ * Workspace API for Epicenter
  *
- * This root export provides the full workspace API and shared utilities.
+ * A composable, type-safe API for defining and creating workspaces
+ * with versioned tables and KV stores.
  *
- * - `@epicenter/hq` - Full API (workspace creation, tables, KV, extensions)
- * - `@epicenter/hq/static` - Alias (kept for backward compatibility)
- * - `@epicenter/hq/extensions` - Extension plugins (persistence, sync)
+ * All table and KV schemas must include `_v: number` as a discriminant field.
+ * Use shorthand for single versions, builder pattern for multiple versions with migrations.
  *
  * @example
  * ```typescript
- * import { createWorkspace, defineTable } from '@epicenter/hq';
+ * import { createWorkspace, defineTable, defineKv } from '@epicenter/hq';
  * import { type } from 'arktype';
  *
- * const posts = defineTable(type({ id: 'string', title: 'string', _v: '1' }));
- * const client = createWorkspace({ id: 'my-app', tables: { posts } });
+ * // Tables: shorthand for single version
+ * const users = defineTable(type({ id: 'string', email: 'string', _v: '1' }));
+ *
+ * // Tables: builder pattern for multiple versions with migration
+ * const posts = defineTable()
+ *   .version(type({ id: 'string', title: 'string', _v: '1' }))
+ *   .version(type({ id: 'string', title: 'string', views: 'number', _v: '2' }))
+ *   .migrate((row) => {
+ *     switch (row._v) {
+ *       case 1: return { ...row, views: 0, _v: 2 };
+ *       case 2: return row;
+ *     }
+ *   });
+ *
+ * // KV: shorthand for single version
+ * const sidebar = defineKv(type({ collapsed: 'boolean', width: 'number', _v: '1' }));
+ *
+ * // KV: builder pattern for multiple versions with migration
+ * const theme = defineKv()
+ *   .version(type({ mode: "'light' | 'dark'", _v: '1' }))
+ *   .version(type({ mode: "'light' | 'dark' | 'system'", fontSize: 'number', _v: '2' }))
+ *   .migrate((v) => {
+ *     switch (v._v) {
+ *       case 1: return { ...v, fontSize: 14, _v: 2 };
+ *       case 2: return v;
+ *     }
+ *   });
+ *
+ * // Create client (synchronous, directly usable)
+ * const client = createWorkspace({
+ *   id: 'my-app',
+ *   tables: { users, posts },
+ *   kv: { sidebar, theme },
+ * });
+ *
+ * // Use tables and KV
+ * client.tables.posts.set({ id: '1', title: 'Hello', views: 0, _v: 2 });
+ * client.kv.set('theme', { mode: 'system', fontSize: 16, _v: 2 });
+ *
+ * // Or add extensions
+ * const clientWithExt = createWorkspace({ id: 'my-app', tables: { posts } })
+ *   .withExtension('sqlite', sqlite)
+ *   .withExtension('persistence', persistence);
+ *
+ * // Cleanup
+ * await client.destroy();
  * ```
  *
  * @packageDocumentation
  */
 
 // ════════════════════════════════════════════════════════════════════════════
-// ACTION SYSTEM
+// SHARED UTILITIES (also exported from root for convenience)
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { Action, Actions, Mutation, Query } from './shared/actions';
+// Action system
+export type { Action, Actions, Mutation, Query } from '../shared/actions.js';
 export {
 	defineMutation,
 	defineQuery,
@@ -31,75 +76,55 @@ export {
 	isMutation,
 	isQuery,
 	iterateActions,
-} from './shared/actions';
-
-// ════════════════════════════════════════════════════════════════════════════
-// LIFECYCLE PROTOCOL
-// ════════════════════════════════════════════════════════════════════════════
-
+} from '../shared/actions.js';
+// Error types
+export type { ExtensionError } from '../shared/errors.js';
+export { ExtensionErr } from '../shared/errors.js';
+// Lifecycle protocol
 export type {
 	DocumentContext,
 	Extension,
 	Lifecycle,
 	MaybePromise,
-} from './workspace/lifecycle';
-
-// ════════════════════════════════════════════════════════════════════════════
-// ERROR TYPES
-// ════════════════════════════════════════════════════════════════════════════
-
-export type { ExtensionError } from './shared/errors';
-export { ExtensionErr } from './shared/errors';
-
-// ════════════════════════════════════════════════════════════════════════════
-// CORE TYPES
-// ════════════════════════════════════════════════════════════════════════════
-
-export type { AbsolutePath, ProjectDir } from './shared/types';
-
-// ════════════════════════════════════════════════════════════════════════════
-// ID UTILITIES
-// ════════════════════════════════════════════════════════════════════════════
-
-export type { Guid, Id } from './shared/id';
-export { generateGuid, generateId, Id as createId } from './shared/id';
+} from './lifecycle.js';
 
 // ════════════════════════════════════════════════════════════════════════════
 // Y.DOC STORAGE KEYS
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { KvKey, TableKey as TableKeyType } from './workspace/ydoc-keys';
-export { KV_KEY, TableKey } from './workspace/ydoc-keys';
+export type { KvKey, TableKey as TableKeyType } from './ydoc-keys.js';
+// Y.Doc array key conventions (for direct Y.Doc access / custom providers)
+export { KV_KEY, TableKey } from './ydoc-keys.js';
 
 // ════════════════════════════════════════════════════════════════════════════
-// SCHEMA DEFINITIONS (Pure)
+// Schema Definitions (Pure)
 // ════════════════════════════════════════════════════════════════════════════
 
-export { defineKv } from './workspace/define-kv';
-export { defineTable } from './workspace/define-table';
-export { defineWorkspace } from './workspace/define-workspace';
+export { defineKv } from './define-kv.js';
+export { defineTable } from './define-table.js';
+export { defineWorkspace } from './define-workspace.js';
 
 // ════════════════════════════════════════════════════════════════════════════
-// WORKSPACE CREATION
+// Workspace Creation
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { CreateDocumentBindingConfig } from './workspace/create-document-binding';
+export type { CreateDocumentBindingConfig } from './create-document-binding.js';
 export {
 	createDocumentBinding,
 	DOCUMENT_BINDING_ORIGIN,
-} from './workspace/create-document-binding';
-export { createWorkspace } from './workspace/create-workspace';
+} from './create-document-binding.js';
+export { createWorkspace } from './create-workspace.js';
 
 // ════════════════════════════════════════════════════════════════════════════
-// LOWER-LEVEL APIs (Bring Your Own Y.Doc)
+// Lower-Level APIs (Bring Your Own Y.Doc)
 // ════════════════════════════════════════════════════════════════════════════
 
-export { createAwareness } from './workspace/create-awareness';
-export { createKv } from './workspace/create-kv';
-export { createTables } from './workspace/create-tables';
+export { createAwareness } from './create-awareness.js';
+export { createKv } from './create-kv.js';
+export { createTables } from './create-tables.js';
 
 // ════════════════════════════════════════════════════════════════════════════
-// INTROSPECTION
+// Introspection
 // ════════════════════════════════════════════════════════════════════════════
 
 export type {
@@ -108,30 +133,35 @@ export type {
 	KvDescriptor,
 	TableDescriptor,
 	WorkspaceDescriptor,
-} from './workspace/describe-workspace';
-export { describeWorkspace } from './workspace/describe-workspace';
+} from './describe-workspace.js';
+export { describeWorkspace } from './describe-workspace.js';
 
 // ════════════════════════════════════════════════════════════════════════════
-// VALIDATION UTILITIES
+// Validation Utilities
 // ════════════════════════════════════════════════════════════════════════════
 
-export { createUnionSchema } from './workspace/schema-union';
+export { createUnionSchema } from './schema-union.js';
 
 // ════════════════════════════════════════════════════════════════════════════
-// TYPES
+// Types
 // ════════════════════════════════════════════════════════════════════════════
 
 export type {
+	// Any-typed client (for duck-typing in CLI/server)
 	AnyWorkspaceClient,
+	// Awareness types
 	AwarenessDefinitions,
 	AwarenessHelper,
 	AwarenessState,
+	// Base row type
 	BaseRow,
 	DeleteResult,
+	// Document binding types
 	DocBinding,
 	DocsPropertyOf,
 	DocumentBinding,
 	DocumentHandle,
+	// Extension types
 	ExtensionContext,
 	ExtensionFactory,
 	GetResult,
@@ -146,40 +176,22 @@ export type {
 	KvHelper,
 	NotFoundResult,
 	NumberKeysOf,
+	// Result types - composed
 	RowResult,
 	StringKeysOf,
+	// Definition types
 	TableDefinition,
+	// Map types
 	TableDefinitions,
+	// Helper types
 	TableHelper,
 	TablesHelper,
 	UpdateResult,
+	// Result types - building blocks
 	ValidRowResult,
 	WorkspaceClient,
 	WorkspaceClientBuilder,
 	WorkspaceClientWithActions,
+	// Workspace types
 	WorkspaceDefinition,
-} from './workspace/types';
-
-// ════════════════════════════════════════════════════════════════════════════
-// DRIZZLE RE-EXPORTS
-// ════════════════════════════════════════════════════════════════════════════
-
-// Commonly used Drizzle utilities for querying extensions
-export {
-	and,
-	asc,
-	desc,
-	eq,
-	gt,
-	gte,
-	inArray,
-	isNotNull,
-	isNull,
-	like,
-	lt,
-	lte,
-	ne,
-	not,
-	or,
-	sql,
-} from 'drizzle-orm';
+} from './types.js';

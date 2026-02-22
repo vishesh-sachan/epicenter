@@ -1,4 +1,4 @@
-import type { TableHelper } from '@epicenter/hq/static';
+import type { TableHelper } from '@epicenter/hq';
 import type { FileId, FileRow } from './types.js';
 import { disambiguateNames } from './validation.js';
 
