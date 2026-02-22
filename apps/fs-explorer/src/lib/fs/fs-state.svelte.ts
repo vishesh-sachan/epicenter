@@ -37,7 +37,7 @@ function createFsState() {
 		.withDocumentExtension('persistence', indexeddbPersistence, {
 			tags: ['persistent'],
 		});
-	const fs = createYjsFileSystem(ws.tables.files);
+	const fs = createYjsFileSystem(ws.tables.files, ws.documents.files.content);
 
 	// ── Reactive state ────────────────────────────────────────────────
 	let version = $state(0);
@@ -234,7 +234,7 @@ function createFsState() {
 			 */
 			async readContent(id: FileId): Promise<string | null> {
 				try {
-					const handle = await ws.tables.files.docs.content.open(id);
+					const handle = await ws.documents.files.content.open(id);
 					return handle.read();
 				} catch (err) {
 					console.error('Failed to read content:', err);
@@ -250,7 +250,7 @@ function createFsState() {
 			 */
 			async writeContent(id: FileId, data: string): Promise<void> {
 				try {
-					const handle = await ws.tables.files.docs.content.open(id);
+					const handle = await ws.documents.files.content.open(id);
 					handle.write(data);
 				} catch (err) {
 					toast.error(

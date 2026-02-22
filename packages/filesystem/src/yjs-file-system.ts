@@ -9,14 +9,6 @@ import { posixResolve } from './path-utils.js';
 import type { FileId, FileRow } from './types.js';
 import { disambiguateNames, FS_ERRORS } from './validation.js';
 
-/**
- * Table helper with a document binding attached via `.withDocument()`.
- * This is the shape that `createWorkspace()` produces for tables with document declarations.
- */
-type FilesTableWithDocs = TableHelper<FileRow> & {
-	docs: { content: DocumentBinding<FileRow> };
-};
-
 /** Validate `fs` extends {@link IFileSystem} while preserving the full inferred type (avoids excess-property errors from `satisfies`). */
 function FileSystem<T extends IFileSystem>(fs: T): T {
 	return fs;
@@ -42,15 +34,16 @@ function FileSystem<T extends IFileSystem>(fs: T): T {
  * @example
  * ```typescript
  * const ws = createWorkspace({ id: 'app', tables: { files: filesTable } });
- * const fs = createYjsFileSystem(ws.tables.files);
+ * const fs = createYjsFileSystem(ws.tables.files, ws.documents.files.content);
  * ```
  */
 export function createYjsFileSystem(
-	filesTable: FilesTableWithDocs,
+	filesTable: TableHelper<FileRow>,
+	contentBinding: DocumentBinding<FileRow>,
 	cwd: string = '/',
 ) {
 	const tree = new FileTree(filesTable);
-	const content = createContentHelpers(filesTable.docs.content);
+	const content = createContentHelpers(contentBinding);
 
 	return FileSystem({
 		/** Content I/O operations — exposed for direct content reads/writes by UI layers. */

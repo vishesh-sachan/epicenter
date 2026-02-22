@@ -20,11 +20,6 @@ import { defineKv } from './define-kv.js';
 import { defineTable } from './define-table.js';
 import { defineWorkspace } from './define-workspace.js';
 
-type TableWithDocs = {
-	// biome-ignore lint/suspicious/noExplicitAny: test helper — loose duck type for `as` casts
-	docs?: Record<string, any>;
-};
-
 /** Creates a workspace client with two tables and one KV for testing. */
 function setup() {
 	const postsTable = defineTable(
@@ -484,7 +479,7 @@ describe('createWorkspace', () => {
 	});
 
 	describe('document binding wiring', () => {
-		test('table using withDocument exposes docs namespace on helper', () => {
+		test('table using withDocument exposes binding in documents namespace', () => {
 			const filesTable = defineTable(
 				type({
 					id: 'string',
@@ -499,22 +494,18 @@ describe('createWorkspace', () => {
 				tables: { files: filesTable },
 			});
 
-			const docs = (client.tables.files as TableWithDocs).docs;
-			expect(docs).toBeDefined();
-			if (!docs) {
-				throw new Error('Expected files docs binding to exist');
-			}
-			const content = docs.content;
+			const content = client.documents.files.content;
 			expect(content).toBeDefined();
-			expect(typeof content!.open).toBe('function');
-			expect(typeof content!.close).toBe('function');
-			expect(typeof content!.closeAll).toBe('function');
+			expect(typeof content.open).toBe('function');
+			expect(typeof content.close).toBe('function');
+			expect(typeof content.closeAll).toBe('function');
 		});
 
-		test('table without withDocument does not expose docs property', () => {
+		test('table without withDocument does not appear in documents namespace', () => {
 			const { client } = setup();
 
-			expect((client.tables.posts as TableWithDocs).docs).toBeUndefined();
+			expect(Object.keys(client.documents)).not.toContain('posts');
+			expect(Object.keys(client.documents)).not.toContain('tags');
 		});
 
 		test('withDocumentExtension is wired into document bindings', async () => {
@@ -537,11 +528,7 @@ describe('createWorkspace', () => {
 				return { destroy: () => {} };
 			});
 
-			const docs = (client.tables.files as TableWithDocs).docs;
-			if (!docs) {
-				throw new Error('Expected files docs binding to exist');
-			}
-			await docs.content!.open('f1');
+			await client.documents.files.content.open('f1');
 
 			expect(hookCalled).toBe(true);
 		});
@@ -595,11 +582,8 @@ describe('createWorkspace', () => {
 					return { destroy: () => {} };
 				});
 
-			// biome-ignore lint/suspicious/noExplicitAny: testing runtime property
-			const docs = (client.tables.notes as any).docs;
-
 			// Content doc has tags ['persistent', 'synced']
-			await docs.content.open('f1');
+			await client.documents.notes.content.open('f1');
 			// 'persistent-only' matches (shares 'persistent')
 			// 'ephemeral-only' does NOT match (no overlap)
 			// 'universal' matches (no tags = fires for all)
@@ -608,7 +592,7 @@ describe('createWorkspace', () => {
 			hookCalls.length = 0;
 
 			// Thumb doc has tag ['ephemeral']
-			await docs.thumb.open('t1');
+			await client.documents.notes.thumb.open('t1');
 			// 'persistent-only' does NOT match
 			// 'ephemeral-only' matches (shares 'ephemeral')
 			// 'universal' matches (no tags = fires for all)
@@ -630,11 +614,7 @@ describe('createWorkspace', () => {
 				tables: { files: filesTable },
 			});
 
-			const docs = (client.tables.files as TableWithDocs).docs;
-			if (!docs) {
-				throw new Error('Expected files docs binding to exist');
-			}
-			const doc1 = await docs.content!.open('f1');
+			const doc1 = await client.documents.files.content.open('f1');
 
 			await client.destroy();
 
@@ -643,7 +623,7 @@ describe('createWorkspace', () => {
 			expect(doc1).toBeDefined();
 		});
 
-		test('multiple tables with document bindings each get their own docs', () => {
+		test('multiple tables with document bindings each get their own namespace', () => {
 			const filesTable = defineTable(
 				type({
 					id: 'string',
@@ -667,15 +647,11 @@ describe('createWorkspace', () => {
 				tables: { files: filesTable, notes: notesTable },
 			});
 
-			const fileDocs = (client.tables.files as TableWithDocs).docs;
-			const noteDocs = (client.tables.notes as TableWithDocs).docs;
-			if (!fileDocs || !noteDocs) {
-				throw new Error('Expected document bindings for both tables');
-			}
-
-			expect(fileDocs.content).toBeDefined();
-			expect(noteDocs.body).toBeDefined();
-			expect(fileDocs.content).not.toBe(noteDocs.body);
+			expect(client.documents.files.content).toBeDefined();
+			expect(client.documents.notes.body).toBeDefined();
+			expect(client.documents.files.content).not.toBe(
+				client.documents.notes.body,
+			);
 		});
 	});
 

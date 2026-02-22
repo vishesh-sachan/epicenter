@@ -18,7 +18,7 @@ import { createYjsFileSystem, type YjsFileSystem } from './yjs-file-system.js';
 
 function setup() {
 	const ws = createWorkspace({ id: 'test', tables: { files: filesTable } });
-	const fs = createYjsFileSystem(ws.tables.files);
+	const fs = createYjsFileSystem(ws.tables.files, ws.documents.files.content);
 	return { fs, ws };
 }
 
@@ -432,7 +432,7 @@ describe('timeline content storage', () => {
 
 	test('text append (appendFile on text entry)', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.tables.files.docs.content;
+		const binding = ws.documents.files.content;
 		await fs.writeFile('/log.txt', 'line1\n');
 		await fs.appendFile('/log.txt', 'line2\n');
 		expect(await fs.readFile('/log.txt')).toBe('line1\nline2\n');
@@ -442,7 +442,7 @@ describe('timeline content storage', () => {
 
 	test('binary append (appendFile on binary entry becomes text)', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.tables.files.docs.content;
+		const binding = ws.documents.files.content;
 		const binary = new Uint8Array([0x48, 0x69]); // "Hi"
 		await fs.writeFile('/file.bin', binary);
 		await fs.appendFile('/file.bin', ' there');
@@ -453,7 +453,7 @@ describe('timeline content storage', () => {
 
 	test('timeline inspection: entry count after mode switches', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.tables.files.docs.content;
+		const binding = ws.documents.files.content;
 		// First write: text entry [0]
 		await fs.writeFile('/file.dat', 'text v1');
 		expect(await getTimelineLength(fs, binding, '/file.dat')).toBe(1);
@@ -469,7 +469,7 @@ describe('timeline content storage', () => {
 
 	test('same-mode text overwrite does NOT grow timeline', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.tables.files.docs.content;
+		const binding = ws.documents.files.content;
 		await fs.writeFile('/file.txt', 'first');
 		await fs.writeFile('/file.txt', 'second');
 		await fs.writeFile('/file.txt', 'third');
@@ -479,7 +479,7 @@ describe('timeline content storage', () => {
 
 	test('same-mode binary overwrite DOES grow timeline', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.tables.files.docs.content;
+		const binding = ws.documents.files.content;
 		await fs.writeFile('/file.bin', new Uint8Array([1]));
 		await fs.writeFile('/file.bin', new Uint8Array([2]));
 		await fs.writeFile('/file.bin', new Uint8Array([3]));
@@ -505,7 +505,7 @@ describe('timeline content storage', () => {
 describe('sheet file support', () => {
 	test('readFile returns CSV for sheet-mode file', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.tables.files.docs.content;
+		const binding = ws.documents.files.content;
 		// Create file and push sheet entry via internal access
 		// Accessing internals to seed sheet mode for behavior coverage.
 		await fs.writeFile('/data.csv', 'placeholder');
@@ -521,7 +521,7 @@ describe('sheet file support', () => {
 
 	test('writeFile on sheet-mode re-parses CSV in place', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.tables.files.docs.content;
+		const binding = ws.documents.files.content;
 		await fs.writeFile('/data.csv', 'placeholder');
 		const fileId = fs.lookupId('/data.csv')!;
 		const handle = await binding.open(fileId);
@@ -608,7 +608,7 @@ describe('just-bash integration', () => {
 describe('document binding integration', () => {
 	test('hard row deletion triggers automatic content doc cleanup', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.tables.files.docs.content;
+		const binding = ws.documents.files.content;
 
 		// Write a file to create both the row and the content doc
 		await fs.writeFile('/test.txt', 'hello world');

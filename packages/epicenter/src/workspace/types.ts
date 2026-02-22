@@ -285,7 +285,7 @@ export type DocumentHandle = {
  *
  * Manages Y.Doc creation, provider lifecycle, `updatedAt` auto-bumping,
  * and cleanup on row deletion. Most users access this via
- * `client.tables.files.docs.content`.
+ * `client.documents.files.content`.
  *
  * @typeParam TRow - The row type of the bound table
  *
@@ -327,35 +327,52 @@ export type DocumentBinding<TRow extends BaseRow> = {
 };
 
 /**
- * Conditionally adds a `docs` property to a table helper when the table
- * has document bindings declared via `.withDocument()`.
+ * Does this table definition have a non-empty `docs` record?
  *
- * - Tables with no `.withDocument()` → no `docs` property (empty intersection)
- * - Tables with `.withDocument()` → `{ docs: { [name]: DocumentBinding<TRow> } }`
- *
- * @example
- * ```typescript
- * // Table with docs
- * client.tables.files.docs.content.open(row)
- *
- * // Table without docs — TypeScript error
- * client.tables.tags.docs // Property 'docs' does not exist
- * ```
+ * Used by `DocumentsHelper` to filter the `documents` namespace — only tables
+ * with `.withDocument()` declarations appear in `client.documents`.
  */
-export type DocsPropertyOf<T> = T extends {
+export type HasDocs<T> = T extends { docs: infer TDocs }
+	? keyof TDocs extends never
+		? false
+		: true
+	: false;
+
+/**
+ * Extract the document binding map for a single table definition.
+ *
+ * Maps each doc name to a `DocumentBinding<TLatest>` where `TLatest` is the
+ * table's latest row type (inferred from the `migrate` function's return type).
+ */
+export type DocumentsOf<T> = T extends {
 	docs: infer TDocs;
 	migrate: (...args: never[]) => infer TLatest;
 }
 	? TLatest extends BaseRow
-		? keyof TDocs extends never
-			? {} // no .withDocument() → no .docs property
-			: {
-					docs: {
-						[K in keyof TDocs]: DocumentBinding<TLatest>;
-					};
-				}
-		: {}
-	: {};
+		? { [K in keyof TDocs]: DocumentBinding<TLatest> }
+		: never
+	: never;
+
+/**
+ * Top-level document namespace — parallel to `TablesHelper`.
+ *
+ * Only includes tables that have document bindings declared via `.withDocument()`.
+ * Tables without documents are filtered out via key remapping.
+ *
+ * @example
+ * ```typescript
+ * // Table with .withDocument('content', ...)
+ * client.documents.files.content.open(row)
+ *
+ * // Table without .withDocument() — TypeScript error
+ * client.documents.tags // Property 'tags' does not exist
+ * ```
+ */
+export type DocumentsHelper<TTableDefinitions extends TableDefinitions> = {
+	[K in keyof TTableDefinitions as HasDocs<TTableDefinitions[K]> extends true
+		? K
+		: never]: DocumentsOf<TTableDefinitions[K]>;
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // KV DEFINITION TYPES
@@ -697,12 +714,16 @@ export type KvDefinitions = Record<
 	KvDefinition<any>
 >;
 
-/** Tables helper object with all table helpers, including .docs when declared */
+/**
+ * Tables helper — pure CRUD, no document bindings.
+ *
+ * Document bindings live in the separate `documents` namespace on the client.
+ * This type is a plain mapped type over table definitions.
+ */
 export type TablesHelper<TTableDefinitions extends TableDefinitions> = {
 	[K in keyof TTableDefinitions]: TableHelper<
 		InferTableRow<TTableDefinitions[K]>
-	> &
-		DocsPropertyOf<TTableDefinitions[K]>;
+	>;
 };
 
 /** KV helper with dictionary-style access */
@@ -1010,8 +1031,10 @@ export type ExtensionContext<
 		kv: TKvDefinitions;
 		awareness: TAwarenessDefinitions;
 	};
-	/** Typed table helpers */
+	/** Typed table helpers — pure CRUD, no document bindings */
 	tables: TablesHelper<TTableDefinitions>;
+	/** Document bindings — only tables with `.withDocument()` appear here */
+	documents: DocumentsHelper<TTableDefinitions>;
 	/** Typed KV helper */
 	kv: KvHelper<TKvDefinitions>;
 	/** Typed awareness helper */
@@ -1069,8 +1092,10 @@ export type WorkspaceClient<
 		kv: TKvDefinitions;
 		awareness: TAwarenessDefinitions;
 	};
-	/** Typed table helpers */
+	/** Typed table helpers — pure CRUD, no document bindings */
 	tables: TablesHelper<TTableDefinitions>;
+	/** Document bindings — only tables with `.withDocument()` appear here */
+	documents: DocumentsHelper<TTableDefinitions>;
 	/** Typed KV helper */
 	kv: KvHelper<TKvDefinitions>;
 	/** Typed awareness helper — always present, like tables and kv */

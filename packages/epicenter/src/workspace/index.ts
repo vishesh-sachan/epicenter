@@ -153,9 +153,9 @@ export type {
 	DeleteResult,
 	// Document binding types
 	DocBinding,
-	DocsPropertyOf,
 	DocumentBinding,
 	DocumentHandle,
+	DocumentsHelper,
 	// Extension types
 	ExtensionContext,
 	ExtensionFactory,
@@ -170,10 +170,8 @@ export type {
 	KvGetResult,
 	KvHelper,
 	NotFoundResult,
-	NumberKeysOf,
 	// Result types - composed
 	RowResult,
-	StringKeysOf,
 	// Definition types
 	TableDefinition,
 	// Map types

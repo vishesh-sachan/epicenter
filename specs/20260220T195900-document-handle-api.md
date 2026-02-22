@@ -1,5 +1,7 @@
 # Document Handle API
 
+> **Note**: The `.docs` access pattern described here was replaced by `client.documents` — see specs/20260221T204200-documents-top-level-namespace.md
+
 **Date:** 2026-02-20
 **Status:** Implemented
 **Author:** AI-assisted

@@ -39,7 +39,7 @@ export type ContentHelpers = {
  *
  * @example
  * ```typescript
- * const helpers = createContentHelpers(ws.tables.files.docs.content);
+ * const helpers = createContentHelpers(ws.documents.files.content);
  * const text = await helpers.read(fileId);
  * const size = await helpers.write(fileId, 'hello');
  * ```

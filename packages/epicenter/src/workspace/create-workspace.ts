@@ -53,6 +53,7 @@ import type {
 	DocBinding,
 	DocumentBinding,
 	DocumentExtensionRegistration,
+	DocumentsHelper,
 	ExtensionContext,
 	KvDefinitions,
 	TableDefinitions,
@@ -131,6 +132,12 @@ export function createWorkspace<
 	// Bindings are created eagerly but reference documentExtensionRegistrations by closure,
 	// so they pick up extensions added later via .withDocumentExtension().
 	const documentBindingCleanups: (() => Promise<void>)[] = [];
+	// Runtime type is Record<string, Record<string, DocumentBinding<BaseRow>>> —
+	// cast to DocumentsHelper at the end so it satisfies WorkspaceClient/ExtensionContext.
+	const documentsNamespace: Record<
+		string,
+		Record<string, DocumentBinding<BaseRow>>
+	> = {};
 
 	for (const [tableName, tableDef] of Object.entries(tableDefs)) {
 		const docsDef = (tableDef as { docs?: Record<string, DocBinding> }).docs;
@@ -141,7 +148,7 @@ export function createWorkspace<
 		];
 		if (!tableHelper) continue;
 
-		const docsNamespace: Record<string, DocumentBinding<BaseRow>> = {};
+		const tableDocsNamespace: Record<string, DocumentBinding<BaseRow>> = {};
 
 		for (const [docName, docBinding] of Object.entries(docsDef)) {
 			const docTags: readonly string[] = docBinding.tags ?? [];
@@ -156,17 +163,11 @@ export function createWorkspace<
 				documentTags: docTags,
 			});
 
-			docsNamespace[docName] = binding;
+			tableDocsNamespace[docName] = binding;
 			documentBindingCleanups.push(() => binding.closeAll());
 		}
 
-		// Attach .docs namespace to the table helper
-		Object.defineProperty(tableHelper, 'docs', {
-			value: docsNamespace,
-			enumerable: true,
-			configurable: false,
-			writable: false,
-		});
+		documentsNamespace[tableName] = tableDocsNamespace;
 	}
 
 	function buildClient<TExtensions extends Record<string, unknown>>(
@@ -215,6 +216,8 @@ export function createWorkspace<
 			ydoc,
 			definitions,
 			tables,
+			documents:
+				documentsNamespace as unknown as DocumentsHelper<TTableDefinitions>,
 			kv,
 			awareness,
 			// Each extension entry is the exports object stored by reference.
@@ -254,6 +257,8 @@ export function createWorkspace<
 					ydoc,
 					definitions,
 					tables,
+					documents:
+						documentsNamespace as unknown as DocumentsHelper<TTableDefinitions>,
 					kv,
 					awareness,
 					batch: (fn: () => void) => ydoc.transact(fn),

@@ -69,11 +69,11 @@ type TableDefinitionWithDocBuilder<
 	 * Declare a named document binding on this table.
 	 *
 	 * Maps a document concept (e.g., 'content') to a GUID column and an updatedAt column.
-	 * The name becomes a property under `.docs` on the table helper at runtime.
+	 * The name becomes a property under `client.documents.{tableName}` at runtime.
 	 *
 	 * Chainable — call multiple times for tables with multiple document bindings.
 	 *
-	 * @param name - The binding name (becomes `table.docs[name]`)
+	 * @param name - The binding name (becomes `client.documents.{tableName}[name]`)
 	 * @param binding - Column mapping: `guid` (string column) and `updatedAt` (number column)
 	 *
 	 * @example
