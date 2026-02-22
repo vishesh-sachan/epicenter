@@ -6,7 +6,7 @@
  *
  * Key behaviors:
  * - Document operations keep row metadata in sync and honor documents origins.
- * - Lifecycle methods (`close`, `closeAll`) safely clean up open docs.
+ * - Lifecycle methods (`close`, `closeAll`) safely clean up open documents.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -284,7 +284,7 @@ describe('createDocuments', () => {
 	});
 
 	describe('closeAll', () => {
-		test('closes all open docs', async () => {
+		test('closes all open documents', async () => {
 			const { documents } = setup();
 
 			const handle1 = await documents.open('f1');
@@ -446,7 +446,7 @@ describe('createDocuments', () => {
 			expect(handle.ydoc).toBeInstanceOf(Y.Doc);
 		});
 
-		test('tag matching: extension with no tags fires for all docs', async () => {
+		test('tag matching: extension with no tags fires for all documents', async () => {
 			let called = false;
 			const { documents } = setup({
 				documentTags: ['persistent'],

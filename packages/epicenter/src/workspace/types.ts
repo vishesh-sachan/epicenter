@@ -901,7 +901,7 @@ export type WorkspaceClientBuilder<
 	 * content Y.Docs (not the workspace Y.Doc). Use optional `{ tags }` to target
 	 * specific document types declared via `withDocument(..., { tags })`.
 	 *
-	 * If no `tags` option is provided, the extension is universal (fires for all content docs).
+	 * If no `tags` option is provided, the extension is universal (fires for all content documents).
 	 * If `tags` is provided, the extension fires only for documents whose tags share at
 	 * least one value with the extension's tags (set intersection).
 	 *

@@ -3,8 +3,8 @@
  *
  * Creates a bidirectional link between a table and its associated content Y.Docs.
  * It:
- * 1. Manages Y.Doc creation and provider lifecycle for each content doc
- * 2. Watches content docs → automatically bumps `updatedAt` on the row
+ * 1. Manages Y.Doc creation and provider lifecycle for each content document
+ * 2. Watches content documents → automatically bumps `updatedAt` on the row
  * 3. Watches the table → automatically cleans up documents when rows are deleted
  *
  * Most users never call this directly — `createWorkspace()` wires it automatically
@@ -159,7 +159,7 @@ export type CreateDocumentsConfig<TRow extends BaseRow> = {
  * The manager handles:
  * - Y.Doc creation with `gc: false` (required for Yjs provider compatibility)
  * - Provider lifecycle (persistence, sync) via document extension hooks
- * - Automatic `updatedAt` bumping when content docs change
+ * - Automatic `updatedAt` bumping when content documents change
  * - Automatic cleanup when rows are deleted from the table
  *
  * @param config - Documents configuration
@@ -179,7 +179,7 @@ export function createDocuments<TRow extends BaseRow>(
 		onRowDeleted,
 	} = config;
 
-	const docs = new Map<string, DocEntry>();
+	const openDocuments = new Map<string, DocEntry>();
 
 	/**
 	 * Extract the GUID from a row or use the string directly.
@@ -198,17 +198,17 @@ export function createDocuments<TRow extends BaseRow>(
 			const result = tableHelper.get(id);
 			if (result.status !== 'not_found') continue;
 
-			// Row was deleted — find the matching open doc by searching
-			// all open docs where the guid matches. For most tables, the
+			// Row was deleted — find the matching open document by searching
+			// all open documents where the guid matches. For most tables, the
 			// guid IS the row id, but it could be a different column.
-			for (const [guid] of docs) {
+			for (const [guid] of openDocuments) {
 				// Check if this guid corresponds to the deleted row.
 				// Since we can't reverse-map guid→rowId without scanning,
 				// we check if the deleted row ID matches any open doc's guid
 				// OR if the guid key IS 'id' (common case).
 				if (guid === id || guidKey === 'id') {
 					const targetGuid = guidKey === 'id' ? id : guid;
-					if (!docs.has(targetGuid)) continue;
+					if (!openDocuments.has(targetGuid)) continue;
 
 					if (onRowDeleted) {
 						onRowDeleted(documents, targetGuid);
@@ -226,21 +226,21 @@ export function createDocuments<TRow extends BaseRow>(
 		async open(input: TRow | string): Promise<DocumentHandle> {
 			const guid = resolveGuid(input);
 
-			const existing = docs.get(guid);
+			const existing = openDocuments.get(guid);
 			if (existing) return existing.whenReady;
 
 			const contentYdoc = new Y.Doc({ guid, gc: false });
 
 			// Filter document extensions by tag matching:
-			// - No tags on extension → fire for all docs (universal)
-			// - Has tags → fire only if doc tags and extension tags share ANY value
+			// - No tags on extension → fire for all documents (universal)
+			// - Has tags → fire only if document tags and extension tags share ANY value
 			const applicableExtensions = documentExtensions.filter((reg) => {
 				if (reg.tags.length === 0) return true;
 				return reg.tags.some((tag) => documentTags.includes(tag));
 			});
 
 			// Call document extension factories synchronously.
-			// IMPORTANT: No await between docs.get() and docs.set() — ensures
+			// IMPORTANT: No await between openDocuments.get() and openDocuments.set() — ensures
 			// concurrent open() calls for the same guid are safe.
 			// Build the extensions map incrementally so each factory sees prior
 			// extensions' resolved form.
@@ -340,7 +340,7 @@ export function createDocuments<TRow extends BaseRow>(
 
 								unobserve();
 								contentYdoc.destroy();
-								docs.delete(guid);
+								openDocuments.delete(guid);
 
 								if (errors.length > 0) {
 									console.error('Document extension cleanup errors:', errors);
@@ -348,7 +348,7 @@ export function createDocuments<TRow extends BaseRow>(
 								throw err;
 							});
 
-			docs.set(guid, {
+			openDocuments.set(guid, {
 				ydoc: contentYdoc,
 				extensions: resolvedExtensions,
 				unobserve,
@@ -359,12 +359,12 @@ export function createDocuments<TRow extends BaseRow>(
 
 		async close(input: TRow | string): Promise<void> {
 			const guid = resolveGuid(input);
-			const entry = docs.get(guid);
+			const entry = openDocuments.get(guid);
 			if (!entry) return;
 
 			// Remove from map SYNCHRONOUSLY so concurrent open() calls
 			// create a fresh Y.Doc. Async cleanup follows.
-			docs.delete(guid);
+			openDocuments.delete(guid);
 			entry.unobserve();
 
 			// Destroy in LIFO order (reverse creation), continue on error
@@ -386,9 +386,9 @@ export function createDocuments<TRow extends BaseRow>(
 		},
 
 		async closeAll(): Promise<void> {
-			const entries = Array.from(docs.entries());
+			const entries = Array.from(openDocuments.entries());
 			// Clear map synchronously first
-			docs.clear();
+			openDocuments.clear();
 			unobserveTable();
 
 			for (const [, entry] of entries) {
