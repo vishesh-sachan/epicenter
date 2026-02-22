@@ -16,8 +16,8 @@ import type { SyncProvider, SyncStatus } from '@epicenter/sync';
 import { createSyncProvider } from '@epicenter/sync';
 import { Elysia } from 'elysia';
 import * as Y from 'yjs';
+import { createServer, type ServerConfig } from '../server';
 import { createSyncPlugin } from './plugin';
-import { createSyncServer, type SyncServerConfig } from './server';
 
 // ============================================================================
 // Test Utilities
@@ -36,9 +36,8 @@ function uniqueRoom(): string {
  * Returns the server instance plus URL helpers for building
  * WebSocket and HTTP URLs against the actual bound port.
  */
-function startTestServer(config?: SyncServerConfig) {
-	const server = createSyncServer({ ...config, port: 0 });
-	server.app.get('/health', () => ({ status: 'ok' }));
+function startTestServer(syncConfig?: ServerConfig['sync']) {
+	const server = createServer({ clients: [], sync: syncConfig, port: 0 });
 	const bunServer = server.start();
 	if (!bunServer) {
 		throw new Error('Failed to start test server');
@@ -51,8 +50,7 @@ function startTestServer(config?: SyncServerConfig) {
 			return `ws://localhost:${port}/rooms/${room}`;
 		},
 		httpUrl(path = '/') {
-			const actualPath = path === '/' ? '/rooms/health' : path;
-			return `http://localhost:${port}${actualPath}`;
+			return `http://localhost:${port}${path}`;
 		},
 	};
 }
@@ -213,10 +211,15 @@ describe('sync plugin integration', () => {
 		await ctx.server.stop();
 	});
 
-	test('health endpoint returns ok', async () => {
+	test('discovery endpoint returns API info', async () => {
 		const res = await fetch(ctx.httpUrl('/'));
 		const body = await res.json();
-		expect(body).toEqual({ status: 'ok' });
+		expect(body).toEqual({
+			name: 'Epicenter API',
+			version: '1.0.0',
+			workspaces: [],
+			actions: [],
+		});
 	});
 
 	test('two clients sync document updates', async () => {

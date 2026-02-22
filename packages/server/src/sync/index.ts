@@ -7,4 +7,3 @@
 
 export type { AuthConfig } from './auth';
 export { createSyncPlugin, type SyncPluginConfig } from './plugin';
-export { createSyncServer, type SyncServerConfig } from './server';

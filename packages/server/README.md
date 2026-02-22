@@ -120,10 +120,11 @@ The plugin registers three routes:
 | `WS/GET/POST` | `/:room` | Real-time sync (WS), document state (GET), apply updates (POST) |
 
 ```typescript
-import { createSyncPlugin, createSyncServer } from '@epicenter/server/sync';
+import { createSyncPlugin } from '@epicenter/server/sync';
+import { createServer } from '@epicenter/server';
 
 // 1. Standalone relay (zero-config, rooms created on demand)
-const relay = createSyncServer({ port: 3913 });
+const relay = createServer({ clients: [], port: 3913 });
 relay.start();
 
 // 2. Integrated plugin (use your own Elysia instance)
@@ -231,7 +232,6 @@ The sync plugin's protocol layer (rooms, auth, y-websocket encoding) is transpor
 | `createSyncPlugin`      | ✅          | ✅ (protocol layer) | Sync is the core value prop for both targets     |
 | `createWorkspacePlugin` | ✅          | ❌                  | Tables/actions need in-process workspace clients |
 | `createServer`          | ✅          | ❌                  | Convenience wrapper for self-hosted              |
-| `createSyncServer`      | ✅          | ❌                  | Standalone relay for self-hosted                 |
 
 ## Multiple Workspaces
 
