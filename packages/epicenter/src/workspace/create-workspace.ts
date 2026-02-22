@@ -140,8 +140,8 @@ export function createWorkspace<
 
 	// Accumulated document extension registrations (in chain order).
 	// Mutable array — grows as .withDocumentExtension() is called. Document
-	// Documents reference this array, so by the time user code calls .open(),
-	// all document extensions are registered.
+	// bindings reference this array by closure, so by the time user code
+	// calls .open(), all extensions are registered.
 	const documentExtensionRegistrations: DocumentExtensionRegistration[] = [];
 
 	// Create documents for tables that have .withDocument() declarations.
