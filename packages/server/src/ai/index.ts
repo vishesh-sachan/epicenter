@@ -10,4 +10,4 @@ export {
 	SUPPORTED_PROVIDERS,
 	type SupportedProvider,
 } from './adapters';
-export { type AIPluginConfig, createAIPlugin } from './plugin';
+export { createAIPlugin } from './plugin';

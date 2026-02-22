@@ -6,33 +6,7 @@ import {
 	isSupportedProvider,
 	PROVIDER_ENV_VARS,
 	resolveApiKey,
-	SUPPORTED_PROVIDERS,
 } from './adapters';
-
-/**
- * Configuration for the AI plugin.
- *
- * All options are optional — the plugin works out-of-the-box with sensible defaults.
- */
-export type AIPluginConfig = {
-	/**
-	 * Restrict which providers this plugin instance accepts.
-	 *
-	 * When set, only requests for providers in this list are allowed — all
-	 * others are rejected with 400. This is a subset filter on top of the
-	 * built-in `SUPPORTED_PROVIDERS`; you can't add providers that don't
-	 * have adapter factories.
-	 *
-	 * Defaults to all built-in providers (`SUPPORTED_PROVIDERS`).
-	 *
-	 * @example
-	 * ```typescript
-	 * // Only allow OpenAI and Anthropic — block Gemini, Ollama, Grok
-	 * createAIPlugin({ providers: ['openai', 'anthropic'] })
-	 * ```
-	 */
-	providers?: string[];
-};
 
 /**
  * Creates an Elysia plugin that provides a streaming AI chat endpoint.
@@ -61,12 +35,7 @@ export type AIPluginConfig = {
  * // POST /ai/chat → SSE stream
  * ```
  */
-export function createAIPlugin(config?: AIPluginConfig) {
-	// Subset of SUPPORTED_PROVIDERS this instance accepts. Lets consumers
-	// lock down which providers are available (e.g. only 'openai' and
-	// 'anthropic') without forking the plugin.
-	const allowedProviders = config?.providers ?? SUPPORTED_PROVIDERS;
-
+export function createAIPlugin() {
 	return new Elysia().post(
 		'/chat',
 		async ({ body, headers, status }) => {
@@ -80,16 +49,8 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				modelOptions,
 			} = body;
 
-			// 1. Type guard — narrows `string` to `SupportedProvider` so
-			//    downstream code (PROVIDER_ENV_VARS, createAdapter) is type-safe.
 			if (!isSupportedProvider(provider)) {
 				return status('Bad Request', `Unsupported provider: ${provider}`);
-			}
-
-			// 2. Config-level restriction — rejects providers that have adapters
-			//    but were excluded by the plugin consumer's `providers` option.
-			if (!allowedProviders.includes(provider)) {
-				return status('Bad Request', `Provider not enabled: ${provider}`);
 			}
 
 			const apiKey = resolveApiKey(provider, headerApiKey);
