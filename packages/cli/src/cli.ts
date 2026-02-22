@@ -1,5 +1,4 @@
 import { createServer } from '@epicenter/server';
-import { createSyncServer } from '@epicenter/server/sync';
 import yargs from 'yargs';
 import { buildActionCommands } from './command-builder';
 import { buildKvCommands } from './commands/kv-commands';
@@ -24,20 +23,13 @@ export function createCLI(client?: AnyWorkspaceClient) {
 					default: 3913,
 				}),
 			async (argv) => {
-				const server = client
-					? createServer(client, { port: argv.port })
-					: createSyncServer({ port: argv.port });
+				const server = createServer(client ? [client] : [], {
+					port: argv.port,
+				});
 				server.start();
 
-				if (client) {
-					console.log(`\nEpicenter server on http://localhost:${argv.port}`);
-					console.log(`API docs: http://localhost:${argv.port}/openapi\n`);
-				} else {
-					console.log(
-						`\nEpicenter sync server on http://localhost:${argv.port}`,
-					);
-					console.log(`WebSocket: ws://localhost:${argv.port}/rooms/{room}\n`);
-				}
+				console.log(`\nEpicenter server on http://localhost:${argv.port}`);
+				console.log(`API docs: http://localhost:${argv.port}/openapi\n`);
 
 				const shutdown = async () => {
 					await server.stop();

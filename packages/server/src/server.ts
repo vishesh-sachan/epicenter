@@ -14,42 +14,35 @@ export type ServerOptions = {
 	port?: number;
 	/** Auth configuration passed through to the sync plugin. */
 	auth?: AuthConfig;
+	/** Called when a new sync room is created on demand. */
+	onRoomCreated?: (roomId: string, doc: Y.Doc) => void;
+	/** Called when an idle sync room is evicted. */
+	onRoomEvicted?: (roomId: string, doc: Y.Doc) => void;
 };
 
 /**
- * Create an HTTP server that exposes workspace clients as REST APIs and WebSocket sync.
+ * Create an Epicenter HTTP server.
  *
- * This is the self-hosted convenience wrapper that composes both the sync plugin and
- * workspace plugin into a single server. For cloud deployments (e.g., Cloudflare Durable
- * Objects), use {@link createSyncPlugin} directly — the sync protocol is portable,
- * while table/action endpoints are a self-hosted concern.
- *
- * The server provides:
- * - `/` - API root with discovery info
- * - `/openapi` - Interactive API documentation (Scalar UI)
- * - `/openapi/json` - OpenAPI specification
- * - `/workspaces/{id}/tables/{table}` - RESTful table CRUD endpoints
- * - `/workspaces/{id}/actions/{action}` - Workspace action endpoints (queries via GET, mutations via POST)
- * - `/rooms/{id}` - WebSocket sync + REST document state (GET/POST)
+ * Always includes sync (WebSocket + REST document state), OpenAPI docs, AI endpoints,
+ * and a discovery root. When the clients array is non-empty, also mounts RESTful
+ * table CRUD and action endpoints under `/workspaces`.
  *
  * @example
  * ```typescript
- * import { createServer } from '@epicenter/server';
+ * // Sync relay only (no workspace config needed)
+ * createServer([]).start();
  *
- * const server = createServer([workspace], { port: 3913 });
- * server.start();
+ * // Full server with workspace REST + sync
+ * createServer([client], { port: 3913 }).start();
  *
- * // Later:
- * await server.stop();
+ * // Multiple workspaces
+ * createServer([blogClient, authClient]).start();
  * ```
  */
 export function createServer(
-	clientOrClients: AnyWorkspaceClient | AnyWorkspaceClient[],
+	clients: AnyWorkspaceClient[],
 	options?: ServerOptions,
 ) {
-	const clients = Array.isArray(clientOrClients)
-		? clientOrClients
-		: [clientOrClients];
 	const workspaces: Record<string, AnyWorkspaceClient> = {};
 	for (const client of clients) {
 		workspaces[client.id] = client;
@@ -79,20 +72,22 @@ export function createServer(
 		.use(
 			new Elysia({ prefix: '/rooms' }).use(
 				createSyncPlugin({
-					getDoc: (room) => {
-						if (workspaces[room]) return workspaces[room].ydoc;
+					getDoc:
+						clients.length > 0
+							? (room) => {
+									if (workspaces[room]) return workspaces[room].ydoc;
 
-						if (!dynamicDocs.has(room)) {
-							dynamicDocs.set(room, new Y.Doc());
-						}
-						return dynamicDocs.get(room);
-					},
+									if (!dynamicDocs.has(room)) {
+										dynamicDocs.set(room, new Y.Doc());
+									}
+									return dynamicDocs.get(room);
+								}
+							: undefined,
 					auth: options?.auth,
+					onRoomCreated: options?.onRoomCreated,
+					onRoomEvicted: options?.onRoomEvicted,
 				}),
 			),
-		)
-		.use(
-			new Elysia({ prefix: '/workspaces' }).use(createWorkspacePlugin(clients)),
 		)
 		.use(new Elysia({ prefix: '/ai' }).use(createAIPlugin()))
 		.get('/', () => ({
@@ -101,6 +96,12 @@ export function createServer(
 			workspaces: Object.keys(workspaces),
 			actions: allActionPaths,
 		}));
+
+	if (clients.length > 0) {
+		app.use(
+			new Elysia({ prefix: '/workspaces' }).use(createWorkspacePlugin(clients)),
+		);
+	}
 
 	const port =
 		options?.port ??
