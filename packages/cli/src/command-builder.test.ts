@@ -10,8 +10,8 @@
  * - Builds per-command yargs option builders from input schemas
  */
 import { describe, expect, test } from 'bun:test';
+import { defineMutation, defineQuery } from '@epicenter/hq';
 import { type } from 'arktype';
-import { defineMutation, defineQuery } from '../shared/actions';
 import { buildActionCommands } from './command-builder';
 
 describe('buildActionCommands', () => {

@@ -17,6 +17,30 @@ import { type } from 'arktype';
 import type { Brand } from 'wellcrafted/brand';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Chrome API Sentinel Constants
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Mirrors `chrome.tabs.TAB_ID_NONE`.
+ * Assigned to tabs that aren't browser tabs (e.g. devtools windows).
+ *
+ * @see https://developer.chrome.com/docs/extensions/reference/api/tabs#property-TAB_ID_NONE
+ */
+export const TAB_ID_NONE = -1;
+
+/**
+ * Mirrors `chrome.tabGroups.TAB_GROUP_ID_NONE`.
+ * Assigned to `Tab.groupId` when the tab doesn't belong to any group.
+ *
+ * Note: `TabGroup.id` itself is guaranteed to never be this value —
+ * only `Tab.groupId` uses it as a sentinel.
+ *
+ * @see https://developer.chrome.com/docs/extensions/reference/api/tabGroups#property-TAB_GROUP_ID_NONE
+ * @see https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabGroups/TabGroup
+ */
+export const TAB_GROUP_ID_NONE = -1;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Composite ID Types
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -52,6 +76,13 @@ export const GroupCompositeId = type('string').pipe(
 
 /**
  * Create a device-scoped composite tab ID: `${deviceId}_${tabId}`.
+ *
+ * Callers must guard against `TAB_ID_NONE` (`-1`) and `undefined`
+ * before calling — this function always returns a valid composite ID.
+ *
+ * Note: `openerTabId` is simply absent/undefined when no opener exists
+ * (it never uses `-1` as a sentinel), so the caller only needs an
+ * `undefined` check for that field.
  */
 export function createTabCompositeId(
 	deviceId: string,
@@ -62,6 +93,11 @@ export function createTabCompositeId(
 
 /**
  * Create a device-scoped composite window ID: `${deviceId}_${windowId}`.
+ *
+ * Note: `WINDOW_ID_NONE` (`-1`) only appears in `windows.onFocusChanged`
+ * events when all windows lose focus — it never appears on `Tab.windowId`.
+ * If used with a focus event's windowId, the resulting composite ID is safe
+ * for comparisons but should not be stored as a real window reference.
  */
 export function createWindowCompositeId(
 	deviceId: string,
@@ -72,11 +108,17 @@ export function createWindowCompositeId(
 
 /**
  * Create a device-scoped composite group ID: `${deviceId}_${groupId}`.
+ *
+ * Returns `undefined` when `groupId` is `TAB_GROUP_ID_NONE` (`-1`),
+ * which Chrome uses for tabs that don't belong to any group.
+ *
+ * @see https://developer.chrome.com/docs/extensions/reference/api/tabGroups#property-TAB_GROUP_ID_NONE
  */
 export function createGroupCompositeId(
 	deviceId: string,
 	groupId: number,
-): GroupCompositeId {
+): GroupCompositeId | undefined {
+	if (groupId === TAB_GROUP_ID_NONE) return undefined;
 	return `${deviceId}_${groupId}` as GroupCompositeId;
 }
 
@@ -189,27 +231,29 @@ export const definition = defineWorkspace({
 				autoDiscardable: 'boolean',
 				frozen: 'boolean', // Chrome 132+, tab cannot execute tasks
 				// Optional fields — matching chrome.tabs.Tab optionality
-				'url?': 'string',
-				'title?': 'string',
-				'favIconUrl?': 'string',
-				'pendingUrl?': 'string', // Chrome 79+, URL before commit
-				'status?': "'unloaded' | 'loading' | 'complete'",
-				'audible?': 'boolean', // Chrome 45+
+				// Unioned with `undefined` so that present-but-undefined keys pass
+				// arktype validation (which defaults to exactOptionalPropertyTypes).
+				'url?': 'string | undefined',
+				'title?': 'string | undefined',
+				'favIconUrl?': 'string | undefined',
+				'pendingUrl?': 'string | undefined', // Chrome 79+, URL before commit
+				'status?': "'unloaded' | 'loading' | 'complete' | undefined",
+				'audible?': 'boolean | undefined', // Chrome 45+
 				/** @see https://developer.chrome.com/docs/extensions/reference/api/tabs#type-MutedInfo */
 				'mutedInfo?': type({
 					/** Whether the tab is muted (prevented from playing sound). The tab may be muted even if it has not played or is not currently playing sound. Equivalent to whether the 'muted' audio indicator is showing. */
 					muted: 'boolean',
 					/** The reason the tab was muted or unmuted. Not set if the tab's mute state has never been changed. */
-					'reason?': "'user' | 'capture' | 'extension'",
+					'reason?': "'user' | 'capture' | 'extension' | undefined",
 					/** The ID of the extension that changed the muted state. Not set if an extension was not the reason the muted state last changed. */
-					'extensionId?': 'string',
-				}),
-				'groupId?': GroupCompositeId, // Composite: `${deviceId}_${groupId}`, Chrome 88+
-				'openerTabId?': TabCompositeId, // Composite: `${deviceId}_${openerTabId}`
-				'lastAccessed?': 'number', // Chrome 121+, ms since epoch
-				'height?': 'number',
-				'width?': 'number',
-				'sessionId?': 'string', // From chrome.sessions API
+					'extensionId?': 'string | undefined',
+				}).or('undefined'),
+				'groupId?': GroupCompositeId.or('undefined'), // Composite: `${deviceId}_${groupId}`, Chrome 88+
+				'openerTabId?': TabCompositeId.or('undefined'), // Composite: `${deviceId}_${openerTabId}`
+				'lastAccessed?': 'number | undefined', // Chrome 121+, ms since epoch
+				'height?': 'number | undefined',
+				'width?': 'number | undefined',
+				'sessionId?': 'string | undefined', // From chrome.sessions API
 				_v: '1',
 			}),
 		),
@@ -232,13 +276,14 @@ export const definition = defineWorkspace({
 				incognito: 'boolean',
 				// Optional fields — matching chrome.windows.Window optionality
 				'state?':
-					"'normal' | 'minimized' | 'maximized' | 'fullscreen' | 'locked-fullscreen'",
-				'type?': "'normal' | 'popup' | 'panel' | 'app' | 'devtools'",
-				'top?': 'number',
-				'left?': 'number',
-				'width?': 'number',
-				'height?': 'number',
-				'sessionId?': 'string', // From chrome.sessions API
+					"'normal' | 'minimized' | 'maximized' | 'fullscreen' | 'locked-fullscreen' | undefined",
+				'type?':
+					"'normal' | 'popup' | 'panel' | 'app' | 'devtools' | undefined",
+				'top?': 'number | undefined',
+				'left?': 'number | undefined',
+				'width?': 'number | undefined',
+				'height?': 'number | undefined',
+				'sessionId?': 'string | undefined', // From chrome.sessions API
 				_v: '1',
 			}),
 		),
@@ -261,7 +306,7 @@ export const definition = defineWorkspace({
 					"'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange'",
 				shared: 'boolean', // Chrome 137+
 				// Optional fields — matching chrome.tabGroups.TabGroup optionality
-				'title?': 'string',
+				'title?': 'string | undefined',
 				_v: '1',
 			}),
 		),
@@ -282,7 +327,7 @@ export const definition = defineWorkspace({
 				id: 'string', // nanoid, generated on save
 				url: 'string', // The tab URL
 				title: 'string', // Tab title at time of save
-				'favIconUrl?': 'string', // Favicon URL (nullable)
+				'favIconUrl?': 'string | undefined', // Favicon URL (nullable)
 				pinned: 'boolean', // Whether tab was pinned
 				sourceDeviceId: 'string', // Device that saved this tab
 				savedAt: 'number', // Timestamp (ms since epoch)

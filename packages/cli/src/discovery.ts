@@ -1,6 +1,5 @@
 import { join, resolve } from 'node:path';
-import type { ProjectDir } from '../shared/types';
-import type { AnyWorkspaceClient } from '../workspace/types';
+import type { AnyWorkspaceClient, ProjectDir } from '@epicenter/hq';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // EXPORTED TYPES

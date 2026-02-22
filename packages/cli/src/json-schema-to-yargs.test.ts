@@ -10,8 +10,8 @@
  * - Handles optional fields, literal unions, arrays, and non-object schemas
  */
 import { describe, expect, test } from 'bun:test';
+import { standardSchemaToJsonSchema } from '@epicenter/hq';
 import { type } from 'arktype';
-import { standardSchemaToJsonSchema } from '../shared/standard-schema/to-json-schema';
 import { jsonSchemaToYargsOptions } from './json-schema-to-yargs';
 
 describe('jsonSchemaToYargsOptions', () => {

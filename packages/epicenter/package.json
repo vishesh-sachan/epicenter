@@ -13,12 +13,8 @@
 		"./extensions/sync": "./src/extensions/sync.ts",
 		"./extensions/sync/web": "./src/extensions/sync/web.ts",
 		"./extensions/sync/desktop": "./src/extensions/sync/desktop.ts",
-		"./cli": "./src/cli/index.ts",
 		"./ingest": "./src/ingest/index.ts",
 		"./ingest/reddit": "./src/ingest/reddit/index.ts"
-	},
-	"bin": {
-		"epicenter": "./src/cli/bin.ts"
 	},
 	"license": "AGPL-3.0",
 	"scripts": {
@@ -46,8 +42,7 @@
 		"tinybase": "^5.4.2",
 		"wellcrafted": "catalog:",
 		"y-indexeddb": "catalog:",
-		"y-protocols": "catalog:",
-		"yargs": "catalog:"
+		"y-protocols": "catalog:"
 	},
 	"peerDependencies": {
 		"yjs": "catalog:"
@@ -55,7 +50,6 @@
 	"devDependencies": {
 		"@types/diff": "^8.0.0",
 		"@types/node": "catalog:",
-		"@types/yargs": "catalog:",
 		"better-sqlite3": "^12.4.1",
 		"drizzle-kit": "catalog:",
 		"filenamify": "^7.0.1",

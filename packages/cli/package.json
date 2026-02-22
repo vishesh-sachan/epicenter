@@ -1,0 +1,18 @@
+{
+	"name": "@epicenter/cli",
+	"version": "0.0.1",
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
+	"bin": {
+		"epicenter": "./src/bin.ts"
+	},
+	"dependencies": {
+		"@epicenter/hq": "workspace:*",
+		"wellcrafted": "catalog:",
+		"yargs": "catalog:"
+	},
+	"devDependencies": {
+		"@types/yargs": "catalog:",
+		"typescript": "catalog:"
+	}
+}

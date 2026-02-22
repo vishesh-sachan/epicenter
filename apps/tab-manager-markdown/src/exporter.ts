@@ -1,8 +1,10 @@
 /**
  * Markdown generation for tab-manager data.
  *
- * Pure functions that convert tab-manager tables into markdown files.
- * One file per device with structured JSON + human-readable summary.
+ * Pure functions that convert tab-manager tables into clean Markdown files
+ * with YAML frontmatter. One file per device, tabs grouped by window in tables.
+ *
+ * Uses Bun's built-in `Bun.YAML.stringify()` for frontmatter serialization.
  */
 
 import type {
@@ -11,6 +13,7 @@ import type {
 	TabGroup,
 	Window,
 } from '@epicenter/tab-manager/workspace';
+import { YAML } from 'bun';
 
 export type TableHelper<TRow> = {
 	getAllValid(): TRow[];
@@ -31,96 +34,107 @@ export type DeviceData = {
 	tabGroups: TabGroup[];
 };
 
+/**
+ * Generate a clean Markdown file for a device.
+ *
+ * Output format:
+ * - YAML frontmatter with device metadata and counts
+ * - Markdown body with tabs grouped by window in tables
+ * - Tab groups summary at the bottom
+ *
+ * @example
+ * ```markdown
+ * ---
+ * id: xK2mP9qL
+ * name: Chrome on MacBook Pro
+ * browser: chrome
+ * lastSeen: "2026-02-18T17:15:30Z"
+ * exported: "2026-02-18T17:22:45Z"
+ * windows: 2
+ * tabs: 8
+ * tabGroups: 1
+ * ---
+ *
+ * # Chrome on MacBook Pro
+ *
+ * ## Window 1 (focused)
+ *
+ * | # | Title | URL | Flags |
+ * |---|-------|-----|-------|
+ * | 1 | Epicenter | https://github.com/... | active, pinned |
+ * ```
+ */
 export function generateMarkdown({
 	device,
 	windows,
 	tabs,
 	tabGroups,
 }: DeviceData): string {
-	// Generate structured JSON payload (sorted keys for stable diffs)
-	const jsonPayload = JSON.stringify(
-		{ device, windows, tabs, tabGroups },
+	const frontmatter = YAML.stringify(
+		{
+			id: device.id,
+			name: device.name,
+			browser: device.browser,
+			lastSeen: device.lastSeen,
+			exported: new Date().toISOString(),
+			windows: windows.length,
+			tabs: tabs.length,
+			tabGroups: tabGroups.length,
+		},
 		null,
 		2,
 	);
 
-	// Generate human-readable summary
-	const summary = generateSummary({ device, windows, tabs, tabGroups });
+	let body = `# ${device.name}\n`;
 
-	return `# Device: ${device.name}
-
-**Device ID:** \`${device.id}\`  
-**Browser:** ${device.browser}  
-**Last Seen:** ${device.lastSeen}
-
----
-
-## Data
-
-\`\`\`json
-${jsonPayload}
-\`\`\`
-
----
-
-${summary}
-
----
-
-**Exported:** ${new Date().toISOString()}
-`;
-}
-
-function generateSummary(data: DeviceData): string {
-	const { windows, tabs, tabGroups } = data;
-
-	let summary = `## Summary\n\n`;
-
-	// Windows summary
-	summary += `### Windows (${windows.length})\n\n`;
+	// Tabs grouped by window
 	if (windows.length === 0) {
-		summary += `_No windows_\n\n`;
+		body += '\n_No windows_\n';
 	} else {
 		for (const window of windows) {
-			const windowTabs = tabs.filter((t) => t.windowId === window.id);
-			summary += `**Window ${window.windowId}**${window.focused ? ' (focused)' : ''}\n`;
-			summary += `- ${windowTabs.length} tab${windowTabs.length === 1 ? '' : 's'}\n\n`;
+			const windowTabs = tabs
+				.filter((t) => t.windowId === window.id)
+				.sort((a, b) => a.index - b.index);
+
+			const focusedLabel = window.focused ? ' (focused)' : '';
+			body += `\n## Window ${window.windowId}${focusedLabel}\n\n`;
+
+			if (windowTabs.length === 0) {
+				body += '_No tabs_\n';
+			} else {
+				body += '| # | Title | URL | Flags |\n';
+				body += '|---|-------|-----|-------|\n';
+				for (const tab of windowTabs) {
+					const flags = [];
+					if (tab.active) flags.push('active');
+					if (tab.pinned) flags.push('pinned');
+					if (tab.incognito) flags.push('incognito');
+
+					const title = escapeTableCell(tab.title || 'Untitled');
+					const url = tab.url || '';
+					const flagStr = flags.join(', ');
+
+					body += `| ${tab.index + 1} | ${title} | ${url} | ${flagStr} |\n`;
+				}
+			}
 		}
-	}
-
-	// Tabs summary
-	summary += `### Tabs (${tabs.length})\n\n`;
-	if (tabs.length === 0) {
-		summary += `_No tabs_\n\n`;
-	} else {
-		const sortedTabs = [...tabs].sort((a, b) => a.index - b.index);
-		for (const tab of sortedTabs) {
-			const flags = [];
-			if (tab.active) flags.push('active');
-			if (tab.pinned) flags.push('pinned');
-			if (tab.incognito) flags.push('incognito');
-			const flagStr = flags.length ? ` (${flags.join(', ')})` : '';
-
-			const title = tab.title || 'Untitled';
-			const url = tab.url || '#';
-
-			summary += `${tab.index + 1}. **[${title}](${url})**${flagStr}\n`;
-		}
-		summary += '\n';
 	}
 
 	// Tab groups summary
-	summary += `### Tab Groups (${tabGroups.length})\n\n`;
-	if (tabGroups.length === 0) {
-		summary += `_No tab groups_\n`;
-	} else {
+	if (tabGroups.length > 0) {
+		body += '\n## Tab Groups\n\n';
 		for (const group of tabGroups) {
-			const groupTabs = tabs.filter((t) => t.groupId === group.id);
+			const groupTabCount = tabs.filter((t) => t.groupId === group.id).length;
 			const title = group.title || 'Untitled Group';
-			summary += `**${title}** (${group.color})${group.collapsed ? ' [collapsed]' : ''}\n`;
-			summary += `- ${groupTabs.length} tab${groupTabs.length === 1 ? '' : 's'}\n\n`;
+			const collapsed = group.collapsed ? ', collapsed' : '';
+			body += `**${escapeTableCell(title)}** (${group.color}${collapsed}) - ${groupTabCount} tab${groupTabCount === 1 ? '' : 's'}\n`;
 		}
 	}
 
-	return summary;
+	return `---\n${frontmatter}---\n\n${body}`;
+}
+
+/** Escape pipe characters in Markdown table cells. */
+function escapeTableCell(text: string): string {
+	return text.replace(/\|/g, '\\|');
 }

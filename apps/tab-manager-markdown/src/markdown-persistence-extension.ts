@@ -2,9 +2,11 @@
  * Markdown persistence extension.
  *
  * Observes Y.Doc changes and exports tab-manager state to markdown files,
- * one per device. Follows the Extension lifecycle contract:
+ * one per device. Uses Bun's built-in `Bun.write()` with `createPath: true`
+ * for file writes (auto-creates directories).
  *
- * - `whenReady`: Resolves after output directory is created and observer is registered
+ * Follows the Extension lifecycle contract:
+ *
  * - `destroy`: Removes observer, clears timers, flushes pending writes
  * - `exports.flush`: Force-write any pending changes without destroying
  *
@@ -20,7 +22,6 @@
  * ```
  */
 
-import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import type * as Y from 'yjs';
 import { generateMarkdown, type Tables } from './exporter';
@@ -36,6 +37,9 @@ type MarkdownPersistenceConfig = {
  * Observes all Y.Doc updates via `ydoc.on('update')` and debounces
  * writes to avoid disk thrashing during rapid changes. Each device
  * gets its own markdown file at `{outputDir}/{deviceId}.md`.
+ *
+ * Uses `Bun.write()` with `createPath: true` so the output directory
+ * is created automatically on first write — no explicit `mkdir` needed.
  */
 export function createMarkdownPersistenceExtension({
 	outputDir,
@@ -72,7 +76,7 @@ export function createMarkdownPersistenceExtension({
 			for (const [deviceId, data] of deviceMap) {
 				const markdown = generateMarkdown(data);
 				const filePath = join(outputDir, `${deviceId}.md`);
-				await fs.writeFile(filePath, markdown, 'utf-8');
+				await Bun.write(filePath, markdown, { createPath: true });
 				exportCount++;
 			}
 
@@ -105,16 +109,10 @@ export function createMarkdownPersistenceExtension({
 			}
 		}
 
-		// Register observer inside whenReady (after directory exists),
-		// matching the pattern from extensions/sync/desktop.ts persistence.
-		const whenReady = (async () => {
-			await fs.mkdir(outputDir, { recursive: true });
-			ydoc.on('update', scheduleExport);
-		})();
+		ydoc.on('update', scheduleExport);
 
 		return {
 			flush,
-			whenReady,
 			async destroy() {
 				ydoc.off('update', scheduleExport);
 				await flush();
