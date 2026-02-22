@@ -142,6 +142,23 @@ export default defineBackground(() => {
 		);
 
 	// ─────────────────────────────────────────────────────────────────────────
+	// Device Identity (resolves before refetchAll — prevents deadlock)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	const deviceIdPromise = (async () => {
+		await client.whenReady;
+		console.log('[Background] Persistence loaded');
+		const deviceId = await getDeviceId();
+
+		client.awareness.setLocal({
+			deviceId,
+			deviceType: 'browser-extension',
+		});
+
+		return deviceId;
+	})();
+
+	// ─────────────────────────────────────────────────────────────────────────
 	// Action Helpers (extracted from workspace definition)
 	// ─────────────────────────────────────────────────────────────────────────
 
@@ -152,7 +169,7 @@ export default defineBackground(() => {
 		 * Register this device in the devices table.
 		 */
 		async registerDevice() {
-			const { deviceId } = await whenReady;
+			const deviceId = await deviceIdPromise;
 			const existingDevice = tables.devices.get(deviceId);
 
 			// Get existing name if valid, otherwise generate default
@@ -174,7 +191,7 @@ export default defineBackground(() => {
 		 * Only manages THIS device's tabs - other devices' tabs are untouched.
 		 */
 		async refetchTabs() {
-			const { deviceId } = await whenReady;
+			const deviceId = await deviceIdPromise;
 			const browserTabs = await browser.tabs.query({});
 			const rows = browserTabs.flatMap((tab) => {
 				const row = tabToRow(deviceId, tab);
@@ -214,7 +231,7 @@ export default defineBackground(() => {
 		 * Only manages THIS device's windows - other devices' windows are untouched.
 		 */
 		async refetchWindows() {
-			const { deviceId } = await whenReady;
+			const deviceId = await deviceIdPromise;
 			const browserWindows = await browser.windows.getAll();
 			const rows = browserWindows.flatMap((win) => {
 				const row = windowToRow(deviceId, win);
@@ -256,7 +273,7 @@ export default defineBackground(() => {
 		 * Only manages THIS device's groups - other devices' groups are untouched.
 		 */
 		async refetchTabGroups() {
-			const { deviceId } = await whenReady;
+			const deviceId = await deviceIdPromise;
 			if (!browser.tabGroups) return;
 			const browserGroups = await browser.tabGroups.query({});
 			const groupIds = new Set(browserGroups.map((g) => g.id));
@@ -353,15 +370,7 @@ export default defineBackground(() => {
 	const whenReady = (async (): Promise<{
 		deviceId: string;
 	}> => {
-		await client.whenReady;
-		console.log('[Background] Persistence loaded');
-
-		const deviceId = await getDeviceId();
-
-		client.awareness.setLocal({
-			deviceId,
-			deviceType: 'browser-extension',
-		});
+		const deviceId = await deviceIdPromise;
 
 		await actions.refetchAll();
 		console.log('[Background] Initial sync complete');

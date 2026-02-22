@@ -29,7 +29,7 @@ describe('createWorkspacePlugin', () => {
 			_v: 1,
 		});
 
-		const app = new Elysia().use(createWorkspacePlugin(client));
+		const app = new Elysia().use(createWorkspacePlugin([client]));
 		const response = await app.handle(
 			new Request('http://test/blog/tables/posts/'),
 		);
@@ -97,7 +97,7 @@ describe('createWorkspacePlugin', () => {
 			}),
 		}));
 
-		const app = new Elysia().use(createWorkspacePlugin(client));
+		const app = new Elysia().use(createWorkspacePlugin([client]));
 		const response = await app.handle(
 			new Request('http://test/blog/actions/ping'),
 		);
@@ -119,7 +119,7 @@ describe('createWorkspacePlugin', () => {
 
 		client.tables.notes.set({ id: 'note-1', title: 'Remember this', _v: 1 });
 
-		const app = new Elysia().use(createWorkspacePlugin(client));
+		const app = new Elysia().use(createWorkspacePlugin([client]));
 
 		const tablesResponse = await app.handle(
 			new Request('http://test/notes/tables/notes/'),

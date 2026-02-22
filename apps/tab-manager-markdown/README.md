@@ -35,6 +35,7 @@ This app acts as a **peer client** alongside the tab-manager browser extension:
 ```
 
 **Key Features:**
+
 - 📝 **One markdown file per device** with all tabs, windows, and groups
 - 🔄 **Real-time updates** - markdown files update as you browse
 - 📊 **Structured data + human-readable summary** - JSON payload + formatted view
@@ -55,19 +56,17 @@ bun install
 You need three things running:
 
 **Terminal 1: Start sync server**
+
 ```bash
 cd packages/server
-bun run dev-server.ts
+bun run start
 ```
 
 You should see:
+
 ```
-Starting tab-manager sync server...
-
-✓ Server running on http://localhost:3913
-✓ Sync endpoint: ws://localhost:3913/workspaces/tab-manager/sync
-
-Press Ctrl+C to stop
+Epicenter server running on http://localhost:3913
+WebSocket: ws://localhost:3913/rooms/{room}
 ```
 
 **Terminal 2: Load tab-manager browser extension**
@@ -81,12 +80,14 @@ Press Ctrl+C to stop
 The extension auto-connects to `ws://localhost:3913` and starts syncing browser tabs.
 
 **Terminal 3: Start markdown exporter**
+
 ```bash
 cd apps/tab-manager-markdown
 bun run dev
 ```
 
 You should see:
+
 ```
 Tab Manager Markdown Exporter starting...
 ✓ Connected to sync server at ws://localhost:3913
@@ -127,10 +128,10 @@ Markdown files are created at `markdown/devices/<deviceId>.md`:
 
 \`\`\`json
 {
-  "device": { ... },
-  "windows": [ ... ],
-  "tabs": [ ... ],
-  "tabGroups": [ ... ]
+"device": { ... },
+"windows": [ ... ],
+"tabs": [ ... ],
+"tabGroups": [ ... ]
 }
 \`\`\`
 
@@ -141,9 +142,11 @@ Markdown files are created at `markdown/devices/<deviceId>.md`:
 ### Windows (2)
 
 **Window 1** (focused)
+
 - 5 tabs
 
 **Window 2**
+
 - 3 tabs
 
 ### Tabs (8)
@@ -151,11 +154,12 @@ Markdown files are created at `markdown/devices/<deviceId>.md`:
 1. **[Epicenter - GitHub](https://github.com/EpicenterHQ/epicenter)** (active, pinned)
 2. **[TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)**
 3. **[Yjs Documentation](https://docs.yjs.dev/)**
-...
+   ...
 
 ### Tab Groups (1)
 
 **Work** (blue)
+
 - 4 tabs
 
 ---
@@ -184,6 +188,7 @@ Browser tabs → Y.Doc (in browser) → Sync Server (holds master Y.Doc) → Mar
 ### ONE-WAY Sync
 
 Markdown files are **read-only exports**. If you edit them manually, changes won't sync back to the browser. This is intentional:
+
 - ✅ Simple, predictable behavior
 - ✅ No risk of infinite loops
 - ✅ No conflict resolution needed
@@ -197,7 +202,8 @@ If bidirectional sync is needed in the future, it can be added as a v2 feature.
 
 **Problem:** Markdown exporter can't connect to `ws://localhost:3913`
 
-**Solution:** 
+**Solution:**
+
 1. Check that `packages/server` is running
 2. Verify it's listening on port 3913
 3. Check for firewall blocking localhost connections
@@ -207,6 +213,7 @@ If bidirectional sync is needed in the future, it can be added as a v2 feature.
 **Problem:** Markdown files aren't being created
 
 **Solution:**
+
 1. Check that tab-manager browser extension is installed and running
 2. Open the extension's side panel to verify it's syncing
 3. Look for browser console errors in the extension
@@ -217,6 +224,7 @@ If bidirectional sync is needed in the future, it can be added as a v2 feature.
 **Problem:** Markdown files update too often, causing disk thrashing
 
 **Solution:** The 1-second debounce should handle this. If it's still an issue, you can:
+
 1. Increase `debounceMs` in `src/index.ts` (change from 1000 to 2000 or higher)
 2. Check if you have an extension causing rapid tab updates
 
@@ -225,6 +233,7 @@ If bidirectional sync is needed in the future, it can be added as a v2 feature.
 **Problem:** TypeScript errors about missing modules or types
 
 **Solution:**
+
 ```bash
 cd apps/tab-manager-markdown
 bun install  # Reinstall dependencies

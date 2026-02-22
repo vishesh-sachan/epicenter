@@ -23,7 +23,7 @@ describe('createServer', () => {
 			}),
 		);
 
-		const server = createServer(client);
+		const server = createServer({ clients: [client] });
 
 		try {
 			const response = await server.app.handle(new Request('http://test/'));
@@ -53,7 +53,7 @@ describe('createServer', () => {
 
 		client.tables.posts.set({ id: 'post-1', title: 'Hello', _v: 1 });
 
-		const server = createServer(client);
+		const server = createServer({ clients: [client] });
 
 		try {
 			const response = await server.app.handle(
@@ -89,7 +89,7 @@ describe('createServer', () => {
 		blogClient.tables.posts.set({ id: 'post-1', title: 'Blog Post', _v: 1 });
 		docsClient.tables.pages.set({ id: 'page-1', title: 'Docs Page', _v: 1 });
 
-		const server = createServer([blogClient, docsClient]);
+		const server = createServer({ clients: [blogClient, docsClient] });
 
 		try {
 			const discoveryResponse = await server.app.handle(
@@ -133,7 +133,7 @@ describe('createServer', () => {
 			},
 		});
 
-		const server = createServer(clientWithActions);
+		const server = createServer({ clients: [clientWithActions] });
 
 		try {
 			const response = await server.app.handle(new Request('http://test/'));
@@ -157,7 +157,7 @@ describe('createServer', () => {
 			}),
 		);
 
-		const server = createServer(client, { port: 0 });
+		const server = createServer({ clients: [client], port: 0 });
 		const runningServer = server.start();
 		let didDestroyWorkspace = false;
 		client.ydoc.on('destroy', () => {
