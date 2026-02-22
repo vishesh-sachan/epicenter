@@ -29,7 +29,7 @@ describe('createAIPlugin', () => {
 
 		expect(response.status).toBe(401);
 		const body = await response.json();
-		expect(body.error).toBe('Missing x-provider-api-key header');
+		expect(body.error).toContain('Missing API key');
 	});
 
 	test('returns 400 for unsupported provider', async () => {
@@ -119,5 +119,68 @@ describe('createAIPlugin', () => {
 
 		// Should hit our handler (401 because no API key), not 404
 		expect(response.status).toBe(401);
+	});
+
+	test('resolveApiKey returns header key when both header and env var present', async () => {
+		const { resolveApiKey } = await import('./adapters');
+		process.env.OPENAI_API_KEY = 'sk-env-key';
+		try {
+			expect(resolveApiKey('openai', 'sk-header-key')).toBe('sk-header-key');
+		} finally {
+			delete process.env.OPENAI_API_KEY;
+		}
+	});
+
+	test('resolveApiKey returns env var key when header absent', async () => {
+		const { resolveApiKey } = await import('./adapters');
+		process.env.OPENAI_API_KEY = 'sk-env-key';
+		try {
+			expect(resolveApiKey('openai')).toBe('sk-env-key');
+		} finally {
+			delete process.env.OPENAI_API_KEY;
+		}
+	});
+
+	test('resolveApiKey returns undefined when neither present', async () => {
+		const { resolveApiKey } = await import('./adapters');
+		delete process.env.OPENAI_API_KEY;
+		expect(resolveApiKey('openai')).toBeUndefined();
+	});
+
+	test('401 error message mentions env var name', async () => {
+		const app = new Elysia().use(createAIPlugin());
+		delete process.env.OPENAI_API_KEY;
+
+		const response = await app.handle(
+			chatRequest('/chat', {
+				messages: [{ role: 'user', content: 'Hello' }],
+				provider: 'openai',
+				model: 'gpt-4o',
+			}),
+		);
+
+		expect(response.status).toBe(401);
+		const body = await response.json();
+		expect(body.error).toContain('OPENAI_API_KEY');
+	});
+
+	test('plugin accepts request without header when env var set', async () => {
+		const app = new Elysia().use(createAIPlugin());
+		process.env.OPENAI_API_KEY = 'sk-test-env-key';
+
+		try {
+			const response = await app.handle(
+				chatRequest('/chat', {
+					messages: [{ role: 'user', content: 'Hello' }],
+					provider: 'openai',
+					model: 'gpt-4o',
+				}),
+			);
+
+			// Should NOT be 401 — env var provides the key
+			expect(response.status).not.toBe(401);
+		} finally {
+			delete process.env.OPENAI_API_KEY;
+		}
 	});
 });
