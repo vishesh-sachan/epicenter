@@ -1,5 +1,6 @@
 import { chat, toServerSentEventsResponse } from '@tanstack/ai';
 import { Elysia, t } from 'elysia';
+import { Err, trySync } from 'wellcrafted/result';
 import {
 	createAdapter,
 	isSupportedProvider,
@@ -14,7 +15,22 @@ import {
  * All options are optional — the plugin works out-of-the-box with sensible defaults.
  */
 export type AIPluginConfig = {
-	/** Override the list of supported providers. Defaults to all built-in adapters. */
+	/**
+	 * Restrict which providers this plugin instance accepts.
+	 *
+	 * When set, only requests for providers in this list are allowed — all
+	 * others are rejected with 400. This is a subset filter on top of the
+	 * built-in `SUPPORTED_PROVIDERS`; you can't add providers that don't
+	 * have adapter factories.
+	 *
+	 * Defaults to all built-in providers (`SUPPORTED_PROVIDERS`).
+	 *
+	 * @example
+	 * ```typescript
+	 * // Only allow OpenAI and Anthropic — block Gemini, Ollama, Grok
+	 * createAIPlugin({ providers: ['openai', 'anthropic'] })
+	 * ```
+	 */
 	providers?: string[];
 };
 
@@ -46,6 +62,9 @@ export type AIPluginConfig = {
  * ```
  */
 export function createAIPlugin(config?: AIPluginConfig) {
+	// Subset of SUPPORTED_PROVIDERS this instance accepts. Lets consumers
+	// lock down which providers are available (e.g. only 'openai' and
+	// 'anthropic') without forking the plugin.
 	const allowedProviders = config?.providers ?? SUPPORTED_PROVIDERS;
 
 	return new Elysia().post(
@@ -61,12 +80,16 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				modelOptions,
 			} = body;
 
-			if (!allowedProviders.includes(provider)) {
+			// 1. Type guard — narrows `string` to `SupportedProvider` so
+			//    downstream code (PROVIDER_ENV_VARS, createAdapter) is type-safe.
+			if (!isSupportedProvider(provider)) {
 				return status('Bad Request', `Unsupported provider: ${provider}`);
 			}
 
-			if (!isSupportedProvider(provider)) {
-				return status('Bad Request', `Unsupported provider: ${provider}`);
+			// 2. Config-level restriction — rejects providers that have adapters
+			//    but were excluded by the plugin consumer's `providers` option.
+			if (!allowedProviders.includes(provider)) {
+				return status('Bad Request', `Provider not enabled: ${provider}`);
 			}
 
 			const apiKey = resolveApiKey(provider, headerApiKey);
@@ -90,34 +113,40 @@ export function createAIPlugin(config?: AIPluginConfig) {
 			// This is the recommended TanStack AI pattern (see api.tanchat.ts).
 			const abortController = new AbortController();
 
-			try {
-				const stream = chat({
-					adapter,
-					messages,
-					conversationId,
-					abortController,
-					...(systemPrompt ? { systemPrompts: [systemPrompt] } : {}),
-					...(modelOptions ? { modelOptions } : {}),
-				});
+			// `chat()` can throw synchronously on adapter/config errors
+			// (e.g. invalid model name, malformed options). Streaming errors
+			// (rate limits, network drops) are handled internally by TanStack
+			// AI—they arrive as `RUN_ERROR` SSE events, not thrown exceptions.
+			//
+			// We wrap only `chat()` because `toServerSentEventsResponse()` is
+			// pure construction (builds a Response around a ReadableStream) and
+			// doesn't throw. This keeps the error boundary surgical: one
+			// trySync for the one call that can fail.
+			const { data: stream, error: chatError } = trySync({
+				try: () =>
+					chat({
+						adapter,
+						messages,
+						conversationId,
+						abortController,
+						...(systemPrompt ? { systemPrompts: [systemPrompt] } : {}),
+						...(modelOptions ? { modelOptions } : {}),
+					}),
+				catch: (e) => Err(e instanceof Error ? e : new Error(String(e))),
+			});
 
-				return toServerSentEventsResponse(stream, { abortController });
-			} catch (error) {
-				// Distinguish client disconnects from provider errors.
-				// TanStack AI reference pattern: 499 for aborted requests.
-				// 499 is non-standard (nginx), so use numeric literal.
-				if (
-					error instanceof Error &&
-					(error.name === 'AbortError' || abortController.signal.aborted)
-				) {
-					throw status(499, 'Client closed request');
+			if (chatError) {
+				// 499 "Client Closed Request" (nginx convention) — the client
+				// disconnected before chat() could start streaming.
+				if (chatError.name === 'AbortError' || abortController.signal.aborted) {
+					return status(499, 'Client closed request');
 				}
-
-				// Provider errors (bad API key, rate limit, model not found)
-				// may throw synchronously before streaming starts.
-				const message =
-					error instanceof Error ? error.message : 'Unknown error';
-				throw status('Bad Gateway', `Provider error: ${message}`);
+				// 502 "Bad Gateway" — we're proxying to the AI provider and
+				// it rejected the request (bad API key, unknown model, etc.).
+				return status('Bad Gateway', `Provider error: ${chatError.message}`);
 			}
+
+			return toServerSentEventsResponse(stream, { abortController });
 		},
 		{
 			body: t.Object({
