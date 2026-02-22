@@ -1,8 +1,8 @@
 /**
- * createDocuments() — runtime factory for bidirectional document bindings.
+ * createDocuments() — runtime document manager factory.
  *
- * Creates a binding between a table and its associated content Y.Docs.
- * The binding:
+ * Creates a bidirectional link between a table and its associated content Y.Docs.
+ * It:
  * 1. Manages Y.Doc creation and provider lifecycle for each content doc
  * 2. Watches content docs → automatically bumps `updatedAt` on the row
  * 3. Watches the table → automatically cleans up documents when rows are deleted
@@ -23,14 +23,14 @@
  * const ydoc = new Y.Doc({ guid: 'my-workspace' });
  * const tables = createTables(ydoc, { files: filesTable });
  *
- * const contentBinding = createDocuments({
+ * const contentDocuments = createDocuments({
  *   guidKey: 'id',
  *   updatedAtKey: 'updatedAt',
  *   tableHelper: tables.files,
  *   ydoc,
  * });
  *
- * const handle = await contentBinding.open(someRow);
+ * const handle = await contentDocuments.open(someRow);
  * const text = handle.read();
  * handle.write('new content');
  * ```
@@ -53,7 +53,7 @@ import type {
 } from './types.js';
 
 /**
- * Sentinel symbol used as the Y.js transaction origin when the document binding
+ * Sentinel symbol used as the Y.js transaction origin when the documents manager
  * bumps `updatedAt` on a row. Consumers can check `transaction.origin === DOCUMENTS_ORIGIN`
  * to distinguish auto-bumps from user-initiated row changes.
  *
@@ -139,7 +139,7 @@ export type CreateDocumentsConfig<TRow extends BaseRow> = {
 	 */
 	documentExtensions?: DocumentExtensionRegistration[];
 	/**
-	 * Tags declared on this document binding (from `withDocument(..., { tags })`).
+	 * Tags declared on this documents instance (from `withDocument(..., { tags })`).
 	 * Used for tag matching against document extension registrations.
 	 */
 	documentTags?: readonly string[];
@@ -149,20 +149,20 @@ export type CreateDocumentsConfig<TRow extends BaseRow> = {
 	 * Receives the GUID of the associated document.
 	 * Default: close (free memory, preserve persisted data).
 	 */
-	onRowDeleted?: (binding: Documents<TRow>, guid: string) => void;
+	onRowDeleted?: (documents: Documents<TRow>, guid: string) => void;
 };
 
 /**
- * Create a runtime document binding — a bidirectional link between table rows
+ * Create a runtime documents manager — a bidirectional link between table rows
  * and their content Y.Docs.
  *
- * The binding manages:
+ * The manager handles:
  * - Y.Doc creation with `gc: false` (required for Yjs provider compatibility)
  * - Provider lifecycle (persistence, sync) via document extension hooks
  * - Automatic `updatedAt` bumping when content docs change
  * - Automatic cleanup when rows are deleted from the table
  *
- * @param config - Binding configuration
+ * @param config - Documents configuration
  * @returns A `Documents<TRow>` with open/close/closeAll/guidOf methods
  */
 export function createDocuments<TRow extends BaseRow>(
@@ -211,10 +211,10 @@ export function createDocuments<TRow extends BaseRow>(
 					if (!docs.has(targetGuid)) continue;
 
 					if (onRowDeleted) {
-						onRowDeleted(binding, targetGuid);
+						onRowDeleted(documents, targetGuid);
 					} else {
 						// Default: close (free memory, preserve data)
-						binding.close(targetGuid);
+						documents.close(targetGuid);
 					}
 					break;
 				}
@@ -222,7 +222,7 @@ export function createDocuments<TRow extends BaseRow>(
 		}
 	});
 
-	const binding: Documents<TRow> = {
+	const documents: Documents<TRow> = {
 		async open(input: TRow | string): Promise<DocumentHandle> {
 			const guid = resolveGuid(input);
 
@@ -304,7 +304,7 @@ export function createDocuments<TRow extends BaseRow>(
 				_doc: Y.Doc,
 				transaction: Y.Transaction,
 			) => {
-				// Skip updates from the document binding itself to avoid loops
+				// Skip updates from the documents manager itself to avoid loops
 				if (origin === DOCUMENTS_ORIGIN) return;
 				// Skip remote updates — only local edits bump updatedAt
 				if (!transaction.local) return;
@@ -413,5 +413,5 @@ export function createDocuments<TRow extends BaseRow>(
 		},
 	};
 
-	return binding;
+	return documents;
 }

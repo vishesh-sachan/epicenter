@@ -389,12 +389,12 @@ describe('mv preserves content (no conversion)', () => {
 
 async function getTimelineLength(
 	fs: YjsFileSystem,
-	binding: { open(input: string): Promise<{ ydoc: import('yjs').Doc }> },
+	documents: { open(input: string): Promise<{ ydoc: import('yjs').Doc }> },
 	path: string,
 ): Promise<number> {
 	const id = fs.lookupId(path);
 	if (!id) throw new Error(`No file at ${path}`);
-	const handle = await binding.open(id);
+	const handle = await documents.open(id);
 	return createTimeline(handle.ydoc).length;
 }
 
@@ -432,59 +432,59 @@ describe('timeline content storage', () => {
 
 	test('text append (appendFile on text entry)', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.documents.files.content;
+		const documents = ws.documents.files.content;
 		await fs.writeFile('/log.txt', 'line1\n');
 		await fs.appendFile('/log.txt', 'line2\n');
 		expect(await fs.readFile('/log.txt')).toBe('line1\nline2\n');
 		// Append to text should not grow timeline
-		expect(await getTimelineLength(fs, binding, '/log.txt')).toBe(1);
+		expect(await getTimelineLength(fs, documents, '/log.txt')).toBe(1);
 	});
 
 	test('binary append (appendFile on binary entry becomes text)', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.documents.files.content;
+		const documents = ws.documents.files.content;
 		const binary = new Uint8Array([0x48, 0x69]); // "Hi"
 		await fs.writeFile('/file.bin', binary);
 		await fs.appendFile('/file.bin', ' there');
 		expect(await fs.readFile('/file.bin')).toBe('Hi there');
 		// Binary append pushes a new text entry
-		expect(await getTimelineLength(fs, binding, '/file.bin')).toBe(2);
+		expect(await getTimelineLength(fs, documents, '/file.bin')).toBe(2);
 	});
 
 	test('timeline inspection: entry count after mode switches', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.documents.files.content;
+		const documents = ws.documents.files.content;
 		// First write: text entry [0]
 		await fs.writeFile('/file.dat', 'text v1');
-		expect(await getTimelineLength(fs, binding, '/file.dat')).toBe(1);
+		expect(await getTimelineLength(fs, documents, '/file.dat')).toBe(1);
 
 		// Binary write: new entry [1]
 		await fs.writeFile('/file.dat', new Uint8Array([1, 2, 3]));
-		expect(await getTimelineLength(fs, binding, '/file.dat')).toBe(2);
+		expect(await getTimelineLength(fs, documents, '/file.dat')).toBe(2);
 
 		// Back to text: new entry [2]
 		await fs.writeFile('/file.dat', 'text v2');
-		expect(await getTimelineLength(fs, binding, '/file.dat')).toBe(3);
+		expect(await getTimelineLength(fs, documents, '/file.dat')).toBe(3);
 	});
 
 	test('same-mode text overwrite does NOT grow timeline', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.documents.files.content;
+		const documents = ws.documents.files.content;
 		await fs.writeFile('/file.txt', 'first');
 		await fs.writeFile('/file.txt', 'second');
 		await fs.writeFile('/file.txt', 'third');
 		expect(await fs.readFile('/file.txt')).toBe('third');
-		expect(await getTimelineLength(fs, binding, '/file.txt')).toBe(1);
+		expect(await getTimelineLength(fs, documents, '/file.txt')).toBe(1);
 	});
 
 	test('same-mode binary overwrite DOES grow timeline', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.documents.files.content;
+		const documents = ws.documents.files.content;
 		await fs.writeFile('/file.bin', new Uint8Array([1]));
 		await fs.writeFile('/file.bin', new Uint8Array([2]));
 		await fs.writeFile('/file.bin', new Uint8Array([3]));
 		expect(await fs.readFileBuffer('/file.bin')).toEqual(new Uint8Array([3]));
-		expect(await getTimelineLength(fs, binding, '/file.bin')).toBe(3);
+		expect(await getTimelineLength(fs, documents, '/file.bin')).toBe(3);
 	});
 
 	test('readFileBuffer returns correct bytes for text entry', async () => {
@@ -505,12 +505,12 @@ describe('timeline content storage', () => {
 describe('sheet file support', () => {
 	test('readFile returns CSV for sheet-mode file', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.documents.files.content;
+		const documents = ws.documents.files.content;
 		// Create file and push sheet entry via internal access
 		// Accessing internals to seed sheet mode for behavior coverage.
 		await fs.writeFile('/data.csv', 'placeholder');
 		const fileId = fs.lookupId('/data.csv')!;
-		const handle = await binding.open(fileId);
+		const handle = await documents.open(fileId);
 		const { createTimeline } = await import('./timeline-helpers.js');
 		// Replace text entry with sheet entry
 		handle.ydoc.transact(() => {
@@ -521,10 +521,10 @@ describe('sheet file support', () => {
 
 	test('writeFile on sheet-mode re-parses CSV in place', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.documents.files.content;
+		const documents = ws.documents.files.content;
 		await fs.writeFile('/data.csv', 'placeholder');
 		const fileId = fs.lookupId('/data.csv')!;
-		const handle = await binding.open(fileId);
+		const handle = await documents.open(fileId);
 		const { createTimeline } = await import('./timeline-helpers.js');
 		handle.ydoc.transact(() => {
 			createTimeline(handle.ydoc).pushSheetFromCsv('A,B\n1,2\n');
@@ -605,26 +605,26 @@ describe('just-bash integration', () => {
 	});
 });
 
-describe('document binding integration', () => {
+describe('document integration', () => {
 	test('hard row deletion triggers automatic content doc cleanup', async () => {
 		const { fs, ws } = setup();
-		const binding = ws.documents.files.content;
+		const documents = ws.documents.files.content;
 
 		// Write a file to create both the row and the content doc
 		await fs.writeFile('/test.txt', 'hello world');
 		const fileId = fs.lookupId('/test.txt')!;
 
 		// Open the content doc — should get a handle
-		const handle1 = await binding.open(fileId);
+		const handle1 = await documents.open(fileId);
 		expect(handle1.ydoc.guid).toBe(fileId);
 
 		// Hard-delete the row directly from the table.
-		// The binding's table observer should automatically close the content doc.
+		// The documents manager's table observer should automatically close the content doc.
 		ws.tables.files.delete(fileId);
 
 		// Re-opening should create a FRESH Y.Doc (different instance)
-		// because the binding's row-deletion observer called close()
-		const handle2 = await binding.open(fileId);
+		// because the documents manager's row-deletion observer called close()
+		const handle2 = await documents.open(fileId);
 		expect(handle2.ydoc).not.toBe(handle1.ydoc);
 	});
 });

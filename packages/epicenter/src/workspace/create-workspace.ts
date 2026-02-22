@@ -124,7 +124,7 @@ export function createWorkspace<
 
 	// Accumulated document extension registrations (in chain order).
 	// Mutable array — grows as .withDocumentExtension() is called. Document
-	// bindings reference this array, so by the time user code calls .open(),
+	// Documents reference this array, so by the time user code calls .open(),
 	// all document extensions are registered.
 	const documentExtensionRegistrations: DocumentExtensionRegistration[] = [];
 
@@ -182,7 +182,7 @@ export function createWorkspace<
 		TExtensions
 	> {
 		const destroy = async (): Promise<void> => {
-			// Destroy document bindings first (before extensions they depend on)
+			// Close all documents first (before extensions they depend on)
 			for (const cleanup of documentCleanups) {
 				await cleanup();
 			}

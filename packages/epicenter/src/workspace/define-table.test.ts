@@ -2,7 +2,7 @@
  * defineTable Tests
  *
  * Verifies shorthand and builder-based table definitions, including multi-version schema migration.
- * These tests ensure table contracts remain stable for runtime validation and for typed document bindings.
+ * These tests ensure table contracts remain stable for runtime validation and for typed documents.
  *
  * Key behaviors:
  * - Table schemas validate expected row shapes across versions.

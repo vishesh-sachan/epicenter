@@ -151,7 +151,7 @@ export type {
 	// Base row type
 	BaseRow,
 	DeleteResult,
-	// Document binding types
+	// Document types
 	DocumentConfig,
 	DocumentHandle,
 	Documents,

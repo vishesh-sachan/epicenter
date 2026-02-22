@@ -4,7 +4,7 @@
  * All table schemas must include `_v: number` as a discriminant field.
  * Use shorthand for single-version tables, builder pattern for multiple versions with migrations.
  *
- * Optionally chain `.withDocument()` to declare named document bindings on the table.
+ * Optionally chain `.withDocument()` to declare named document configs on the table.
  *
  * @example
  * ```typescript
@@ -14,7 +14,7 @@
  * // Shorthand for single version
  * const users = defineTable(type({ id: 'string', email: 'string', _v: '1' }));
  *
- * // Shorthand with document binding
+ * // Shorthand with document config
  * const files = defineTable(
  *   type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
  * ).withDocument('content', { guid: 'id', updatedAt: 'updatedAt' });
@@ -30,7 +30,7 @@
  *     }
  *   });
  *
- * // Builder with document binding
+ * // Builder with document config
  * const notes = defineTable()
  *   .version(type({ id: 'string', bodyDocId: 'string', bodyUpdatedAt: 'number', _v: '1' }))
  *   .migrate((row) => row)
@@ -56,25 +56,25 @@ import type {
  * A table definition with a chainable `.withDocument()` method.
  *
  * Returned by both the shorthand `defineTable(schema)` and the builder's `.migrate()`.
- * Each `.withDocument()` call accumulates a named binding into `TDocs`.
+ * Each `.withDocument()` call accumulates a named document config into `TDocs`.
  *
  * @typeParam TVersions - Tuple of schema versions
- * @typeParam TDocs - Accumulated document bindings
+ * @typeParam TDocs - Accumulated document configs
  */
 type TableDefinitionWithDocBuilder<
 	TVersions extends readonly CombinedStandardSchema<BaseRow>[],
 	TDocs extends Record<string, DocumentConfig>,
 > = TableDefinition<TVersions, TDocs> & {
 	/**
-	 * Declare a named document binding on this table.
+	 * Declare a named document on this table.
 	 *
 	 * Maps a document concept (e.g., 'content') to a GUID column and an updatedAt column.
 	 * The name becomes a property under `client.documents.{tableName}` at runtime.
 	 *
-	 * Chainable — call multiple times for tables with multiple document bindings.
+	 * Chainable — call multiple times for tables with multiple documents.
 	 *
-	 * @param name - The binding name (becomes `client.documents.{tableName}[name]`)
-	 * @param binding - Column mapping: `guid` (string column) and `updatedAt` (number column)
+	 * @param name - The document name (becomes `client.documents.{tableName}[name]`)
+	 * @param config - Column mapping: `guid` (string column) and `updatedAt` (number column)
 	 *
 	 * @example
 	 * ```typescript
@@ -82,7 +82,7 @@ type TableDefinitionWithDocBuilder<
 	 *   type({ id: 'string', name: 'string', updatedAt: 'number', _v: '1' }),
 	 * ).withDocument('content', { guid: 'id', updatedAt: 'updatedAt' });
 	 *
-	 * // Multiple bindings
+	 * // Multiple documents
 	 * const notes = defineTable(
 	 *   type({ id: 'string', bodyDocId: 'string', coverDocId: 'string',
 	 *          bodyUpdatedAt: 'number', coverUpdatedAt: 'number', _v: '1' }),
@@ -104,7 +104,7 @@ type TableDefinitionWithDocBuilder<
 		const TTags extends string = never,
 	>(
 		name: TName,
-		binding: {
+		config: {
 			guid: TGuid;
 			updatedAt: TUpdatedAt;
 			tags?: readonly TTags[];
@@ -230,7 +230,7 @@ export function defineTable<TSchema extends CombinedStandardSchema<BaseRow>>(
 /**
  * Create a new definition object with a `.withDocument()` chainable method.
  *
- * Each `.withDocument()` call returns a fresh object with the new binding
+ * Each `.withDocument()` call returns a fresh object with the new document config
  * accumulated into `docs` — the original definition is never mutated.
  */
 function addWithDocument<
@@ -242,20 +242,20 @@ function addWithDocument<
 >(
 	def: T,
 ): T & {
-	withDocument(name: string, binding: DocumentConfig): T;
+	withDocument(name: string, config: DocumentConfig): T;
 } {
 	return {
 		...def,
-		withDocument(name: string, binding: DocumentConfig) {
+		withDocument(name: string, config: DocumentConfig) {
 			return addWithDocument({
 				...def,
 				docs: {
 					...def.docs,
-					[name]: binding,
+					[name]: config,
 				},
 			});
 		},
 	} as T & {
-		withDocument(name: string, binding: DocumentConfig): T;
+		withDocument(name: string, config: DocumentConfig): T;
 	};
 }

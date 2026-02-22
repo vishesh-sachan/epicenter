@@ -478,8 +478,8 @@ describe('createWorkspace', () => {
 		});
 	});
 
-	describe('document binding wiring', () => {
-		test('table using withDocument exposes binding in documents namespace', () => {
+	describe('document wiring', () => {
+		test('table using withDocument exposes documents in documents namespace', () => {
 			const filesTable = defineTable(
 				type({
 					id: 'string',
@@ -618,7 +618,7 @@ describe('createWorkspace', () => {
 
 			await client.destroy();
 
-			// After destroy, open should create a new Y.Doc (since binding was destroyed)
+			// After destroy, open should create a new Y.Doc (since documents were destroyed)
 			// But we can't open after workspace destroy — just verify no error occurred
 			expect(doc1).toBeDefined();
 		});
@@ -730,7 +730,7 @@ describe('createWorkspace', () => {
 				files: defineTable(fileSchema),
 			});
 
-			const binding = createDocuments({
+			const documents = createDocuments({
 				guidKey: 'id',
 				updatedAtKey: 'updatedAt',
 				tableHelper: tables.files,
@@ -742,8 +742,8 @@ describe('createWorkspace', () => {
 				],
 			});
 
-			await binding.open('doc-1');
-			await binding.close('doc-1');
+			await documents.open('doc-1');
+			await documents.close('doc-1');
 
 			expect(destroyOrder).toEqual(['third', 'second', 'first']); // LIFO
 		});
@@ -798,7 +798,7 @@ describe('createWorkspace', () => {
 				files: defineTable(fileSchema),
 			});
 
-			const binding = createDocuments({
+			const documents = createDocuments({
 				guidKey: 'id',
 				updatedAtKey: 'updatedAt',
 				tableHelper: tables.files,
@@ -826,7 +826,7 @@ describe('createWorkspace', () => {
 				],
 			});
 
-			const handlePromise = binding.open('doc-1');
+			const handlePromise = documents.open('doc-1');
 			rejectWhenReady?.();
 
 			try {

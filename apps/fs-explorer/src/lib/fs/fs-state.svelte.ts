@@ -227,7 +227,7 @@ function createFsState() {
 			},
 
 			/**
-			 * Read file content as string via the document binding.
+			 * Read file content as string via the documents manager.
 			 *
 			 * Opens (or reuses) the per-file Y.Doc via the document handle,
 			 * then reads the text content synchronously.
@@ -243,9 +243,9 @@ function createFsState() {
 			},
 
 			/**
-			 * Write file content via the document binding.
+			 * Write file content via the documents manager.
 			 *
-			 * The binding automatically bumps `updatedAt` on the file row
+			 * The documents manager automatically bumps `updatedAt` on the file row
 			 * when content changes. Toasts only on error.
 			 */
 			async writeContent(id: FileId, data: string): Promise<void> {

@@ -1,11 +1,11 @@
 /**
  * createDocuments Tests
  *
- * Validates document binding lifecycle, handle read/write behavior, and integration with table row metadata.
+ * Validates documents lifecycle, handle read/write behavior, and integration with table row metadata.
  * The suite protects contracts around open/close idempotency, handle pattern, cleanup semantics, and hook orchestration.
  *
  * Key behaviors:
- * - Document operations keep row metadata in sync and honor binding origins.
+ * - Document operations keep row metadata in sync and honor documents origins.
  * - Lifecycle methods (`close`, `closeAll`) safely clean up open docs.
  */
 
@@ -27,33 +27,33 @@ const fileSchema = type({
 	_v: '1',
 });
 
-function setup() {
+function setupTables() {
 	const ydoc = new Y.Doc({ guid: 'test-workspace' });
 	const tables = createTables(ydoc, { files: defineTable(fileSchema) });
 	return { ydoc, tables };
 }
 
-function setupWithBinding(
+function setup(
 	overrides?: Pick<
 		CreateDocumentsConfig<typeof fileSchema.infer>,
 		'documentExtensions' | 'documentTags' | 'onRowDeleted'
 	>,
 ) {
-	const { ydoc, tables } = setup();
-	const binding = createDocuments({
+	const { ydoc, tables } = setupTables();
+	const documents = createDocuments({
 		guidKey: 'id',
 		updatedAtKey: 'updatedAt',
 		tableHelper: tables.files,
 		ydoc,
 		...overrides,
 	});
-	return { ydoc, tables, binding };
+	return { ydoc, tables, documents };
 }
 
 describe('createDocuments', () => {
 	describe('open', () => {
 		test('returns a handle with a Y.Doc (gc: false)', async () => {
-			const { tables, binding } = setupWithBinding();
+			const { tables, documents } = setup();
 			tables.files.set({
 				id: 'f1',
 				name: 'test.txt',
@@ -61,21 +61,21 @@ describe('createDocuments', () => {
 				_v: 1,
 			});
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			expect(handle.ydoc).toBeInstanceOf(Y.Doc);
 			expect(handle.ydoc.gc).toBe(false);
 		});
 
 		test('is idempotent — same GUID returns same underlying Y.Doc', async () => {
-			const { binding } = setupWithBinding();
+			const { documents } = setup();
 
-			const handle1 = await binding.open('f1');
-			const handle2 = await binding.open('f1');
+			const handle1 = await documents.open('f1');
+			const handle2 = await documents.open('f1');
 			expect(handle1.ydoc).toBe(handle2.ydoc);
 		});
 
 		test('open accepts a row object and resolves guid', async () => {
-			const { tables, binding } = setupWithBinding();
+			const { tables, documents } = setup();
 			const row = {
 				id: 'f1',
 				name: 'test.txt',
@@ -84,40 +84,40 @@ describe('createDocuments', () => {
 			} as const;
 			tables.files.set(row);
 
-			const handle = await binding.open(row);
+			const handle = await documents.open(row);
 			expect(handle.ydoc.guid).toBe('f1');
 		});
 
 		test('open accepts a string guid directly', async () => {
-			const { binding } = setupWithBinding();
+			const { documents } = setup();
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			expect(handle.ydoc.guid).toBe('f1');
 		});
 	});
 
 	describe('handle read and write', () => {
 		test('read returns empty string for new doc', async () => {
-			const { binding } = setupWithBinding();
+			const { documents } = setup();
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			const text = handle.read();
 			expect(text).toBe('');
 		});
 
 		test('write replaces text content, then read returns it', async () => {
-			const { binding } = setupWithBinding();
+			const { documents } = setup();
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			handle.write('hello world');
 			const text = handle.read();
 			expect(text).toBe('hello world');
 		});
 
 		test('write replaces existing content', async () => {
-			const { binding } = setupWithBinding();
+			const { documents } = setup();
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			handle.write('first');
 			handle.write('second');
 			const text = handle.read();
@@ -127,7 +127,7 @@ describe('createDocuments', () => {
 
 	describe('updatedAt auto-bump', () => {
 		test('content doc change bumps updatedAt on the row', async () => {
-			const { tables, binding } = setupWithBinding();
+			const { tables, documents } = setup();
 			tables.files.set({
 				id: 'f1',
 				name: 'test.txt',
@@ -135,7 +135,7 @@ describe('createDocuments', () => {
 				_v: 1,
 			});
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			handle.ydoc.getText('content').insert(0, 'hello');
 
 			// Give the update observer a tick
@@ -147,7 +147,7 @@ describe('createDocuments', () => {
 		});
 
 		test('updatedAt bump uses DOCUMENTS_ORIGIN', async () => {
-			const { tables, binding } = setupWithBinding();
+			const { tables, documents } = setup();
 			tables.files.set({
 				id: 'f1',
 				name: 'test.txt',
@@ -160,14 +160,14 @@ describe('createDocuments', () => {
 				capturedOrigin = (transaction as Y.Transaction).origin;
 			});
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			handle.ydoc.getText('content').insert(0, 'hello');
 
 			expect(capturedOrigin).toBe(DOCUMENTS_ORIGIN);
 		});
 
 		test('remote update does NOT bump updatedAt', async () => {
-			const { tables, binding } = setupWithBinding();
+			const { tables, documents } = setup();
 			tables.files.set({
 				id: 'f1',
 				name: 'test.txt',
@@ -175,7 +175,7 @@ describe('createDocuments', () => {
 				_v: 1,
 			});
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 
 			// Capture the state update from a local edit on a separate Y.Doc,
 			// then apply it as a "remote" update via Y.applyUpdate
@@ -197,26 +197,26 @@ describe('createDocuments', () => {
 
 	describe('close', () => {
 		test('frees memory — doc can be re-opened as new instance', async () => {
-			const { binding } = setupWithBinding();
+			const { documents } = setup();
 
-			const handle1 = await binding.open('f1');
-			await binding.close('f1');
+			const handle1 = await documents.open('f1');
+			await documents.close('f1');
 
-			const handle2 = await binding.open('f1');
+			const handle2 = await documents.open('f1');
 			expect(handle2.ydoc).not.toBe(handle1.ydoc);
 		});
 
 		test('close on non-existent guid is a no-op', async () => {
-			const { binding } = setupWithBinding();
+			const { documents } = setup();
 
 			// Should not throw
-			await binding.close('nonexistent');
+			await documents.close('nonexistent');
 		});
 	});
 
 	describe('handle.exports', () => {
 		test('returns accumulated exports keyed by extension name', async () => {
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentExtensions: [
 					{
 						key: 'persistence',
@@ -229,14 +229,14 @@ describe('createDocuments', () => {
 				],
 			});
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			expect(handle.exports).toBeDefined();
 			expect(handle.exports.persistence).toBeDefined();
 			expect(typeof handle.exports.persistence!.clearData).toBe('function');
 		});
 
 		test('lifecycle-only extension is accessible with whenReady and destroy', async () => {
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentExtensions: [
 					{
 						key: 'lifecycle-only',
@@ -248,7 +248,7 @@ describe('createDocuments', () => {
 				],
 			});
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			expect(handle.exports).toBeDefined();
 			const ext = handle.exports['lifecycle-only'];
 			expect(ext).toBeDefined();
@@ -257,7 +257,7 @@ describe('createDocuments', () => {
 		});
 
 		test('accepts a row object', async () => {
-			const { tables, binding } = setupWithBinding({
+			const { tables, documents } = setup({
 				documentExtensions: [
 					{
 						key: 'test',
@@ -277,7 +277,7 @@ describe('createDocuments', () => {
 			} as const;
 			tables.files.set(row);
 
-			const handle = await binding.open(row);
+			const handle = await documents.open(row);
 			expect(handle.exports).toBeDefined();
 			expect(typeof handle.exports.test!.helper).toBe('function');
 		});
@@ -285,16 +285,16 @@ describe('createDocuments', () => {
 
 	describe('closeAll', () => {
 		test('closes all open docs', async () => {
-			const { binding } = setupWithBinding();
+			const { documents } = setup();
 
-			const handle1 = await binding.open('f1');
-			const handle2 = await binding.open('f2');
+			const handle1 = await documents.open('f1');
+			const handle2 = await documents.open('f2');
 
-			await binding.closeAll();
+			await documents.closeAll();
 
 			// Re-opening should create new Y.Doc instances
-			const handle1b = await binding.open('f1');
-			const handle2b = await binding.open('f2');
+			const handle1b = await documents.open('f1');
+			const handle2b = await documents.open('f2');
 			expect(handle1b.ydoc).not.toBe(handle1.ydoc);
 			expect(handle2b.ydoc).not.toBe(handle2.ydoc);
 		});
@@ -302,7 +302,7 @@ describe('createDocuments', () => {
 
 	describe('row deletion', () => {
 		test('default onRowDeleted calls close', async () => {
-			const { tables, binding } = setupWithBinding();
+			const { tables, documents } = setup();
 			tables.files.set({
 				id: 'f1',
 				name: 'test.txt',
@@ -310,24 +310,24 @@ describe('createDocuments', () => {
 				_v: 1,
 			});
 
-			const handle1 = await binding.open('f1');
+			const handle1 = await documents.open('f1');
 			tables.files.delete('f1');
 
 			// After deletion, re-opening should create a new Y.Doc
-			const handle2 = await binding.open('f1');
+			const handle2 = await documents.open('f1');
 			expect(handle2.ydoc).not.toBe(handle1.ydoc);
 		});
 
 		test('custom onRowDeleted fires with the guid', async () => {
 			let deletedGuid = '';
-			const { tables } = setup();
+			const { tables } = setupTables();
 
-			const binding = createDocuments({
+			const documents = createDocuments({
 				guidKey: 'id',
 				updatedAtKey: 'updatedAt',
 				tableHelper: tables.files,
 				ydoc: new Y.Doc({ guid: 'test' }),
-				onRowDeleted: (_binding, guid) => {
+				onRowDeleted: (_documents, guid) => {
 					deletedGuid = guid;
 				},
 			});
@@ -339,7 +339,7 @@ describe('createDocuments', () => {
 				_v: 1,
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			tables.files.delete('f1');
 
 			expect(deletedGuid).toBe('f1');
@@ -350,7 +350,7 @@ describe('createDocuments', () => {
 		test('hooks are called in order', async () => {
 			const order: number[] = [];
 
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentExtensions: [
 					{
 						key: 'first',
@@ -379,14 +379,14 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(order).toEqual([1, 2, 3]);
 		});
 
 		test('second hook receives whenReady from first', async () => {
 			let secondReceivedWhenReady = false;
 
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentExtensions: [
 					{
 						key: 'first',
@@ -407,14 +407,14 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(secondReceivedWhenReady).toBe(true);
 		});
 
 		test('hook returning void is skipped', async () => {
 			let hooksCalled = 0;
 
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentExtensions: [
 					{
 						key: 'void-hook',
@@ -435,20 +435,20 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(hooksCalled).toBe(2);
 		});
 
 		test('no hooks → bare handle with Y.Doc, instant resolution', async () => {
-			const { binding } = setupWithBinding({ documentExtensions: [] });
+			const { documents } = setup({ documentExtensions: [] });
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			expect(handle.ydoc).toBeInstanceOf(Y.Doc);
 		});
 
 		test('tag matching: extension with no tags fires for all docs', async () => {
 			let called = false;
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentTags: ['persistent'],
 				documentExtensions: [
 					{
@@ -462,13 +462,13 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(called).toBe(true);
 		});
 
 		test('tag matching: extension with matching tag fires', async () => {
 			let called = false;
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentTags: ['persistent', 'synced'],
 				documentExtensions: [
 					{
@@ -482,13 +482,13 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(called).toBe(true);
 		});
 
 		test('tag matching: extension with non-matching tag does NOT fire', async () => {
 			let called = false;
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentTags: ['persistent'],
 				documentExtensions: [
 					{
@@ -502,13 +502,13 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(called).toBe(false);
 		});
 
 		test('tag matching: doc with no tags only gets universal extensions', async () => {
 			const calls: string[] = [];
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentTags: [], // no tags on doc
 				documentExtensions: [
 					{
@@ -530,7 +530,7 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(calls).toEqual(['universal']);
 		});
 	});
@@ -539,7 +539,7 @@ describe('createDocuments', () => {
 		test('document extension receives extensions map with flat exports', async () => {
 			let capturedFirstExtension: unknown;
 
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentExtensions: [
 					{
 						key: 'first',
@@ -560,7 +560,7 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(capturedFirstExtension).toBeDefined();
 			expect(
 				(capturedFirstExtension as Record<string, unknown>).someValue,
@@ -571,7 +571,7 @@ describe('createDocuments', () => {
 			let taggedPresentForPersistentDoc = false;
 			let taggedPresentForEphemeralDoc = true;
 
-			const persistentBindingSetup = setupWithBinding({
+			const persistentSetup = setup({
 				documentTags: ['persistent'],
 				documentExtensions: [
 					{
@@ -594,9 +594,9 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await persistentBindingSetup.binding.open('f1');
+			await persistentSetup.documents.open('f1');
 
-			const ephemeralBindingSetup = setupWithBinding({
+			const ephemeralSetup = setup({
 				documentTags: ['ephemeral'],
 				documentExtensions: [
 					{
@@ -619,7 +619,7 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await ephemeralBindingSetup.binding.open('f1');
+			await ephemeralSetup.documents.open('f1');
 
 			expect(taggedPresentForPersistentDoc).toBe(true);
 			expect(taggedPresentForEphemeralDoc).toBe(false);
@@ -628,7 +628,7 @@ describe('createDocuments', () => {
 		test('document extension with no exports is still accessible', async () => {
 			let firstExtensionSeen = false;
 
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentExtensions: [
 					{
 						key: 'first',
@@ -648,12 +648,12 @@ describe('createDocuments', () => {
 				],
 			});
 
-			await binding.open('f1');
+			await documents.open('f1');
 			expect(firstExtensionSeen).toBe(true);
 		});
 
 		test('handle.exports includes flat exports from extensions', async () => {
-			const { binding } = setupWithBinding({
+			const { documents } = setup({
 				documentExtensions: [
 					{
 						key: 'test',
@@ -666,7 +666,7 @@ describe('createDocuments', () => {
 				],
 			});
 
-			const handle = await binding.open('f1');
+			const handle = await documents.open('f1');
 			expect(handle.exports).toBeDefined();
 			if (!handle.exports.test) {
 				throw new Error('Expected exports for test extension');

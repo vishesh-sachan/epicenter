@@ -39,11 +39,11 @@ function FileSystem<T extends IFileSystem>(fs: T): T {
  */
 export function createYjsFileSystem(
 	filesTable: TableHelper<FileRow>,
-	contentBinding: Documents<FileRow>,
+	contentDocuments: Documents<FileRow>,
 	cwd: string = '/',
 ) {
 	const tree = new FileTree(filesTable);
-	const content = createContentHelpers(contentBinding);
+	const content = createContentHelpers(contentDocuments);
 
 	return FileSystem({
 		/** Content I/O operations — exposed for direct content reads/writes by UI layers. */
@@ -58,13 +58,13 @@ export function createYjsFileSystem(
 		 * Look up the internal file ID for a resolved absolute path.
 		 *
 		 * Returns `undefined` if the path doesn't exist. Useful for content-layer
-		 * operations that need the ID to open a document binding directly.
+		 * operations that need the ID to open a document directly.
 		 *
 		 * @example
 		 * ```typescript
 		 * const fileId = fs.lookupId('/docs/readme.md');
 		 * if (fileId) {
-		 *   const doc = await binding.open(fileId);
+		 *   const doc = await documents.open(fileId);
 		 * }
 		 * ```
 		 */
@@ -76,7 +76,7 @@ export function createYjsFileSystem(
 		/**
 		 * Tear down reactive indexes.
 		 *
-		 * Content doc cleanup is handled by the workspace's document binding
+		 * Content doc cleanup is handled by the workspace's documents manager
 		 * destroy cascade — no need to call `destroyAll()` here.
 		 */
 		destroy() {
@@ -265,7 +265,7 @@ export function createYjsFileSystem(
 				if (tree.activeChildren(id).length > 0) throw FS_ERRORS.ENOTEMPTY(abs);
 			}
 
-			// Soft-delete the row. The document binding's table observer
+			// Soft-delete the row. The documents manager's table observer
 			// automatically cleans up the associated content doc.
 			tree.softDelete(id);
 
