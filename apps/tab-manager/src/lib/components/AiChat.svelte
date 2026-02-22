@@ -4,24 +4,18 @@
 	import * as Chat from '@epicenter/ui/chat';
 	import * as Empty from '@epicenter/ui/empty';
 	import * as Select from '@epicenter/ui/select';
+	import { Textarea } from '@epicenter/ui/textarea';
 	import SendIcon from '@lucide/svelte/icons/send';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import SquareIcon from '@lucide/svelte/icons/square';
 
 	let inputValue = $state('');
 
-	function handleSend() {
+	function send() {
 		const content = inputValue.trim();
 		if (!content) return;
 		inputValue = '';
 		aiChatState.sendMessage(content);
-	}
-
-	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' && !e.shiftKey) {
-			e.preventDefault();
-			handleSend();
-		}
 	}
 
 	/** Extract text content from a message's parts array. */
@@ -35,9 +29,7 @@
 	}
 
 	const showLoadingDots = $derived(
-		aiChatState.isLoading &&
-			aiChatState.messages.length > 0 &&
-			aiChatState.messages[aiChatState.messages.length - 1].role === 'user',
+		aiChatState.isLoading && aiChatState.messages.at(-1)?.role === 'user',
 	);
 </script>
 
@@ -120,14 +112,19 @@
 
 		<!-- Input + send/stop button -->
 		<div class="flex gap-2">
-			<textarea
-				class="border-input placeholder:text-muted-foreground flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+			<Textarea
+				class="min-h-0 flex-1 resize-none"
 				rows={1}
 				placeholder="Type a message…"
 				bind:value={inputValue}
-				onkeydown={handleKeydown}
+				onkeydown={(e: KeyboardEvent) => {
+					if (e.key === 'Enter' && !e.shiftKey) {
+						e.preventDefault();
+						send();
+					}
+				}}
 				disabled={aiChatState.isLoading}
-			></textarea>
+			/>
 			{#if aiChatState.isLoading}
 				<Button
 					variant="outline"
@@ -140,7 +137,7 @@
 				<Button
 					variant="default"
 					size="icon"
-					onclick={handleSend}
+					onclick={() => send()}
 					disabled={!inputValue.trim()}
 				>
 					<SendIcon class="size-4" />
