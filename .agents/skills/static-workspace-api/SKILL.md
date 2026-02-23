@@ -89,6 +89,69 @@ const theme = defineKv()
 	});
 ```
 
+## Branded Table IDs (Required)
+
+Every table's `id` field and every string foreign key field MUST use a branded type instead of plain `'string'`. This prevents accidental mixing of IDs from different tables at compile time.
+
+### Pattern
+
+Define a branded type + arktype pipe pair in the same file as the workspace definition:
+
+```typescript
+import type { Brand } from 'wellcrafted/brand';
+import { type } from 'arktype';
+
+// 1. Branded type + arktype pipe (co-located with workspace definition)
+export type ConversationId = string & Brand<'ConversationId'>;
+export const ConversationId = type('string').pipe(
+	(s): ConversationId => s as ConversationId,
+);
+
+// 2. Use in defineTable schema
+conversations: defineTable(
+	type({
+		id: ConversationId,              // Primary key — branded
+		title: 'string',
+		'parentId?': ConversationId.or('undefined'),  // Self-referencing FK
+		_v: '1',
+	}),
+),
+
+chatMessages: defineTable(
+	type({
+		id: ChatMessageId,               // Different branded type
+		conversationId: ConversationId,   // FK to conversations — branded
+		role: "'user' | 'assistant'",
+		_v: '1',
+	}),
+),
+```
+
+### Rules
+
+1. **Every table gets its own ID type**: `DeviceId`, `SavedTabId`, `ConversationId`, `ChatMessageId`, etc.
+2. **Foreign keys use the referenced table's ID type**: `chatMessages.conversationId` uses `ConversationId`, not `'string'`
+3. **Optional FKs use `.or('undefined')`**: `'parentId?': ConversationId.or('undefined')`
+4. **Composite IDs are also branded**: `TabCompositeId`, `WindowCompositeId`, `GroupCompositeId`
+5. **Brand at generation site**: When creating IDs with `generateId()`, cast through string: `generateId() as string as ConversationId`
+6. **Functions accept branded types**: `function switchConversation(id: ConversationId)` not `(id: string)`
+
+### Why Not Plain `'string'`
+
+```typescript
+// BAD: Nothing prevents mixing conversation IDs with message IDs
+function deleteConversation(id: string) { ... }
+deleteConversation(message.id);  // Compiles! Silent bug.
+
+// GOOD: Compiler catches the mistake
+function deleteConversation(id: ConversationId) { ... }
+deleteConversation(message.id);  // Error: ChatMessageId is not ConversationId
+```
+
+### Reference Implementation
+
+See `apps/tab-manager/src/lib/workspace.ts` for the canonical example with 7 branded ID types.
+
 ## The `_v` Convention
 
 - `_v` is a **number** discriminant field (`'1'` in arktype = the literal number `1`)
