@@ -336,22 +336,46 @@ export const definition = defineWorkspace({
 		),
 
 		/**
-		 * Chat messages table — AI chat messages persisted for conversation history.
+		 * AI conversations — metadata for each chat thread.
 		 *
-		 * Stores TanStack AI UIMessage data with a conversationId for future
-		 * multi-conversation support. The `parts` field stores MessagePart[]
-		 * directly as a native array — no JSON serialization needed.
+		 * Each conversation has its own message history (linked via
+		 * chatMessages.conversationId). Subpages use `parentId` to form
+		 * a tree — e.g. a deep research thread spawned from a specific
+		 * message in a parent conversation.
+		 */
+		conversations: defineTable(
+			type({
+				id: 'string',
+				title: 'string',
+				'parentId?': 'string | undefined',
+				'sourceMessageId?': 'string | undefined',
+				'systemPrompt?': 'string | undefined',
+				provider: 'string',
+				model: 'string',
+				createdAt: 'number',
+				updatedAt: 'number',
+				_v: '1',
+			}),
+		),
+
+		/**
+		 * Chat messages — TanStack AI UIMessage data persisted per conversation.
 		 *
-		 * v1 uses a single default conversation. The conversationId field
-		 * future-proofs for multi-conversation UI.
+		 * The `parts` field stores MessagePart[] as a native array (no JSON
+		 * serialization). Runtime validation is skipped for parts because
+		 * they are always produced by TanStack AI — compile-time drift
+		 * detection in `ui-message.ts` catches type mismatches on
+		 * TanStack AI upgrades instead.
+		 *
+		 * @see {@link file://./ui-message.ts} — drift detection + rowToUIMessage boundary
 		 */
 		chatMessages: defineTable(
 			type({
-				id: 'string', // TanStack AI message ID or nanoid
-				conversationId: 'string', // Groups messages into threads
-				role: "'user' | 'assistant'", // Message sender
-				parts: 'unknown[]', // TanStack AI MessagePart[] — stored as native array
-				createdAt: 'number', // ms since epoch
+				id: 'string',
+				conversationId: 'string',
+				role: "'user' | 'assistant' | 'system'",
+				parts: 'unknown[]',
+				createdAt: 'number',
 				_v: '1',
 			}),
 		),
@@ -369,4 +393,5 @@ export type Tab = InferTableRow<Tables['tabs']>;
 export type Window = InferTableRow<Tables['windows']>;
 export type TabGroup = InferTableRow<Tables['tabGroups']>;
 export type SavedTab = InferTableRow<Tables['savedTabs']>;
+export type Conversation = InferTableRow<Tables['conversations']>;
 export type ChatMessage = InferTableRow<Tables['chatMessages']>;

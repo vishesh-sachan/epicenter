@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { aiChatState } from '$lib/state/ai-chat-state.svelte';
+	import { aiChatState } from '$lib/state/chat.svelte';
 	import { Button } from '@epicenter/ui/button';
 	import * as Command from '@epicenter/ui/command';
 	import { useCombobox } from '@epicenter/ui/hooks';
