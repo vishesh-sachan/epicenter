@@ -1209,10 +1209,10 @@ describe('heavy text rows: size and tombstone analysis', () => {
 		);
 	});
 
-	test('production scenario: all-day editing — 3 docs, 8hr session', () => {
+	test('production scenario: all-day editing — 3 documents, 8hr session', () => {
 		/**
-		 * Power user: 3 docs getting edited throughout the day.
-		 * ~2000 total saves across 3 docs over 8 hours.
+		 * Power user: 3 documents getting edited throughout the day.
+		 * ~2000 total saves across 3 documents over 8 hours.
 		 */
 		const contentChars = 30_000;
 		const totalSaves = 2000;
@@ -1237,7 +1237,7 @@ describe('heavy text rows: size and tombstone analysis', () => {
 		const tables = createTables(ykvDoc, { notes: heavyNoteDefinition });
 		for (let i = 0; i < 5; i++) tables.notes.set(makeRow(`doc-${i}`, 0));
 		for (let s = 1; s <= totalSaves; s++) {
-			const docIdx = s % 3; // rotate across 3 active docs
+			const docIdx = s % 3; // rotate across 3 active documents
 			tables.notes.set(makeRow(`doc-${docIdx}`, s));
 		}
 		const ykvSize = Y.encodeStateAsUpdate(ykvDoc).byteLength;
@@ -1260,7 +1260,7 @@ describe('heavy text rows: size and tombstone analysis', () => {
 		const fieldSize = Y.encodeStateAsUpdate(fieldDoc).byteLength;
 
 		console.log(
-			'\n=== PRODUCTION: ALL-DAY SESSION — 2000 saves across 3 docs ===',
+			'\n=== PRODUCTION: ALL-DAY SESSION — 2000 saves across 3 documents ===',
 		);
 		console.log(`  5 notes × 30K chars, 3 actively edited over 8 hours`);
 		console.log(`  ────────────────────────────────────────────────────────`);

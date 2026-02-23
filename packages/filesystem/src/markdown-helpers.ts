@@ -7,7 +7,7 @@ import {
 	prosemirrorToYXmlFragment,
 	yXmlFragmentToProseMirrorRootNode,
 } from 'y-prosemirror';
-import * as Y from 'yjs';
+import type * as Y from 'yjs';
 
 export { markdownSchema };
 

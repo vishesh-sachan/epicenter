@@ -1,10 +1,10 @@
 /**
- * createDocument() — runtime factory for bidirectional document bindings.
+ * createDocuments() — runtime document manager factory.
  *
- * Creates a binding between a table and its associated content Y.Docs.
- * The binding:
- * 1. Manages Y.Doc creation and provider lifecycle for each content doc
- * 2. Watches content docs → automatically bumps `updatedAt` on the row
+ * Creates a bidirectional link between a table and its associated content Y.Docs.
+ * It:
+ * 1. Manages Y.Doc creation and provider lifecycle for each content document
+ * 2. Watches content documents → automatically bumps `updatedAt` on the row
  * 3. Watches the table → automatically cleans up documents when rows are deleted
  *
  * Most users never call this directly — `createWorkspace()` wires it automatically
@@ -12,7 +12,7 @@
  *
  * @example
  * ```typescript
- * import { createDocument, createTables, defineTable } from '@epicenter/hq';
+ * import { createDocuments, createTables, defineTable } from '@epicenter/hq';
  * import * as Y from 'yjs';
  * import { type } from 'arktype';
  *
@@ -23,14 +23,14 @@
  * const ydoc = new Y.Doc({ guid: 'my-workspace' });
  * const tables = createTables(ydoc, { files: filesTable });
  *
- * const contentBinding = createDocument({
+ * const contentDocuments = createDocuments({
  *   guidKey: 'id',
  *   updatedAtKey: 'updatedAt',
  *   tableHelper: tables.files,
  *   ydoc,
  * });
  *
- * const handle = await contentBinding.open(someRow);
+ * const handle = await contentDocuments.open(someRow);
  * const text = handle.read();
  * handle.write('new content');
  * ```
@@ -46,23 +46,23 @@ import {
 } from './lifecycle.js';
 import type {
 	BaseRow,
-	DocumentBinding,
 	DocumentExtensionRegistration,
 	DocumentHandle,
+	Documents,
 	TableHelper,
 } from './types.js';
 
 /**
- * Sentinel symbol used as the Y.js transaction origin when the document binding
- * bumps `updatedAt` on a row. Consumers can check `transaction.origin === DOCUMENT_BINDING_ORIGIN`
+ * Sentinel symbol used as the Y.js transaction origin when the documents manager
+ * bumps `updatedAt` on a row. Consumers can check `transaction.origin === DOCUMENTS_ORIGIN`
  * to distinguish auto-bumps from user-initiated row changes.
  *
  * @example
  * ```typescript
- * import { DOCUMENT_BINDING_ORIGIN } from '@epicenter/hq';
+ * import { DOCUMENTS_ORIGIN } from '@epicenter/hq';
  *
  * client.tables.files.observe((changedIds, transaction) => {
- *   if (transaction.origin === DOCUMENT_BINDING_ORIGIN) {
+ *   if (transaction.origin === DOCUMENTS_ORIGIN) {
  *     // This was an auto-bump from a content doc edit
  *     return;
  *   }
@@ -70,7 +70,7 @@ import type {
  * });
  * ```
  */
-export const DOCUMENT_BINDING_ORIGIN = Symbol('document-binding');
+export const DOCUMENTS_ORIGIN = Symbol('documents');
 
 /**
  * Internal entry for an open document.
@@ -117,11 +117,11 @@ function makeHandle(
 }
 
 /**
- * Configuration for `createDocument()`.
+ * Configuration for `createDocuments()`.
  *
  * @typeParam TRow - The row type of the bound table
  */
-export type CreateDocumentConfig<TRow extends BaseRow> = {
+export type CreateDocumentsConfig<TRow extends BaseRow> = {
 	/** The workspace identifier. Passed through to `DocumentContext.id`. */
 	id?: string;
 	/** Column name storing the Y.Doc GUID. */
@@ -139,7 +139,7 @@ export type CreateDocumentConfig<TRow extends BaseRow> = {
 	 */
 	documentExtensions?: DocumentExtensionRegistration[];
 	/**
-	 * Tags declared on this document binding (from `withDocument(..., { tags })`).
+	 * Tags declared on this documents instance (from `withDocument(..., { tags })`).
 	 * Used for tag matching against document extension registrations.
 	 */
 	documentTags?: readonly string[];
@@ -149,25 +149,25 @@ export type CreateDocumentConfig<TRow extends BaseRow> = {
 	 * Receives the GUID of the associated document.
 	 * Default: close (free memory, preserve persisted data).
 	 */
-	onRowDeleted?: (binding: DocumentBinding<TRow>, guid: string) => void;
+	onRowDeleted?: (documents: Documents<TRow>, guid: string) => void;
 };
 
 /**
- * Create a runtime document binding — a bidirectional link between table rows
+ * Create a runtime documents manager — a bidirectional link between table rows
  * and their content Y.Docs.
  *
- * The binding manages:
+ * The manager handles:
  * - Y.Doc creation with `gc: false` (required for Yjs provider compatibility)
  * - Provider lifecycle (persistence, sync) via document extension hooks
- * - Automatic `updatedAt` bumping when content docs change
+ * - Automatic `updatedAt` bumping when content documents change
  * - Automatic cleanup when rows are deleted from the table
  *
- * @param config - Binding configuration
- * @returns A `DocumentBinding<TRow>` with open/close/closeAll/guidOf methods
+ * @param config - Documents configuration
+ * @returns A `Documents<TRow>` with open/close/closeAll/guidOf methods
  */
-export function createDocument<TRow extends BaseRow>(
-	config: CreateDocumentConfig<TRow>,
-): DocumentBinding<TRow> {
+export function createDocuments<TRow extends BaseRow>(
+	config: CreateDocumentsConfig<TRow>,
+): Documents<TRow> {
 	const {
 		id = '',
 		guidKey,
@@ -179,7 +179,7 @@ export function createDocument<TRow extends BaseRow>(
 		onRowDeleted,
 	} = config;
 
-	const docs = new Map<string, DocEntry>();
+	const openDocuments = new Map<string, DocEntry>();
 
 	/**
 	 * Extract the GUID from a row or use the string directly.
@@ -198,23 +198,23 @@ export function createDocument<TRow extends BaseRow>(
 			const result = tableHelper.get(id);
 			if (result.status !== 'not_found') continue;
 
-			// Row was deleted — find the matching open doc by searching
-			// all open docs where the guid matches. For most tables, the
+			// Row was deleted — find the matching open document by searching
+			// all open documents where the guid matches. For most tables, the
 			// guid IS the row id, but it could be a different column.
-			for (const [guid] of docs) {
+			for (const [guid] of openDocuments) {
 				// Check if this guid corresponds to the deleted row.
 				// Since we can't reverse-map guid→rowId without scanning,
 				// we check if the deleted row ID matches any open doc's guid
 				// OR if the guid key IS 'id' (common case).
 				if (guid === id || guidKey === 'id') {
 					const targetGuid = guidKey === 'id' ? id : guid;
-					if (!docs.has(targetGuid)) continue;
+					if (!openDocuments.has(targetGuid)) continue;
 
 					if (onRowDeleted) {
-						onRowDeleted(binding, targetGuid);
+						onRowDeleted(documents, targetGuid);
 					} else {
 						// Default: close (free memory, preserve data)
-						binding.close(targetGuid);
+						documents.close(targetGuid);
 					}
 					break;
 				}
@@ -222,25 +222,25 @@ export function createDocument<TRow extends BaseRow>(
 		}
 	});
 
-	const binding: DocumentBinding<TRow> = {
+	const documents: Documents<TRow> = {
 		async open(input: TRow | string): Promise<DocumentHandle> {
 			const guid = resolveGuid(input);
 
-			const existing = docs.get(guid);
+			const existing = openDocuments.get(guid);
 			if (existing) return existing.whenReady;
 
 			const contentYdoc = new Y.Doc({ guid, gc: false });
 
 			// Filter document extensions by tag matching:
-			// - No tags on extension → fire for all docs (universal)
-			// - Has tags → fire only if doc tags and extension tags share ANY value
+			// - No tags on extension → fire for all documents (universal)
+			// - Has tags → fire only if document tags and extension tags share ANY value
 			const applicableExtensions = documentExtensions.filter((reg) => {
 				if (reg.tags.length === 0) return true;
 				return reg.tags.some((tag) => documentTags.includes(tag));
 			});
 
 			// Call document extension factories synchronously.
-			// IMPORTANT: No await between docs.get() and docs.set() — ensures
+			// IMPORTANT: No await between openDocuments.get() and openDocuments.set() — ensures
 			// concurrent open() calls for the same guid are safe.
 			// Build the extensions map incrementally so each factory sees prior
 			// extensions' resolved form.
@@ -304,8 +304,8 @@ export function createDocument<TRow extends BaseRow>(
 				_doc: Y.Doc,
 				transaction: Y.Transaction,
 			) => {
-				// Skip updates from the document binding itself to avoid loops
-				if (origin === DOCUMENT_BINDING_ORIGIN) return;
+				// Skip updates from the documents manager itself to avoid loops
+				if (origin === DOCUMENTS_ORIGIN) return;
 				// Skip remote updates — only local edits bump updatedAt
 				if (!transaction.local) return;
 
@@ -315,7 +315,7 @@ export function createDocument<TRow extends BaseRow>(
 					tableHelper.update(guid, {
 						[updatedAtKey]: Date.now(),
 					} as Partial<Omit<TRow, 'id'>>);
-				}, DOCUMENT_BINDING_ORIGIN);
+				}, DOCUMENTS_ORIGIN);
 			};
 
 			contentYdoc.on('update', updateHandler);
@@ -340,7 +340,7 @@ export function createDocument<TRow extends BaseRow>(
 
 								unobserve();
 								contentYdoc.destroy();
-								docs.delete(guid);
+								openDocuments.delete(guid);
 
 								if (errors.length > 0) {
 									console.error('Document extension cleanup errors:', errors);
@@ -348,7 +348,7 @@ export function createDocument<TRow extends BaseRow>(
 								throw err;
 							});
 
-			docs.set(guid, {
+			openDocuments.set(guid, {
 				ydoc: contentYdoc,
 				extensions: resolvedExtensions,
 				unobserve,
@@ -359,12 +359,12 @@ export function createDocument<TRow extends BaseRow>(
 
 		async close(input: TRow | string): Promise<void> {
 			const guid = resolveGuid(input);
-			const entry = docs.get(guid);
+			const entry = openDocuments.get(guid);
 			if (!entry) return;
 
 			// Remove from map SYNCHRONOUSLY so concurrent open() calls
 			// create a fresh Y.Doc. Async cleanup follows.
-			docs.delete(guid);
+			openDocuments.delete(guid);
 			entry.unobserve();
 
 			// Destroy in LIFO order (reverse creation), continue on error
@@ -386,9 +386,9 @@ export function createDocument<TRow extends BaseRow>(
 		},
 
 		async closeAll(): Promise<void> {
-			const entries = Array.from(docs.entries());
+			const entries = Array.from(openDocuments.entries());
 			// Clear map synchronously first
-			docs.clear();
+			openDocuments.clear();
 			unobserveTable();
 
 			for (const [, entry] of entries) {
@@ -411,11 +411,7 @@ export function createDocument<TRow extends BaseRow>(
 				}
 			}
 		},
-
-		guidOf(row: TRow): string {
-			return String(row[guidKey]);
-		},
 	};
 
-	return binding;
+	return documents;
 }

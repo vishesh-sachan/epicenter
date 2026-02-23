@@ -8,6 +8,7 @@
 
 import { generateId } from '@epicenter/hq';
 import { storage } from '@wxt-dev/storage';
+import type { DeviceId } from '$lib/workspace';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Device ID Storage
@@ -25,14 +26,14 @@ const deviceIdItem = storage.defineItem<string>('local:deviceId', {
  * In-memory cache for device ID to avoid repeated storage lookups.
  * Reset on browser restart (null initially).
  */
-let cachedDeviceId: string | null = null;
+let cachedDeviceId: DeviceId | null = null;
 
 /**
  * Get the stable device ID for this browser installation.
  * Generated once on first install, persisted in storage.local.
  * Cached in memory after first access to avoid repeated storage calls.
  */
-export async function getDeviceId(): Promise<string> {
+export async function getDeviceId(): Promise<DeviceId> {
 	// Return cached value if available
 	if (cachedDeviceId !== null) {
 		return cachedDeviceId;
@@ -46,8 +47,8 @@ export async function getDeviceId(): Promise<string> {
 	}
 
 	// Cache for future calls
-	cachedDeviceId = deviceId;
-	return deviceId;
+	cachedDeviceId = deviceId as DeviceId;
+	return cachedDeviceId;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

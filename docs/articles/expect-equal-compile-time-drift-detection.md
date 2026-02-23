@@ -1,48 +1,65 @@
-# Catch Type Drift at Compile Time with Expect and Equal
+# Two Type Utilities Every TypeScript Codebase Should Have
 
-When you cast `unknown` data to a third-party library's type, you're trusting that the type hasn't changed since you wrote the cast. Upgrade the library and that trust might be misplaced. The cast still compiles; your code just breaks at runtime.
+The most useful pair of types I've added to a TypeScript project is `Expect` and `Equal`. Together, they let you assert that two types are exactly the same—and if they're not, the build fails. No runtime cost, no test runner, just a red squiggly in your editor the moment something drifts.
 
-Two type utilities—`Expect` and `Equal`—turn that silent drift into a build failure.
+## Rolling your own
 
-## The old way: bidirectional extends
-
-The standard approach checks if A extends B, then B extends A. If both hold, they're "probably" the same.
+You don't need a library. These two types come from Matt Pocock's [Total TypeScript](https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own):
 
 ```typescript
-type ExpectedParts = 'text' | 'image' | 'tool-call' | 'tool-result';
-type ActualParts = TanStackMessagePart['type'];
+type Expect<T extends true> = T;
+type Equal<X, Y> =
+	(<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
+		? true
+		: false;
+```
 
-type _AExtendsB = ActualParts extends ExpectedParts ? true : never;
-type _BExtendsA = ExpectedParts extends ActualParts ? true : never;
+`Expect` constrains its input to `true`. If you hand it `false`, TypeScript complains. That's it.
+
+`Equal` is the clever one. It wraps both types inside a generic function signature—`<T>() => T extends X ? 1 : 2`—and checks whether the two signatures are identical. This forces TypeScript to compare types for identity rather than assignability. `string` extends `string | number`, but they aren't equal. `any` extends everything, but it isn't equal to `string`. The function trick catches both.
+
+You use them together:
+
+```typescript
+type _Check = Expect<Equal<ActualType, ExpectedType>>;
+```
+
+If the types match, this is inert. If they don't, the build breaks with `Type 'false' does not satisfy the constraint 'true'`.
+
+## Where this gets useful
+
+Any time you're keeping two type definitions in sync—whether across files, across layers, or across package boundaries—`Expect<Equal<>>` acts as a tripwire.
+
+The case that pushed me to add it: we store third-party data as `unknown[]` in a CRDT and cast it back to the library's type on read. The cast always compiles, even if the library changed the type in a new version. So we write down what we expect and check it against reality:
+
+```typescript
+type TanStackMessagePart = UIMessage['parts'][number];
+
+type ExpectedPartTypes =
+	| 'text'
+	| 'image'
+	| 'audio'
+	| 'video'
+	| 'document'
+	| 'tool-call'
+	| 'tool-result'
+	| 'thinking';
+
+type _DriftCheck = Expect<
+	Equal<TanStackMessagePart['type'], ExpectedPartTypes>
+>;
+```
+
+If the library adds `'file'` or drops `'thinking'`, the build fails before we ship. One line replaces what used to take four:
+
+```typescript
+// before: bidirectional extends + dummy variable + void
+type _AExtendsB = Actual extends Expected ? true : never;
+type _BExtendsA = Expected extends Actual ? true : never;
 const _driftCheck: [_AExtendsB, _BExtendsA] = [true, true];
 void _driftCheck;
 ```
 
-Four lines of ceremony for a single check. A dummy variable, a tuple, a `void` to silence the linter. And it's not even perfectly accurate—bidirectional `extends` can't distinguish `any` from `string`, or properly handle `never` and distributive conditionals.
+The old approach also has a subtle bug: bidirectional `extends` can't distinguish `any` from concrete types, and it mishandles distributive conditionals. `Equal` doesn't have those problems.
 
-## Rolling your own
-
-Matt Pocock's [Total TypeScript](https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own) popularized a cleaner pattern. Two type utilities, no runtime cost:
-
-```typescript
-type Expect<T extends true> = T;
-type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <
-  T,
->() => T extends Y ? 1 : 2
-  ? true
-  : false;
-```
-
-`Expect` constrains its input to `true`. If `Equal` returns `false`, the constraint fails and the build breaks.
-
-`Equal` is the interesting one. It wraps both types inside a function signature—`<T>() => T extends X ? 1 : 2`—and checks if those two signatures are identical. This forces TypeScript to compare the types for identity rather than assignability. `string` extends `string | number`, but they aren't equal. `any` extends everything, but it isn't equal to `string`. The generic function trick catches both.
-
-The four-line ceremony collapses to one:
-
-```typescript
-type _DriftCheck = Expect<Equal<TanStackMessagePart['type'], ExpectedParts>>;
-```
-
-If the library adds, removes, or renames a member of that union, TypeScript flags `Expect` immediately: `Type 'false' does not satisfy the constraint 'true'`. One line, checked on every build.
-
-This works anywhere you bridge typed and untyped boundaries. If you're casting `unknown` to a library type, drop an `Expect<Equal<>>` next to it. When the library changes, the build tells you before your users do.
+This pattern isn't limited to third-party drift. It works anywhere two things need to stay in sync: a Zod schema's inferred type matching a manually written interface, a serialization format matching a domain type, or a database row type matching an API response shape. Drop the assertion next to the boundary and the compiler keeps them honest.

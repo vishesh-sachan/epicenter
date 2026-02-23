@@ -1,12 +1,12 @@
 ---
-name: static-workspace-api
-description: Static workspace API patterns for defineTable, defineKv, versioning, and migrations. Use when defining workspace schemas, adding versions to existing tables/KV stores, or writing migration functions.
+name: workspace-api
+description: Workspace API patterns for defineTable, defineKv, versioning, and migrations. Use when defining workspace schemas, adding versions to existing tables/KV stores, or writing migration functions.
 metadata:
   author: epicenter
-  version: '2.0'
+  version: '3.0'
 ---
 
-# Static Workspace API
+# Workspace API
 
 Type-safe schema definitions for tables and KV stores with versioned migrations.
 
@@ -24,7 +24,7 @@ Type-safe schema definitions for tables and KV stores with versioned migrations.
 Use when a table has only one version:
 
 ```typescript
-import { defineTable } from 'epicenter/static';
+import { defineTable } from '@epicenter/hq';
 import { type } from 'arktype';
 
 const users = defineTable(type({ id: 'string', email: 'string', _v: '1' }));
@@ -57,7 +57,7 @@ KV stores are flexible — `_v` is optional. Both patterns work:
 ### Without `_v` (field presence)
 
 ```typescript
-import { defineKv } from 'epicenter/static';
+import { defineKv } from '@epicenter/hq';
 
 const sidebar = defineKv(type({ collapsed: 'boolean', width: 'number' }));
 
@@ -88,6 +88,69 @@ const theme = defineKv()
 		}
 	});
 ```
+
+## Branded Table IDs (Required)
+
+Every table's `id` field and every string foreign key field MUST use a branded type instead of plain `'string'`. This prevents accidental mixing of IDs from different tables at compile time.
+
+### Pattern
+
+Define a branded type + arktype pipe pair in the same file as the workspace definition:
+
+```typescript
+import type { Brand } from 'wellcrafted/brand';
+import { type } from 'arktype';
+
+// 1. Branded type + arktype pipe (co-located with workspace definition)
+export type ConversationId = string & Brand<'ConversationId'>;
+export const ConversationId = type('string').pipe(
+	(s): ConversationId => s as ConversationId,
+);
+
+// 2. Use in defineTable schema
+conversations: defineTable(
+	type({
+		id: ConversationId,              // Primary key — branded
+		title: 'string',
+		'parentId?': ConversationId.or('undefined'),  // Self-referencing FK
+		_v: '1',
+	}),
+),
+
+chatMessages: defineTable(
+	type({
+		id: ChatMessageId,               // Different branded type
+		conversationId: ConversationId,   // FK to conversations — branded
+		role: "'user' | 'assistant'",
+		_v: '1',
+	}),
+),
+```
+
+### Rules
+
+1. **Every table gets its own ID type**: `DeviceId`, `SavedTabId`, `ConversationId`, `ChatMessageId`, etc.
+2. **Foreign keys use the referenced table's ID type**: `chatMessages.conversationId` uses `ConversationId`, not `'string'`
+3. **Optional FKs use `.or('undefined')`**: `'parentId?': ConversationId.or('undefined')`
+4. **Composite IDs are also branded**: `TabCompositeId`, `WindowCompositeId`, `GroupCompositeId`
+5. **Brand at generation site**: When creating IDs with `generateId()`, cast through string: `generateId() as string as ConversationId`
+6. **Functions accept branded types**: `function switchConversation(id: ConversationId)` not `(id: string)`
+
+### Why Not Plain `'string'`
+
+```typescript
+// BAD: Nothing prevents mixing conversation IDs with message IDs
+function deleteConversation(id: string) { ... }
+deleteConversation(message.id);  // Compiles! Silent bug.
+
+// GOOD: Compiler catches the mistake
+function deleteConversation(id: ConversationId) { ... }
+deleteConversation(message.id);  // Error: ChatMessageId is not ConversationId
+```
+
+### Reference Implementation
+
+See `apps/tab-manager/src/lib/workspace.ts` for the canonical example with 7 branded ID types.
 
 ## The `_v` Convention
 
@@ -140,8 +203,8 @@ return { ...row, views: 0, _v: 2 as const }; // Also works — redundant
 
 ## References
 
-- `packages/epicenter/src/static/define-table.ts`
-- `packages/epicenter/src/static/define-kv.ts`
-- `packages/epicenter/src/static/index.ts`
-- `packages/epicenter/src/static/create-tables.ts`
-- `packages/epicenter/src/static/create-kv.ts`
+- `packages/epicenter/src/workspace/define-table.ts`
+- `packages/epicenter/src/workspace/define-kv.ts`
+- `packages/epicenter/src/workspace/index.ts`
+- `packages/epicenter/src/workspace/create-tables.ts`
+- `packages/epicenter/src/workspace/create-kv.ts`

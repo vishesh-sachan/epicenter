@@ -1,16 +1,16 @@
-import type { DocumentBinding } from '@epicenter/hq';
+import type { Documents } from '@epicenter/hq';
 import { parseSheetFromCsv } from './sheet-helpers.js';
 import { createTimeline } from './timeline-helpers.js';
 import type { FileId, FileRow } from './types.js';
 
 /**
- * Content I/O backed by a {@link DocumentBinding}.
+ * Content I/O backed by a {@link Documents}.
  *
- * Thin wrappers around `binding.open()` + timeline for mode-specific
- * operations (binary, sheet, text append) that the binding's built-in
+ * Thin wrappers around `documents.open()` + timeline for mode-specific
+ * operations (binary, sheet, text append) that the built-in
  * `read()`/`write()` don't cover.
  *
- * The Y.Doc lifecycle is managed by the workspace's document binding
+ * The Y.Doc lifecycle is managed by the workspace's documents manager
  * (automatic cleanup on row deletion, `updatedAt` auto-bump, extension hooks).
  */
 export type ContentHelpers = {
@@ -31,35 +31,35 @@ export type ContentHelpers = {
 };
 
 /**
- * Create content I/O helpers backed by a document binding.
+ * Create content I/O helpers backed by a documents instance.
  *
- * Every method opens the content doc via `binding.open()` (idempotent),
+ * Every method opens the content doc via `documents.open()` (idempotent),
  * then uses the timeline abstraction for mode-aware reads/writes.
- * The binding handles Y.Doc lifecycle, provider wiring, and `updatedAt` bumping.
+ * The documents manager handles Y.Doc lifecycle, provider wiring, and `updatedAt` bumping.
  *
  * @example
  * ```typescript
- * const helpers = createContentHelpers(ws.tables.files.docs.content);
+ * const helpers = createContentHelpers(ws.documents.files.content);
  * const text = await helpers.read(fileId);
  * const size = await helpers.write(fileId, 'hello');
  * ```
  */
 export function createContentHelpers(
-	binding: DocumentBinding<FileRow>,
+	documents: Documents<FileRow>,
 ): ContentHelpers {
 	return {
 		async read(fileId) {
-			const { ydoc } = await binding.open(fileId);
+			const { ydoc } = await documents.open(fileId);
 			return createTimeline(ydoc).readAsString();
 		},
 
 		async readBuffer(fileId) {
-			const { ydoc } = await binding.open(fileId);
+			const { ydoc } = await documents.open(fileId);
 			return createTimeline(ydoc).readAsBuffer();
 		},
 
 		async write(fileId, data) {
-			const { ydoc } = await binding.open(fileId);
+			const { ydoc } = await documents.open(fileId);
 			const tl = createTimeline(ydoc);
 
 			if (typeof data === 'string') {
@@ -96,7 +96,7 @@ export function createContentHelpers(
 		},
 
 		async append(fileId, data) {
-			const { ydoc } = await binding.open(fileId);
+			const { ydoc } = await documents.open(fileId);
 			const tl = createTimeline(ydoc);
 
 			if (tl.currentMode === 'text') {

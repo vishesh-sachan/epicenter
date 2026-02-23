@@ -39,7 +39,7 @@
 import * as Y from 'yjs';
 import type { Actions } from '../shared/actions.js';
 import { createAwareness } from './create-awareness.js';
-import { createDocument } from './create-document.js';
+import { createDocuments } from './create-document.js';
 import { createKv } from './create-kv.js';
 import { createTables } from './create-tables.js';
 import {
@@ -50,18 +50,35 @@ import {
 import type {
 	AwarenessDefinitions,
 	BaseRow,
-	DocBinding,
-	DocumentBinding,
 	DocumentExtensionRegistration,
+	Documents,
+	DocumentsHelper,
 	ExtensionContext,
 	KvDefinitions,
 	TableDefinitions,
-	TableHelper,
 	WorkspaceClient,
 	WorkspaceClientBuilder,
 	WorkspaceClientWithActions,
 	WorkspaceDefinition,
 } from './types.js';
+
+/**
+ * Run cleanups in LIFO order (last registered = first destroyed).
+ * Continues on error and returns accumulated errors.
+ */
+async function destroyLifo(
+	cleanups: (() => MaybePromise<void>)[],
+): Promise<unknown[]> {
+	const errors: unknown[] = [];
+	for (let i = cleanups.length - 1; i >= 0; i--) {
+		try {
+			await cleanups[i]!();
+		} catch (err) {
+			errors.push(err);
+		}
+	}
+	return errors;
+}
 
 /**
  * Create a workspace client with chainable extension support.
@@ -123,51 +140,53 @@ export function createWorkspace<
 
 	// Accumulated document extension registrations (in chain order).
 	// Mutable array — grows as .withDocumentExtension() is called. Document
-	// bindings reference this array, so by the time user code calls .open(),
-	// all document extensions are registered.
+	// bindings reference this array by closure, so by the time user code
+	// calls .open(), all extensions are registered.
 	const documentExtensionRegistrations: DocumentExtensionRegistration[] = [];
 
-	// Create document bindings for tables that have .withDocument() declarations.
-	// Bindings are created eagerly but reference documentExtensionRegistrations by closure,
+	// Create documents for tables that have .withDocument() declarations.
+	// Documents are created eagerly but reference documentExtensionRegistrations by closure,
 	// so they pick up extensions added later via .withDocumentExtension().
-	const documentBindingCleanups: (() => Promise<void>)[] = [];
+	const documentCleanups: (() => Promise<void>)[] = [];
+	// Runtime type is Record<string, Record<string, Documents<BaseRow>>> —
+	// cast to DocumentsHelper at the end so it satisfies WorkspaceClient/ExtensionContext.
+	const documentsNamespace: Record<
+		string,
+		Record<string, Documents<BaseRow>>
+	> = {};
 
 	for (const [tableName, tableDef] of Object.entries(tableDefs)) {
-		const docsDef = (tableDef as { docs?: Record<string, DocBinding> }).docs;
-		if (!docsDef || Object.keys(docsDef).length === 0) continue;
+		if (Object.keys(tableDef.documents).length === 0) continue;
 
-		const tableHelper = (tables as Record<string, TableHelper<BaseRow>>)[
-			tableName
-		];
+		const tableHelper = tables[tableName];
 		if (!tableHelper) continue;
 
-		const docsNamespace: Record<string, DocumentBinding<BaseRow>> = {};
+		const tableDocumentsNamespace: Record<string, Documents<BaseRow>> = {};
 
-		for (const [docName, docBinding] of Object.entries(docsDef)) {
-			const docTags: readonly string[] = docBinding.tags ?? [];
+		for (const [docName, documentConfig] of Object.entries(
+			tableDef.documents,
+		)) {
+			const docTags: readonly string[] = documentConfig.tags ?? [];
 
-			const binding = createDocument({
+			const documents = createDocuments({
 				id,
-				guidKey: docBinding.guid as keyof BaseRow & string,
-				updatedAtKey: docBinding.updatedAt as keyof BaseRow & string,
+				guidKey: documentConfig.guid as keyof BaseRow & string,
+				updatedAtKey: documentConfig.updatedAt as keyof BaseRow & string,
 				tableHelper,
 				ydoc,
 				documentExtensions: documentExtensionRegistrations,
 				documentTags: docTags,
 			});
 
-			docsNamespace[docName] = binding;
-			documentBindingCleanups.push(() => binding.closeAll());
+			tableDocumentsNamespace[docName] = documents;
+			documentCleanups.push(() => documents.closeAll());
 		}
 
-		// Attach .docs namespace to the table helper
-		Object.defineProperty(tableHelper, 'docs', {
-			value: docsNamespace,
-			enumerable: true,
-			configurable: false,
-			writable: false,
-		});
+		documentsNamespace[tableName] = tableDocumentsNamespace;
 	}
+
+	const typedDocuments =
+		documentsNamespace as unknown as DocumentsHelper<TTableDefinitions>;
 
 	function buildClient<TExtensions extends Record<string, unknown>>(
 		extensions: TExtensions,
@@ -180,20 +199,11 @@ export function createWorkspace<
 		TExtensions
 	> {
 		const destroy = async (): Promise<void> => {
-			// Destroy document bindings first (before extensions they depend on)
-			for (const cleanup of documentBindingCleanups) {
+			// Close all documents first (before extensions they depend on)
+			for (const cleanup of documentCleanups) {
 				await cleanup();
 			}
-			// Destroy extensions in LIFO order (last added = first destroyed)
-			const errors: unknown[] = [];
-			for (let i = state.extensionCleanups.length - 1; i >= 0; i--) {
-				try {
-					await state.extensionCleanups[i]!();
-				} catch (err) {
-					errors.push(err);
-				}
-			}
-			// Destroy awareness
+			const errors = await destroyLifo(state.extensionCleanups);
 			awareness.raw.destroy();
 			ydoc.destroy();
 
@@ -215,6 +225,7 @@ export function createWorkspace<
 			ydoc,
 			definitions,
 			tables,
+			documents: typedDocuments,
 			kv,
 			awareness,
 			// Each extension entry is the exports object stored by reference.
@@ -249,19 +260,18 @@ export function createWorkspace<
 					destroy?: () => MaybePromise<void>;
 				},
 			) {
+				const {
+					destroy: _destroy,
+					[Symbol.asyncDispose]: _dispose,
+					whenReady: _whenReady,
+					...clientContext
+				} = client;
 				const ctx = {
-					id,
-					ydoc,
-					definitions,
-					tables,
-					kv,
-					awareness,
-					batch: (fn: () => void) => ydoc.transact(fn),
+					...clientContext,
 					whenReady:
 						state.whenReadyPromises.length === 0
 							? Promise.resolve()
 							: Promise.all(state.whenReadyPromises).then(() => {}),
-					extensions,
 				};
 
 				try {
@@ -286,25 +296,15 @@ export function createWorkspace<
 						},
 					);
 				} catch (err) {
-					// LIFO cleanup: prior extensions in reverse order
-					const errors: unknown[] = [];
-					for (let i = state.extensionCleanups.length - 1; i >= 0; i--) {
-						try {
-							const result = state.extensionCleanups[i]!();
-							if (result instanceof Promise) {
-								result.catch(() => {}); // Fire and forget in sync context
-							}
-						} catch (cleanupErr) {
-							errors.push(cleanupErr);
+					// Fire-and-forget: withExtension is sync so we can't await
+					destroyLifo(state.extensionCleanups).then((errors) => {
+						if (errors.length > 0) {
+							console.error(
+								'Extension cleanup errors during factory failure:',
+								errors,
+							);
 						}
-					}
-
-					if (errors.length > 0) {
-						console.error(
-							'Extension cleanup errors during factory failure:',
-							errors,
-						);
-					}
+					});
 
 					throw err;
 				}

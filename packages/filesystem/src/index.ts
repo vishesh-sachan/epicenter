@@ -1,4 +1,4 @@
-// Content helpers (document binding wrappers)
+// Content helpers (documents wrappers)
 export {
 	type ContentHelpers,
 	createContentHelpers,

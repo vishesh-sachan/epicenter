@@ -38,6 +38,7 @@ import {
 	createGroupCompositeId,
 	createTabCompositeId,
 	createWindowCompositeId,
+	type DeviceId,
 	definition,
 	type GroupCompositeId,
 	parseGroupId,
@@ -368,7 +369,7 @@ export default defineBackground(() => {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	const whenReady = (async (): Promise<{
-		deviceId: string;
+		deviceId: DeviceId;
 	}> => {
 		const deviceId = await deviceIdPromise;
 

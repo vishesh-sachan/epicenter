@@ -83,11 +83,6 @@ export { defineWorkspace } from './workspace/define-workspace';
 // WORKSPACE CREATION
 // ════════════════════════════════════════════════════════════════════════════
 
-export type { CreateDocumentConfig } from './workspace/create-document';
-export {
-	createDocument,
-	DOCUMENT_BINDING_ORIGIN,
-} from './workspace/create-document';
 export { createWorkspace } from './workspace/create-workspace';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -129,10 +124,10 @@ export type {
 	AwarenessState,
 	BaseRow,
 	DeleteResult,
-	DocBinding,
-	DocsPropertyOf,
-	DocumentBinding,
+	DocumentConfig,
 	DocumentHandle,
+	Documents,
+	DocumentsHelper,
 	ExtensionContext,
 	ExtensionFactory,
 	GetResult,
@@ -146,9 +141,7 @@ export type {
 	KvGetResult,
 	KvHelper,
 	NotFoundResult,
-	NumberKeysOf,
 	RowResult,
-	StringKeysOf,
 	TableDefinition,
 	TableDefinitions,
 	TableHelper,

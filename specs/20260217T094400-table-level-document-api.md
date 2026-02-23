@@ -1,5 +1,7 @@
 # Table-Level Document API (`.withDocument()` + `createDocumentBinding()`)
 
+> **Note**: The `.docs` access pattern described here was replaced by `client.documents` — see specs/20260221T204200-documents-top-level-namespace.md
+
 **Date**: 2026-02-17
 **Status**: Design in progress (v2 — revised from document handle to document binding)
 
@@ -81,14 +83,14 @@ const posts = defineTable()
 
 ### Why this approach
 
-| Criteria                | Assessment                                                                                                                                    |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Criteria                | Assessment                                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Type safety**         | Post-schema, TypeScript knows all column names. `guid` and `updatedAt` are constrained to `keyof SchemaOutput & string`. Autocomplete works. |
-| **Co-location**         | Doc binding lives with the table definition, next to the columns it references.                                                               |
-| **Portability**         | Move a table to another workspace — doc bindings come with it.                                                                                |
-| **Multiple docs**       | Chain `.withDocument()` multiple times. Each call adds a named binding.                                                                       |
-| **Consistency**         | `defineTable` already has `.version().migrate()`. `.withDocument()` extends the builder naturally.                                             |
-| **No breaking changes** | `defineWorkspace` unchanged. Tables without `.withDocument()` unchanged.                                                                      |
+| **Co-location**         | Doc binding lives with the table definition, next to the columns it references.                                                              |
+| **Portability**         | Move a table to another workspace — doc bindings come with it.                                                                               |
+| **Multiple docs**       | Chain `.withDocument()` multiple times. Each call adds a named binding.                                                                      |
+| **Consistency**         | `defineTable` already has `.version().migrate()`. `.withDocument()` extends the builder naturally.                                           |
+| **No breaking changes** | `defineWorkspace` unchanged. Tables without `.withDocument()` unchanged.                                                                     |
 
 ### `.withDocument()` signature
 
@@ -108,13 +110,13 @@ Both `guid` and `updatedAt` are always required — no defaults. This avoids sil
 
 ### Naming decisions
 
-| Decision | Choice | Reasoning |
-| --- | --- | --- |
-| **Method name** | `.withDocument()` | Clarity over brevity. Definition-time API written once per table. |
-| **GUID binding key** | `guid` | Matches Yjs terminology (`new Y.Doc({ guid })`). Aligns with existing `Guid` branded type in the codebase. |
-| **Timestamp binding key** | `updatedAt` | Universal convention. Describes exactly what the column tracks. |
-| **Name required?** | Always | The name becomes the `.docs` property key. No unnamed/default docs. |
-| **Defaults for `guid`/`updatedAt`?** | None | Every table has an `id` column, so defaulting `guid` to `'id'` would silently succeed even when wrong. Explicit is safer. |
+| Decision                             | Choice            | Reasoning                                                                                                                 |
+| ------------------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Method name**                      | `.withDocument()` | Clarity over brevity. Definition-time API written once per table.                                                         |
+| **GUID binding key**                 | `guid`            | Matches Yjs terminology (`new Y.Doc({ guid })`). Aligns with existing `Guid` branded type in the codebase.                |
+| **Timestamp binding key**            | `updatedAt`       | Universal convention. Describes exactly what the column tracks.                                                           |
+| **Name required?**                   | Always            | The name becomes the `.docs` property key. No unnamed/default docs.                                                       |
+| **Defaults for `guid`/`updatedAt`?** | None              | Every table has an `id` column, so defaulting `guid` to `'id'` would silently succeed even when wrong. Explicit is safer. |
 
 ### Type-level design
 
@@ -173,7 +175,9 @@ The codebase follows a consistent pattern: `define*` = pure declaration, `create
 ### `createDocumentBinding()` signature
 
 ```typescript
-function createDocumentBinding<TRow extends { id: string; _v: number }>(config: {
+function createDocumentBinding<
+	TRow extends { id: string; _v: number },
+>(config: {
 	/** Column name storing the Y.Doc GUID. */
 	guidKey: StringKeysOf<TRow>;
 	/** Column name to bump when the doc changes. */
@@ -305,7 +309,7 @@ The binding maintains an internal `Map<string, DocEntry>`. This is an **implemen
 type DocEntry = {
 	ydoc: Y.Doc;
 	lifecycles: DocumentLifecycle[];
-	unobserve: () => void;         // removes the updatedAt observer
+	unobserve: () => void; // removes the updatedAt observer
 	whenReady: Promise<Y.Doc>;
 };
 ```
@@ -501,6 +505,7 @@ Content documents need two distinct cleanup operations because CRDTs operate in 
 - The document can be re-opened later — `open()` will reload from persistence
 
 This is the safe default for row deletion because:
+
 - **Undo**: User might undo the delete. If data was purged, undo has nothing to restore.
 - **Sync**: Another device might still reference this row. CRDT merge needs the data.
 - **Soft delete**: The row might have a `trashedAt` column (like `filesTable` does). Trashing shouldn't destroy content permanently.
@@ -558,13 +563,13 @@ This is correct and simple — one code path regardless of whether the doc was a
 
 ### When to use which
 
-| Scenario | Operation | Reasoning |
-| --- | --- | --- |
-| User closes a tab/file | `destroy()` | Free memory, user might reopen |
-| User moves file to trash | `destroy()` | Soft delete — undo possible |
-| User empties trash | `purge()` | Permanent — purge everything |
-| Workspace shuts down | `destroyAll()` | Free all memory, data persists for next session |
-| App-specific logic | `onRowDeleted` callback | App decides based on its own semantics |
+| Scenario                 | Operation               | Reasoning                                       |
+| ------------------------ | ----------------------- | ----------------------------------------------- |
+| User closes a tab/file   | `destroy()`             | Free memory, user might reopen                  |
+| User moves file to trash | `destroy()`             | Soft delete — undo possible                     |
+| User empties trash       | `purge()`               | Permanent — purge everything                    |
+| Workspace shuts down     | `destroyAll()`          | Free all memory, data persists for next session |
+| App-specific logic       | `onRowDeleted` callback | App decides based on its own semantics          |
 
 ---
 
@@ -574,15 +579,15 @@ Document bindings live under a **`.docs` property** on the table helper. Each bi
 
 ```typescript
 // CRUD (existing, unchanged):
-client.tables.files.get(fileId)
-client.tables.files.set(row)
-client.tables.files.getAllValid()
+client.tables.files.get(fileId);
+client.tables.files.set(row);
+client.tables.files.getAllValid();
 
 // Document bindings (new, under .docs):
-client.tables.files.docs.content.open(row)
-client.tables.files.docs.content.read(row)
-client.tables.files.docs.content.write(row, text)
-client.tables.files.docs.content.destroy(row)
+client.tables.files.docs.content.open(row);
+client.tables.files.docs.content.read(row);
+client.tables.files.docs.content.write(row, text);
+client.tables.files.docs.content.destroy(row);
 ```
 
 Tab-completing `client.tables.files.` shows table methods only. Tab-completing `client.tables.files.docs.` shows document bindings only:
@@ -610,27 +615,35 @@ Tables without `.withDocument()` don't have a `.docs` property at all — TypeSc
 
 ```typescript
 type TablesHelperWithDocs<TTableDefinitions extends TableDefinitions> = {
-	[K in keyof TTableDefinitions]: TableHelper<InferTableRow<TTableDefinitions[K]>>
-		& DocsPropertyOf<TTableDefinitions[K]>;
+	[K in keyof TTableDefinitions]: TableHelper<
+		InferTableRow<TTableDefinitions[K]>
+	> &
+		DocsPropertyOf<TTableDefinitions[K]>;
 };
 
 // DocsPropertyOf adds a `docs` property only when TDocs is non-empty:
 type DocsPropertyOf<T> =
 	T extends TableDefinition<infer V, infer TDocs>
 		? keyof TDocs extends never
-			? {}  // no .withDocument() → no .docs property
-			: { docs: { [K in keyof TDocs]: DocumentBinding<InferTableRow<TableDefinition<V>>> } }
+			? {} // no .withDocument() → no .docs property
+			: {
+					docs: {
+						[K in keyof TDocs]: DocumentBinding<
+							InferTableRow<TableDefinition<V>>
+						>;
+					};
+				}
 		: {};
 ```
 
 ### Patterns considered and rejected
 
-| Pattern | Example | Why rejected |
-| --- | --- | --- |
-| Direct properties on table helper | `files.content.open(row)` | Mixes nouns (binding names) with verbs (table methods) at the same level. Requires maintaining a `ReservedTableMethodNames` blocklist that grows over time. Naming a doc `"update"` or `"filter"` silently collides. |
-| `.doc('name')` method | `files.doc('content').open(row)` | Indirection — returns something accessible as a property. Loses type-safe autocomplete on binding names. |
-| Top-level `client.docs` | `client.docs.files.content.open(row)` | Disconnects doc access from the table. Can't destructure a table and get both CRUD and docs. |
-| Row enrichment | `row.content.open()` | See [Appendix: Row Enrichment Evaluation](#appendix-row-enrichment-evaluation). |
+| Pattern                           | Example                               | Why rejected                                                                                                                                                                                                         |
+| --------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Direct properties on table helper | `files.content.open(row)`             | Mixes nouns (binding names) with verbs (table methods) at the same level. Requires maintaining a `ReservedTableMethodNames` blocklist that grows over time. Naming a doc `"update"` or `"filter"` silently collides. |
+| `.doc('name')` method             | `files.doc('content').open(row)`      | Indirection — returns something accessible as a property. Loses type-safe autocomplete on binding names.                                                                                                             |
+| Top-level `client.docs`           | `client.docs.files.content.open(row)` | Disconnects doc access from the table. Can't destructure a table and get both CRUD and docs.                                                                                                                         |
+| Row enrichment                    | `row.content.open()`                  | See [Appendix: Row Enrichment Evaluation](#appendix-row-enrichment-evaluation).                                                                                                                                      |
 
 ---
 
@@ -642,12 +655,12 @@ Content docs need persistence and sync — just like the workspace doc. The core
 
 ### How we arrived at the answer
 
-| Approach | Concepts to learn | Why rejected |
-| --- | --- | --- |
-| `.withDocumentProvider()` | Extensions + Document Providers (2) | Developer says "persistence" and "sync" twice. Redundant. |
-| "Layers" replace extensions | Layers (1 new, replaces extensions) | Replaces a well-understood concept for no gain. |
-| Separate `.persist()` / `.sync()` | Persist + Sync + Extensions (3) | Hardcodes infrastructure into the API. |
-| **`onDocumentOpen` on Extension** | **Extensions (1, same as today)** | **Winner. Zero new concepts.** |
+| Approach                          | Concepts to learn                   | Why rejected                                              |
+| --------------------------------- | ----------------------------------- | --------------------------------------------------------- |
+| `.withDocumentProvider()`         | Extensions + Document Providers (2) | Developer says "persistence" and "sync" twice. Redundant. |
+| "Layers" replace extensions       | Layers (1 new, replaces extensions) | Replaces a well-understood concept for no gain.           |
+| Separate `.persist()` / `.sync()` | Persist + Sync + Extensions (3)     | Hardcodes infrastructure into the API.                    |
+| **`onDocumentOpen` on Extension** | **Extensions (1, same as today)**   | **Winner. Zero new concepts.**                            |
 
 ### The design: `onDocumentOpen` on Extension
 
@@ -729,7 +742,10 @@ function createSyncExtension(config: { url: string }): ExtensionFactory {
 			destroy: () => provider.destroy(),
 
 			onDocumentOpen({ ydoc: contentDoc, whenReady }) {
-				const docProvider = createSyncProvider({ doc: contentDoc, url: config.url });
+				const docProvider = createSyncProvider({
+					doc: contentDoc,
+					url: config.url,
+				});
 				return {
 					whenReady: whenReady.then(() => docProvider.connect()),
 					destroy: () => docProvider.destroy(),
@@ -854,7 +870,7 @@ try {
 		if (result) lifecycles.push(result);
 	}
 } catch (err) {
-	await Promise.allSettled(lifecycles.map(l => l.destroy()));
+	await Promise.allSettled(lifecycles.map((l) => l.destroy()));
 	unobserve();
 	ydoc.destroy();
 	throw err;
@@ -1005,12 +1021,12 @@ Row enrichment provides proximity: `row.content.open()` instead of `table.conten
 
 This was the only viable approach. A regular property with custom `toJSON()` fails — `toJSON()` only controls `JSON.stringify`, not spread/`Object.keys`/iteration. Non-enumerable properties are invisible across all enumeration contexts:
 
-| Operation | Behavior |
-|-----------|----------|
+| Operation             | Behavior                |
+| --------------------- | ----------------------- |
 | `JSON.stringify(row)` | Hidden (not enumerated) |
-| `{...row}` | Hidden (not copied) |
-| `Object.keys(row)` | Hidden |
-| `row.content` | Accessible |
+| `{...row}`            | Hidden (not copied)     |
+| `Object.keys(row)`    | Hidden                  |
+| `row.content`         | Accessible              |
 
 ### Why it was rejected
 
@@ -1026,9 +1042,9 @@ The table-level binding with destructuring covers every case uniformly:
 
 ```typescript
 const { content } = client.tables.files.docs;
-const doc = await content.open(row);        // with a row
-const doc2 = await content.open(fileId);    // with just a GUID
-await content.destroyAll();                 // lifecycle management
+const doc = await content.open(row); // with a row
+const doc2 = await content.open(fileId); // with just a GUID
+await content.destroyAll(); // lifecycle management
 ```
 
 ---

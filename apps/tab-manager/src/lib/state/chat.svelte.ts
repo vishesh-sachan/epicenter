@@ -1,17 +1,18 @@
 /**
  * Reactive AI chat state with multi-conversation support.
  *
- * Manages multiple AI conversations backed by Y.Doc persistence.
- * Uses a single TanStack AI `createChat()` instance with `setMessages()`
- * swapping for conversation switching — no instance recreation.
+ * Uses one TanStack AI `createChat()` instance per conversation, stored
+ * in a Map. Each instance owns its own stream, messages, and lifecycle.
+ * Switching conversations just changes which instance the getters read
+ * from — no `setMessages()` swapping, no background stream tracking.
+ *
+ * Background streaming is free: when the user switches away from a
+ * streaming conversation, its ChatClient keeps streaming. The completed
+ * response appears in Y.Doc via that instance's `onFinish`. Multiple
+ * conversations can stream concurrently.
  *
  * Provider and model are stored per-conversation in the `conversations`
  * table, surviving reloads and syncing across devices.
- *
- * Reactivity model:
- * - `conversations` table observer → wholesale-replace `$state` array
- * - `activeConversation` is `$derived` from active ID + conversations
- * - `chatInstance.messages` provides the reactive message list
  *
  * @example
  * ```svelte
@@ -36,10 +37,15 @@ import { ANTHROPIC_MODELS } from '@tanstack/ai-anthropic';
 import { GeminiTextModels } from '@tanstack/ai-gemini';
 import { GROK_CHAT_MODELS } from '@tanstack/ai-grok';
 import { OPENAI_CHAT_MODELS } from '@tanstack/ai-openai';
+import type { UIMessage } from '@tanstack/ai-svelte';
 import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte';
 import { getHubServerUrl } from '$lib/state/settings';
-import { rowToUIMessage } from '$lib/ui-message';
-import type { Conversation } from '$lib/workspace';
+import type {
+	ChatMessage,
+	ChatMessageId,
+	Conversation,
+	ConversationId,
+} from '$lib/workspace';
 import { popupWorkspace } from '$lib/workspace-popup';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,8 +69,8 @@ const PROVIDER_MODELS = {
 
 type Provider = keyof typeof PROVIDER_MODELS;
 
-const DEFAULT_PROVIDER: Provider = 'openai';
-const DEFAULT_MODEL = 'gpt-4o-mini';
+const DEFAULT_PROVIDER: Provider = 'anthropic';
+const DEFAULT_MODEL = PROVIDER_MODELS[DEFAULT_PROVIDER][0];
 const AVAILABLE_PROVIDERS = Object.keys(PROVIDER_MODELS) as Provider[];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,10 +110,18 @@ function createAiChatState() {
 		conversations = readAllConversations();
 	});
 
+	// Refresh active conversation's messages when Y.Doc changes (e.g. background completion).
+	// Non-active conversations get refreshed on switch via `switchConversation`.
+	popupWorkspace.tables.chatMessages.observe(() => {
+		if (!activeConversationId) return;
+		const instance = chatInstances.get(activeConversationId);
+		if (!instance || instance.isLoading) return;
+		instance.setMessages(loadMessagesForConversation(activeConversationId));
+	});
 	// ── Active Conversation ───────────────────────────────────────────
 
 	/** Initialize to the most recent conversation, or null if none exist. */
-	let activeConversationId = $state<string | null>(
+	let activeConversationId = $state<ConversationId | null>(
 		conversations[0]?.id ?? null,
 	);
 
@@ -134,66 +148,90 @@ function createAiChatState() {
 		conversations.find((c) => c.id === activeConversationId) ?? null;
 
 	/** Load persisted messages for a conversation from Y.Doc. */
-	const loadMessagesForConversation = (conversationId: string) =>
+	const loadMessagesForConversation = (conversationId: ConversationId) =>
 		popupWorkspace.tables.chatMessages
-			.getAllValid()
 			.filter((m) => m.conversationId === conversationId)
 			.sort((a, b) => a.createdAt - b.createdAt)
-			.map(rowToUIMessage);
+			.map(toUiMessage);
 
-	// ── TanStack AI Chat Instance ─────────────────────────────────────
+	// ── Per-Conversation ChatClient Instances ─────────────────────────
 
 	/**
-	 * Single chat instance — reused across conversation switches.
+	 * Map of conversation ID → ChatClient instance.
 	 *
-	 * - `connection`: SSE adapter. The async options callback reads from
-	 *   reactive state closures, so it always sends the current
-	 *   conversation's provider/model without instance recreation.
-	 * - `initialMessages`: Seeded from the most recent conversation (if any).
-	 * - `onFinish`: Persists the completed assistant message to Y.Doc.
+	 * Each conversation gets its own `createChat()` instance with baked-in
+	 * `conversationId` in the connection callback and `onFinish`. This means:
+	 * - Background streaming is free (each instance owns its stream)
+	 * - `onFinish` always persists to the correct conversation
+	 * - No `setMessages()` swapping needed on conversation switch
+	 * - Multiple conversations can stream concurrently
 	 */
-	const chatInstance = createChat({
-		initialMessages: activeConversationId
-			? loadMessagesForConversation(activeConversationId)
-			: [],
-		connection: fetchServerSentEvents(
-			() => `${hubUrlCache}/ai/chat`,
-			async () => {
-				const conv = getActiveConversation();
-				return {
-					body: {
-						provider: conv?.provider ?? DEFAULT_PROVIDER,
-						model: conv?.model ?? DEFAULT_MODEL,
-						conversationId: activeConversationId ?? undefined,
-						systemPrompt: conv?.systemPrompt ?? undefined,
-					},
-				};
-			},
-		),
-		onFinish: (message) => {
-			const convId = activeConversationId;
-			if (!convId) return;
+	const chatInstances = new Map<
+		ConversationId,
+		ReturnType<typeof createChat>
+	>();
 
-			// Persist assistant message
-			popupWorkspace.tables.chatMessages.set({
-				id: message.id,
-				conversationId: convId,
-				role: 'assistant',
-				parts: message.parts,
-				createdAt: message.createdAt?.getTime() ?? Date.now(),
-				_v: 1,
-			});
+	/**
+	 * Get or create a ChatClient for a conversation.
+	 *
+	 * Lazily creates instances on first access. The connection callback
+	 * reads the conversation's provider/model at request time (not creation
+	 * time) so provider/model changes take effect on the next send.
+	 *
+	 * @example
+	 * ```typescript
+	 * const chat = ensureChat('conv-123');
+	 * chat.sendMessage({ content: 'Hello' });
+	 * ```
+	 */
+	function ensureChat(
+		conversationId: ConversationId,
+	): ReturnType<typeof createChat> {
+		const existing = chatInstances.get(conversationId);
+		if (existing) return existing;
 
-			// Touch conversation's updatedAt so it floats to top of list
-			const conv = getActiveConversation();
-			if (conv) {
-				popupWorkspace.tables.conversations.set({
-					...conv,
-					updatedAt: Date.now(),
+		const instance = createChat({
+			initialMessages: loadMessagesForConversation(conversationId),
+			connection: fetchServerSentEvents(
+				() => `${hubUrlCache}/ai/chat`,
+				async () => {
+					// Read conversation at request time for fresh provider/model
+					const conv = conversations.find((c) => c.id === conversationId);
+					return {
+						body: {
+							provider: conv?.provider ?? DEFAULT_PROVIDER,
+							model: conv?.model ?? DEFAULT_MODEL,
+							conversationId,
+							systemPrompt: conv?.systemPrompt ?? undefined,
+						},
+					};
+				},
+			),
+			onFinish: (message) => {
+				// conversationId is baked in — can never target the wrong conversation
+				popupWorkspace.tables.chatMessages.set({
+					id: message.id,
+					conversationId,
+					role: 'assistant',
+					parts: message.parts,
+					createdAt: message.createdAt?.getTime() ?? Date.now(),
+					_v: 1,
 				});
-			}
-		},
-	});
+
+				// Touch conversation's updatedAt so it floats to top of list
+				const conv = conversations.find((c) => c.id === conversationId);
+				if (conv) {
+					popupWorkspace.tables.conversations.set({
+						...conv,
+						updatedAt: Date.now(),
+					});
+				}
+			},
+		});
+
+		chatInstances.set(conversationId, instance);
+		return instance;
+	}
 
 	// ── Conversation CRUD ─────────────────────────────────────────────
 
@@ -207,11 +245,11 @@ function createAiChatState() {
 	 */
 	function createConversation(opts?: {
 		title?: string;
-		parentId?: string;
+		parentId?: ConversationId;
 		sourceMessageId?: string;
 		systemPrompt?: string;
-	}): string {
-		const id = generateId();
+	}): ConversationId {
+		const id = generateId() as string as ConversationId;
 		const now = Date.now();
 		const current = getActiveConversation();
 
@@ -235,24 +273,42 @@ function createAiChatState() {
 	/**
 	 * Switch to a different conversation.
 	 *
-	 * Stops any active stream, updates the active ID, and swaps the
-	 * chat instance's messages to the target conversation's history.
+	 * Changes which conversation the getters read from. If the previous
+	 * conversation was streaming, it continues in the background.
+	 *
+	 * For idle instances (not currently streaming), refreshes messages
+	 * from Y.Doc to ensure the view reflects the latest persisted state
+	 * (e.g., a response that completed in the background since the user
+	 * last viewed this conversation).
 	 */
-	function switchConversation(conversationId: string) {
-		chatInstance.stop();
+	function switchConversation(conversationId: ConversationId) {
 		activeConversationId = conversationId;
-		const messages = loadMessagesForConversation(conversationId);
-		chatInstance.setMessages(messages);
+
+		// Refresh idle instances from Y.Doc so the view is always current.
+		// Streaming instances keep their internal state (includes the
+		// in-progress assistant message that Y.Doc doesn't have yet).
+		const instance = chatInstances.get(conversationId);
+		if (instance && !instance.isLoading) {
+			instance.setMessages(loadMessagesForConversation(conversationId));
+		}
 	}
 
 	/**
 	 * Delete a conversation and all its messages.
 	 *
 	 * Uses a Y.Doc batch so the observer fires once (not N+1 times).
-	 * If the deleted conversation was active, switches to the most
-	 * recent remaining one or clears state if none remain.
+	 * Stops any active stream for the conversation and removes its
+	 * ChatClient instance. If the deleted conversation was active,
+	 * switches to the most recent remaining one.
 	 */
-	function deleteConversation(conversationId: string) {
+	function deleteConversation(conversationId: ConversationId) {
+		// Stop and discard the ChatClient instance
+		const instance = chatInstances.get(conversationId);
+		if (instance) {
+			instance.stop();
+			chatInstances.delete(conversationId);
+		}
+
 		const messages = popupWorkspace.tables.chatMessages
 			.getAllValid()
 			.filter((m) => m.conversationId === conversationId);
@@ -270,11 +326,11 @@ function createAiChatState() {
 				.getAllValid()
 				.sort((a, b) => b.updatedAt - a.updatedAt);
 
-			if (remaining.length > 0) {
-				switchConversation(remaining[0]!.id);
+			const first = remaining[0];
+			if (first) {
+				switchConversation(first.id);
 			} else {
 				activeConversationId = null;
-				chatInstance.clear();
 			}
 		}
 	}
@@ -285,7 +341,7 @@ function createAiChatState() {
 	 * Writes to Y.Doc — the observer propagates the change to the
 	 * reactive `conversations` list and `activeConversation` derived.
 	 */
-	function renameConversation(conversationId: string, title: string) {
+	function renameConversation(conversationId: ConversationId, title: string) {
 		const conv = conversations.find((c) => c.id === conversationId);
 		if (!conv) return;
 
@@ -334,30 +390,49 @@ function createAiChatState() {
 	return {
 		// ── Chat State (reactive via TanStack AI runes) ───────────────
 
-		/** The current conversation's messages (reactive). */
+		/**
+		 * The current conversation's messages (reactive).
+		 *
+		 * Reads from the active conversation's ChatClient instance.
+		 * When no conversation is active, returns an empty array.
+		 */
 		get messages() {
-			return chatInstance.messages;
-		},
-
-		/** Whether a response is currently streaming. */
-		get isLoading() {
-			return chatInstance.isLoading;
-		},
-
-		/** The latest error from the chat connection, if any. */
-		get error() {
-			return chatInstance.error;
+			if (!activeConversationId) return [];
+			return ensureChat(activeConversationId).messages;
 		},
 
 		/**
-		 * Fine-grained connection status.
+		 * Whether a response is currently streaming for the active conversation.
+		 *
+		 * Only reflects the active conversation's state — other conversations
+		 * may be streaming in the background without affecting this.
+		 */
+		get isLoading() {
+			if (!activeConversationId) return false;
+			return ensureChat(activeConversationId).isLoading;
+		},
+
+		/**
+		 * The latest error from the active conversation's stream, if any.
+		 *
+		 * Scoped to the active conversation — background stream errors
+		 * don't leak into the current view.
+		 */
+		get error() {
+			if (!activeConversationId) return null;
+			return ensureChat(activeConversationId).error;
+		},
+
+		/**
+		 * Fine-grained connection status for the active conversation.
 		 *
 		 * More granular than `isLoading` — distinguishes between idle,
 		 * streaming, and other states. Useful for nuanced UI indicators
-		 * (e.g., "connecting…" vs "generating…").
+		 * (e.g., "connecting..." vs "generating...").
 		 */
 		get status() {
-			return chatInstance.status;
+			if (!activeConversationId) return 'ready' as const;
+			return ensureChat(activeConversationId).status;
 		},
 
 		// ── Conversation Management ───────────────────────────────────
@@ -440,7 +515,7 @@ function createAiChatState() {
 				});
 			}
 
-			const userMessageId = generateId();
+			const userMessageId = generateId() as string as ChatMessageId;
 
 			// Write user message to Y.Doc
 			popupWorkspace.tables.chatMessages.set({
@@ -461,8 +536,8 @@ function createAiChatState() {
 				});
 			}
 
-			// Send via TanStack AI (triggers SSE streaming)
-			void chatInstance.sendMessage({ content, id: userMessageId });
+			// Send via this conversation's ChatClient (triggers SSE streaming)
+			void ensureChat(convId).sendMessage({ content, id: userMessageId });
 		},
 
 		/**
@@ -473,18 +548,115 @@ function createAiChatState() {
 		 * The new response is persisted via `onFinish`.
 		 */
 		reload() {
-			const lastMessage = chatInstance.messages.at(-1);
+			if (!activeConversationId) return;
+
+			const chat = ensureChat(activeConversationId);
+			const lastMessage = chat.messages.at(-1);
 			if (lastMessage?.role === 'assistant') {
 				popupWorkspace.tables.chatMessages.delete({ id: lastMessage.id });
 			}
-			void chatInstance.reload();
+			void chat.reload();
 		},
 
-		/** Stop the current streaming response. */
+		/** Stop the active conversation's streaming response. */
 		stop() {
-			chatInstance.stop();
+			if (!activeConversationId) return;
+			ensureChat(activeConversationId).stop();
+		},
+
+		/**
+		 * Whether a specific conversation is currently streaming a response.
+		 *
+		 * Useful for showing background streaming indicators in the
+		 * conversation list — e.g., a pulsing dot next to conversations
+		 * that are generating responses while the user views another.
+		 *
+		 * Returns `false` for conversations that don't have a ChatClient
+		 * instance (never opened or evicted from cache).
+		 *
+		 * @example
+		 * ```svelte
+		 * {#if aiChatState.isStreaming(conv.id)}
+		 *   <span class="animate-pulse rounded-full bg-primary size-1.5" />
+		 * {/if}
+		 * ```
+		 */
+		isStreaming(conversationId: ConversationId): boolean {
+			return chatInstances.get(conversationId)?.isLoading ?? false;
 		},
 	};
 }
 
 export const aiChatState = createAiChatState();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UIMessage Boundary (co-located from ui-message.ts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compile-time drift detection for TanStack AI message types.
+ *
+ * The workspace schema stores message parts as `unknown[]` because:
+ * 1. Parts are always produced by TanStack AI — never user-constructed
+ * 2. Runtime validation of guaranteed-correct data wastes CPU
+ * 3. Replicating 8 complex part types in arktype is fragile to upgrades
+ *
+ * Instead, we use compile-time assertions to catch drift when upgrading
+ * TanStack AI. If the MessagePart shape changes, these assertions fail
+ * and the build breaks — forcing us to update our understanding.
+ *
+ * @see https://tanstack.com/ai/latest — UIMessage / MessagePart types
+ * @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own — Expect / Equal
+ */
+
+// ── Type test utilities ───────────────────────────────────────────────
+// Rolling-your-own type testing from Total TypeScript.
+// @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own
+
+type Expect<T extends true> = T;
+type Equal<X, Y> =
+	(<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
+		? true
+		: false;
+
+// ── Derive the actual MessagePart type from UIMessage ─────────────────
+// This is the type that gets stored in Y.Doc via onFinish/sendMessage.
+
+type TanStackMessagePart = UIMessage['parts'][number];
+
+// ── Compile-time drift detection ──────────────────────────────────────
+// If TanStack AI adds, removes, or renames a part type, TypeScript
+// reports a type error here — forcing us to update our understanding.
+
+type ExpectedPartTypes =
+	| 'text'
+	| 'image'
+	| 'audio'
+	| 'video'
+	| 'document'
+	| 'tool-call'
+	| 'tool-result'
+	| 'thinking';
+
+type _DriftCheck = Expect<
+	Equal<TanStackMessagePart['type'], ExpectedPartTypes>
+>;
+
+// ── Typed boundary: unknown[] → MessagePart[] ─────────────────────────
+
+/**
+ * Convert a persisted chat message to a TanStack AI UIMessage.
+ *
+ * This is the single boundary where `unknown[]` is cast to `MessagePart[]`.
+ * Safe because parts are always produced by TanStack AI and round-tripped
+ * through Y.Doc serialization (structuredClone-compatible, lossless for
+ * plain objects).
+ */
+function toUiMessage(message: ChatMessage): UIMessage {
+	return {
+		id: message.id,
+		role: message.role,
+		parts: message.parts as TanStackMessagePart[],
+		createdAt: new Date(message.createdAt),
+	};
+}

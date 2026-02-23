@@ -27,6 +27,7 @@ import { getDeviceId } from '$lib/device/device-id';
 import { tabToRow, windowToRow } from '$lib/sync/row-converters';
 import {
 	createWindowCompositeId,
+	type DeviceId,
 	type Tab,
 	type Window,
 	type WindowCompositeId,
@@ -68,7 +69,7 @@ function createBrowserState() {
 	 * events that arrive before the seed completes are silently dropped
 	 * (they'd be stale anyway — the seed is the authoritative snapshot).
 	 */
-	let deviceId: string | null = null;
+	let deviceId: DeviceId | null = null;
 
 	// ── Seed ─────────────────────────────────────────────────────────────
 	// Single IPC call via `getAll({ populate: true })` returns windows with

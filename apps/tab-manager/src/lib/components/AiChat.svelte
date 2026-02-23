@@ -14,6 +14,7 @@
 	import SendIcon from '@lucide/svelte/icons/send';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import SquareIcon from '@lucide/svelte/icons/square';
+	import LoaderCircleIcon from '@lucide/svelte/icons/loader-circle';
 	import TrashIcon from '@lucide/svelte/icons/trash';
 
 	let inputValue = $state('');
@@ -74,16 +75,24 @@
 				<DropdownMenu.Content align="start" class="w-[260px]">
 					{#each aiChatState.conversations as conv (conv.id)}
 						<DropdownMenu.Item
-							class="group justify-between text-xs"
+							class="group justify-between gap-2 text-xs"
 							onclick={() => aiChatState.switchConversation(conv.id)}
 						>
-							<span
-								class={cn(
-									'min-w-0 truncate',
-									conv.id === aiChatState.activeConversationId && 'font-medium',
-								)}
-							>
-								{conv.title}
+							<span class="flex min-w-0 items-center gap-1.5">
+								<span
+									class={cn(
+										'min-w-0 truncate',
+										conv.id === aiChatState.activeConversationId &&
+											'font-medium',
+									)}
+								>
+									{conv.title}
+								</span>
+								{#if aiChatState.isStreaming(conv.id)}
+									<LoaderCircleIcon
+										class="size-3 shrink-0 animate-spin text-muted-foreground"
+									/>
+								{/if}
 							</span>
 							<button
 								class="shrink-0 rounded p-0.5 opacity-0 transition-opacity hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"

@@ -33,7 +33,7 @@
 
 import { generateId } from '@epicenter/hq';
 import { getDeviceId } from '$lib/device/device-id';
-import type { SavedTab, Tab } from '$lib/workspace';
+import type { SavedTab, SavedTabId, Tab } from '$lib/workspace';
 import { popupWorkspace } from '$lib/workspace-popup';
 
 function createSavedTabState() {
@@ -86,7 +86,7 @@ function createSavedTabState() {
 				if (!tab.url) return;
 				const deviceId = await getDeviceId();
 				popupWorkspace.tables.savedTabs.set({
-					id: generateId(),
+					id: generateId() as string as SavedTabId,
 					url: tab.url,
 					title: tab.title || 'Untitled',
 					favIconUrl: tab.favIconUrl,
@@ -149,7 +149,7 @@ function createSavedTabState() {
 			},
 
 			/** Delete a saved tab without restoring it. */
-			remove(id: string) {
+			remove(id: SavedTabId) {
 				popupWorkspace.tables.savedTabs.delete(id);
 			},
 
