@@ -1,12 +1,12 @@
 ---
-name: static-workspace-api
-description: Static workspace API patterns for defineTable, defineKv, versioning, and migrations. Use when defining workspace schemas, adding versions to existing tables/KV stores, or writing migration functions.
+name: workspace-api
+description: Workspace API patterns for defineTable, defineKv, versioning, and migrations. Use when defining workspace schemas, adding versions to existing tables/KV stores, or writing migration functions.
 metadata:
   author: epicenter
-  version: '2.0'
+  version: '3.0'
 ---
 
-# Static Workspace API
+# Workspace API
 
 Type-safe schema definitions for tables and KV stores with versioned migrations.
 
@@ -24,7 +24,7 @@ Type-safe schema definitions for tables and KV stores with versioned migrations.
 Use when a table has only one version:
 
 ```typescript
-import { defineTable } from 'epicenter/static';
+import { defineTable } from '@epicenter/hq';
 import { type } from 'arktype';
 
 const users = defineTable(type({ id: 'string', email: 'string', _v: '1' }));
@@ -57,7 +57,7 @@ KV stores are flexible — `_v` is optional. Both patterns work:
 ### Without `_v` (field presence)
 
 ```typescript
-import { defineKv } from 'epicenter/static';
+import { defineKv } from '@epicenter/hq';
 
 const sidebar = defineKv(type({ collapsed: 'boolean', width: 'number' }));
 
@@ -203,8 +203,8 @@ return { ...row, views: 0, _v: 2 as const }; // Also works — redundant
 
 ## References
 
-- `packages/epicenter/src/static/define-table.ts`
-- `packages/epicenter/src/static/define-kv.ts`
-- `packages/epicenter/src/static/index.ts`
-- `packages/epicenter/src/static/create-tables.ts`
-- `packages/epicenter/src/static/create-kv.ts`
+- `packages/epicenter/src/workspace/define-table.ts`
+- `packages/epicenter/src/workspace/define-kv.ts`
+- `packages/epicenter/src/workspace/index.ts`
+- `packages/epicenter/src/workspace/create-tables.ts`
+- `packages/epicenter/src/workspace/create-kv.ts`
