@@ -653,9 +653,12 @@ Start simple, expand later.
    - Fixed: Can detect/reuse existing server
    - Random: No conflicts, but harder to reconnect
 
-3. **Auth flow**: Use OpenCode's auth.json, or proxy through Epicenter?
-   - OpenCode auth: User configures once, shared with CLI
-   - Epicenter proxy: Unified settings UI, but more work
+3. ~~**Auth flow**: Use OpenCode's auth.json, or proxy through Epicenter?~~ **Decided: Proxy through Epicenter master server.**
+   - See `network-topology-multi-server-architecture.md` for the full design.
+   - **Managed path** (Epicenter spawns OpenCode): Provider configs injected via `OPENCODE_CONFIG_CONTENT` env var at spawn time. Each provider's `baseURL` points to the master's transparent proxy (`masterUrl/proxy/{provider}`), and `apiKey` is set to the Better Auth session token. The master validates the token, swaps it for the real API key from the encrypted store, and forwards the request to the actual provider API unchanged. Keys never leave the master.
+   - **Standalone path** (user runs `opencode` from terminal): Master serves `GET /.well-known/opencode` with provider proxy configs and auth instructions. User runs `opencode auth login <masterUrl>` once. OpenCode fetches the wellknown config, executes `auth.command` to obtain a session token, stores it as a `WellKnownAuth` entry. On every subsequent start, OpenCode re-fetches the remote config (provider baseURLs) and sets the token as an env var referenced by `{env:EPICENTER_TOKEN}` in the provider `apiKey` fields.
+   - **Why proxy wins**: Instant key revocation (master stops proxying), no key rotation sync across devices, session token is the only credential on each device, consistent trust model with the rest of the topology.
+   - **Verified from source**: `getSDK()` in `provider.ts` passes `options.baseURL` directly to AI SDK constructors (e.g., `createAnthropic({ baseURL, apiKey })`). All HTTP requests go to the proxy URL. The `WellKnownAuth` flow in `auth/index.ts` and `config.ts` is a real, tested code path.
 
 4. **Session persistence**: Should chat sessions live in OpenCode or Epicenter?
    - OpenCode: Already built, but separate from Epicenter data
