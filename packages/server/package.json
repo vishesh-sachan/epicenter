@@ -11,7 +11,8 @@
 		"./auth": "./src/auth/index.ts",
 		"./keys": "./src/keys/index.ts",
 		"./discovery": "./src/discovery/index.ts",
-		"./proxy": "./src/proxy/index.ts"
+		"./proxy": "./src/proxy/index.ts",
+		"./opencode": "./src/opencode/index.ts"
 	},
 	"license": "AGPL-3.0",
 	"scripts": {
