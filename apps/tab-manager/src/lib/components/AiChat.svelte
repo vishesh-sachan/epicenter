@@ -3,6 +3,7 @@
 	import { Button } from '@epicenter/ui/button';
 	import * as Chat from '@epicenter/ui/chat';
 	import * as Empty from '@epicenter/ui/empty';
+	import ModelCombobox from '$lib/components/ModelCombobox.svelte';
 	import * as Select from '@epicenter/ui/select';
 	import { Textarea } from '@epicenter/ui/textarea';
 	import SendIcon from '@lucide/svelte/icons/send';
@@ -111,22 +112,7 @@
 				</Select.Content>
 			</Select.Root>
 
-			<Select.Root
-				type="single"
-				value={aiChatState.model}
-				onValueChange={(v) => {
-					if (v) aiChatState.model = v;
-				}}
-			>
-				<Select.Trigger size="sm" class="flex-1">
-					{aiChatState.model}
-				</Select.Trigger>
-				<Select.Content>
-					{#each aiChatState.modelsForProvider(aiChatState.provider) as m (m)}
-						<Select.Item value={m} label={m} />
-					{/each}
-				</Select.Content>
-			</Select.Root>
+			<ModelCombobox class="flex-1" />
 		</div>
 
 		<!-- Input + send/stop button -->

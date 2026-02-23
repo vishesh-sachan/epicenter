@@ -9,27 +9,6 @@ import { createOllamaChat } from '@tanstack/ai-ollama';
 import { createOpenaiChat, type OpenAIChatModel } from '@tanstack/ai-openai';
 
 /**
- * Providers supported by the AI plugin.
- *
- * This is a string literal union — not derived from a runtime object — so
- * TypeScript narrows it properly in switch statements and discriminated checks.
- */
-export type SupportedProvider =
-	| 'openai'
-	| 'anthropic'
-	| 'gemini'
-	| 'ollama'
-	| 'grok';
-
-export const SUPPORTED_PROVIDERS: SupportedProvider[] = [
-	'openai',
-	'anthropic',
-	'gemini',
-	'ollama',
-	'grok',
-];
-
-/**
  * Factory functions for each supported provider.
  *
  * Uses the explicit-key variants (`createOpenaiChat`, `createAnthropicChat`, etc.)
@@ -42,18 +21,36 @@ export const SUPPORTED_PROVIDERS: SupportedProvider[] = [
  *
  * API key presence is validated by the plugin layer before calling `createAdapter`,
  * so factories receive a non-empty string for providers that require one.
+ *
+ * `SupportedProvider` and `SUPPORTED_PROVIDERS` are derived from this object —
+ * adding or removing a provider here automatically updates the type and array.
  */
-const ADAPTER_FACTORIES: Record<
-	SupportedProvider,
-	(model: string, apiKey: string) => AnyTextAdapter
-> = {
-	openai: (model, apiKey) => createOpenaiChat(model as OpenAIChatModel, apiKey),
-	anthropic: (model, apiKey) =>
+const ADAPTER_FACTORIES = {
+	openai: (model: string, apiKey: string) =>
+		createOpenaiChat(model as OpenAIChatModel, apiKey),
+	anthropic: (model: string, apiKey: string) =>
 		createAnthropicChat(model as AnthropicChatModel, apiKey),
-	gemini: (model, apiKey) => createGeminiChat(model as GeminiTextModel, apiKey),
-	ollama: (model, _apiKey) => createOllamaChat(model),
-	grok: (model, apiKey) => createGrokText(model as GrokChatModel, apiKey),
-};
+	gemini: (model: string, apiKey: string) =>
+		createGeminiChat(model as GeminiTextModel, apiKey),
+	ollama: (model: string, _apiKey: string) => createOllamaChat(model),
+	grok: (model: string, apiKey: string) =>
+		createGrokText(model as GrokChatModel, apiKey),
+} as const satisfies Record<
+	string,
+	(model: string, apiKey: string) => AnyTextAdapter
+>;
+
+/**
+ * Providers supported by the AI plugin.
+ *
+ * Derived from `ADAPTER_FACTORIES` — not manually maintained.
+ * Adding a new provider factory automatically extends this type.
+ */
+export type SupportedProvider = keyof typeof ADAPTER_FACTORIES;
+
+export const SUPPORTED_PROVIDERS = Object.keys(
+	ADAPTER_FACTORIES,
+) as SupportedProvider[];
 
 /**
  * Create a TanStack AI text adapter for the given provider.

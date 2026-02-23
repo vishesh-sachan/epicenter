@@ -27,6 +27,10 @@ import {
 	fetchServerSentEvents,
 	type UIMessage,
 } from '@tanstack/ai-svelte';
+import { ANTHROPIC_MODELS } from '@tanstack/ai-anthropic';
+import { GeminiTextModels } from '@tanstack/ai-gemini';
+import { GROK_CHAT_MODELS } from '@tanstack/ai-grok';
+import { OPENAI_CHAT_MODELS } from '@tanstack/ai-openai';
 import { getServerUrl } from '$lib/state/settings';
 import { popupWorkspace } from '$lib/workspace-popup';
 
@@ -35,20 +39,37 @@ import { popupWorkspace } from '$lib/workspace-popup';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Curated model list per provider.
+ * Model arrays imported from TanStack AI provider packages.
  *
- * Only includes models that are generally available and well-tested.
- * This is intentionally static — no runtime fetching of model lists.
+ * These are maintained by the TanStack AI team — no local hardcoded lists.
+ * To update model lists, run: `bun update @tanstack/ai-openai @tanstack/ai-anthropic ...`
+ *
+ * Arrays are ordered newest-first by the upstream packages.
  */
-const PROVIDER_MODELS: Record<string, string[]> = {
-	openai: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
-	anthropic: ['claude-sonnet-4-20250514', 'claude-haiku-4-20250414'],
-	gemini: ['gemini-2.0-flash', 'gemini-2.5-pro'],
-	ollama: ['llama3', 'mistral', 'codellama'],
-	grok: ['grok-2', 'grok-2-mini'],
-};
+const PROVIDER_MODELS = {
+	openai: OPENAI_CHAT_MODELS,
+	anthropic: ANTHROPIC_MODELS,
+	gemini: GeminiTextModels,
+	grok: GROK_CHAT_MODELS,
+	// Ollama models are curated here (not imported from @tanstack/ai-ollama)
+	// because that package pulls in the `ollama` SDK which depends on node:fs,
+	// breaking the browser extension build. Users can type any model name
+	// via the combobox's freeform input.
+	ollama: [
+		'deepseek-r1',
+		'qwen3',
+		'llama4',
+		'gemma3',
+		'phi4',
+		'mistral',
+		'codellama',
+		'llama3',
+	] as const,
+} as const;
 
-const AVAILABLE_PROVIDERS = Object.keys(PROVIDER_MODELS);
+type Provider = keyof typeof PROVIDER_MODELS;
+
+const AVAILABLE_PROVIDERS = Object.keys(PROVIDER_MODELS) as Provider[];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Server URL Cache
@@ -178,7 +199,7 @@ function createAiChatState() {
 		set provider(value: string) {
 			provider = value;
 			// Auto-select first model for new provider
-			const models = PROVIDER_MODELS[value];
+			const models = PROVIDER_MODELS[value as Provider];
 			if (models?.[0]) {
 				model = models[0];
 			}
@@ -206,8 +227,8 @@ function createAiChatState() {
 		 * // → ['gpt-4o', 'gpt-4o-mini', 'o3-mini']
 		 * ```
 		 */
-		modelsForProvider(providerName: string): string[] {
-			return PROVIDER_MODELS[providerName] ?? [];
+		modelsForProvider(providerName: string): readonly string[] {
+			return PROVIDER_MODELS[providerName as Provider] ?? [];
 		},
 
 		/**
