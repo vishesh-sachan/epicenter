@@ -105,9 +105,7 @@ describe('createAIPlugin', () => {
 		const { resolveApiKey } = await import('./adapters');
 		process.env.OPENAI_API_KEY = 'sk-env-key';
 		try {
-			expect(await resolveApiKey('openai', 'sk-header-key')).toBe(
-				'sk-header-key',
-			);
+			expect(resolveApiKey('openai', 'sk-header-key')).toBe('sk-header-key');
 		} finally {
 			delete process.env.OPENAI_API_KEY;
 		}
@@ -117,7 +115,7 @@ describe('createAIPlugin', () => {
 		const { resolveApiKey } = await import('./adapters');
 		process.env.OPENAI_API_KEY = 'sk-env-key';
 		try {
-			expect(await resolveApiKey('openai')).toBe('sk-env-key');
+			expect(resolveApiKey('openai')).toBe('sk-env-key');
 		} finally {
 			delete process.env.OPENAI_API_KEY;
 		}
@@ -126,7 +124,7 @@ describe('createAIPlugin', () => {
 	test('resolveApiKey returns undefined when neither present', async () => {
 		const { resolveApiKey } = await import('./adapters');
 		delete process.env.OPENAI_API_KEY;
-		expect(await resolveApiKey('openai')).toBeUndefined();
+		expect(resolveApiKey('openai')).toBeUndefined();
 	});
 
 	test('401 error message mentions env var name', async () => {
