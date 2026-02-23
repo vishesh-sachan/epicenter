@@ -11,9 +11,21 @@
  * and the build breaks — forcing us to update our understanding.
  *
  * @see https://tanstack.com/ai/latest — UIMessage / MessagePart types
+ * @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own — Expect / Equal
  */
 
 import type { UIMessage } from '@tanstack/ai-svelte';
+
+// ── Type test utilities ───────────────────────────────────────────────
+// Rolling-your-own type testing from Total TypeScript.
+// @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own
+
+type Expect<T extends true> = T;
+type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <
+	T,
+>() => T extends Y ? 1 : 2
+	? true
+	: false;
 
 // ── Derive the actual MessagePart type from UIMessage ─────────────────
 // This is the type that gets stored in Y.Doc via onFinish/sendMessage.
@@ -21,8 +33,8 @@ import type { UIMessage } from '@tanstack/ai-svelte';
 type TanStackMessagePart = UIMessage['parts'][number];
 
 // ── Compile-time drift detection ──────────────────────────────────────
-// If TanStack AI adds, removes, or renames a part type, one of these
-// assertions becomes `never` and the build fails.
+// If TanStack AI adds, removes, or renames a part type, TypeScript
+// reports a type error here — forcing us to update our understanding.
 
 type ExpectedPartTypes =
 	| 'text'
@@ -34,25 +46,9 @@ type ExpectedPartTypes =
 	| 'tool-result'
 	| 'thinking';
 
-type ActualPartTypes = TanStackMessagePart['type'];
-
-/** Fails if TanStack AI adds a part type we don't know about. */
-type _ActualExtendsExpected = ActualPartTypes extends ExpectedPartTypes
-	? true
-	: never;
-
-/** Fails if TanStack AI removes a part type we still expect. */
-type _ExpectedExtendsActual = ExpectedPartTypes extends ActualPartTypes
-	? true
-	: never;
-
-// Force TypeScript to evaluate the assertions (unused types are sometimes skipped).
-// If either assertion is `never`, this line errors.
-const _driftCheck: [_ActualExtendsExpected, _ExpectedExtendsActual] = [
-	true,
-	true,
-];
-void _driftCheck;
+type _DriftCheck = Expect<
+	Equal<TanStackMessagePart['type'], ExpectedPartTypes>
+>;
 
 // ── Typed boundary: unknown[] → MessagePart[] ─────────────────────────
 
