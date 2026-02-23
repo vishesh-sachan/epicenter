@@ -39,7 +39,7 @@ import { GROK_CHAT_MODELS } from '@tanstack/ai-grok';
 import { OPENAI_CHAT_MODELS } from '@tanstack/ai-openai';
 import type { UIMessage } from '@tanstack/ai-svelte';
 import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte';
-import { getServerUrl } from '$lib/state/settings';
+import { getHubServerUrl } from '$lib/state/settings';
 import type {
 	ChatMessage,
 	ChatMessageId,
@@ -65,20 +65,6 @@ const PROVIDER_MODELS = {
 	anthropic: ANTHROPIC_MODELS,
 	gemini: GeminiTextModels,
 	grok: GROK_CHAT_MODELS,
-	// Ollama models are curated here (not imported from @tanstack/ai-ollama)
-	// because that package pulls in the `ollama` SDK which depends on node:fs,
-	// breaking the browser extension build. Users can type any model name
-	// via the combobox's freeform input.
-	ollama: [
-		'deepseek-r1',
-		'qwen3',
-		'llama4',
-		'gemma3',
-		'phi4',
-		'mistral',
-		'codellama',
-		'llama3',
-	] as const,
 } as const;
 
 type Provider = keyof typeof PROVIDER_MODELS;
@@ -88,19 +74,19 @@ const DEFAULT_MODEL = PROVIDER_MODELS[DEFAULT_PROVIDER][0];
 const AVAILABLE_PROVIDERS = Object.keys(PROVIDER_MODELS) as Provider[];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Server URL Cache
+// Hub Server URL Cache
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Cached server URL for synchronous access.
+ * Cached hub server URL for synchronous access.
  *
  * `fetchServerSentEvents` requires a synchronous URL getter (`string | (() => string)`).
  * We initialize with the default and update asynchronously from settings.
- * For 99% of users the default never changes.
+ * AI chat routes through the hub server (auth + AI + keys), not the local server.
  */
-let serverUrlCache = 'http://127.0.0.1:3913';
-void getServerUrl().then((url) => {
-	serverUrlCache = url;
+let hubUrlCache = 'http://127.0.0.1:3913';
+void getHubServerUrl().then((url) => {
+	hubUrlCache = url;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -207,7 +193,7 @@ function createAiChatState() {
 		const instance = createChat({
 			initialMessages: loadMessagesForConversation(conversationId),
 			connection: fetchServerSentEvents(
-				() => `${serverUrlCache}/ai/chat`,
+				() => `${hubUrlCache}/ai/chat`,
 				async () => {
 					// Read conversation at request time for fresh provider/model
 					const conv = conversations.find((c) => c.id === conversationId);

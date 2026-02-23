@@ -16,7 +16,7 @@ import type { SyncProvider, SyncStatus } from '@epicenter/sync';
 import { createSyncProvider } from '@epicenter/sync';
 import { Elysia } from 'elysia';
 import * as Y from 'yjs';
-import { createServer, type ServerConfig } from '../server';
+import { createLocalServer, type LocalServerConfig } from '../local';
 import { createSyncPlugin } from './plugin';
 
 // ============================================================================
@@ -36,8 +36,8 @@ function uniqueRoom(): string {
  * Returns the server instance plus URL helpers for building
  * WebSocket and HTTP URLs against the actual bound port.
  */
-function startTestServer(syncConfig?: ServerConfig['sync']) {
-	const server = createServer({ clients: [], sync: syncConfig, port: 0 });
+function startTestServer(syncConfig?: LocalServerConfig['sync']) {
+	const server = createLocalServer({ clients: [], sync: syncConfig, port: 0 });
 	const bunServer = server.start();
 	if (!bunServer) {
 		throw new Error('Failed to start test server');
@@ -215,8 +215,9 @@ describe('sync plugin integration', () => {
 		const res = await fetch(ctx.httpUrl('/'));
 		const body = await res.json();
 		expect(body).toEqual({
-			name: 'Epicenter API',
+			name: 'Epicenter Local',
 			version: '1.0.0',
+			mode: 'local',
 			workspaces: [],
 			actions: [],
 		});

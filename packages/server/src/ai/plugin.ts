@@ -1,12 +1,30 @@
 import { chat, toServerSentEventsResponse } from '@tanstack/ai';
 import { Elysia, t } from 'elysia';
 import { Err, trySync } from 'wellcrafted/result';
+import type { KeyStore } from '../keys/store';
 import {
 	createAdapter,
 	isSupportedProvider,
 	PROVIDER_ENV_VARS,
 	resolveApiKey,
 } from './adapters';
+
+/**
+ * Configuration for the AI plugin.
+ */
+export type AIPluginConfig = {
+	/**
+	 * Encrypted key store for server-side API key resolution.
+	 *
+	 * When provided, the resolution chain becomes:
+	 * 1. Per-request header (x-provider-api-key)
+	 * 2. Server key store (encrypted)
+	 * 3. Environment variable
+	 *
+	 * Omit for header-only or env-only key resolution.
+	 */
+	keyStore?: KeyStore;
+};
 
 /**
  * Creates an Elysia plugin that provides a streaming AI chat endpoint.
@@ -21,21 +39,32 @@ import {
  * The server creates the appropriate TanStack AI adapter, calls `chat()`,
  * and streams the response back as SSE using `toServerSentEventsResponse()`.
  *
- * **API key handling**: Keys are sent per-request in the `x-provider-api-key`
- * header. The server never stores, logs, or syncs API keys.
+ * **API key resolution chain** (when key store is provided):
+ * 1. `x-provider-api-key` header (per-request, backward compat)
+ * 2. Server key store (encrypted on disk)
+ * 3. Environment variable (`OPENAI_API_KEY`, etc.)
+ *
+ * All providers require an API key — there are no exceptions.
  *
  * @example
  * ```typescript
  * import { createAIPlugin } from '@epicenter/server/ai';
  *
+ * // Without key store (backward compat)
  * const app = new Elysia()
  *   .use(new Elysia({ prefix: '/ai' }).use(createAIPlugin()))
  *   .listen(3913);
  *
- * // POST /ai/chat → SSE stream
+ * // With key store (hub server)
+ * const store = createKeyStore();
+ * const app = new Elysia()
+ *   .use(new Elysia({ prefix: '/ai' }).use(createAIPlugin({ keyStore: store })))
+ *   .listen(3913);
  * ```
  */
-export function createAIPlugin() {
+export function createAIPlugin(config?: AIPluginConfig) {
+	const keyStore = config?.keyStore;
+
 	return new Elysia().post(
 		'/chat',
 		async ({ body, headers, status }) => {
@@ -53,9 +82,9 @@ export function createAIPlugin() {
 				return status('Bad Request', `Unsupported provider: ${provider}`);
 			}
 
-			const apiKey = resolveApiKey(provider, headerApiKey);
+			const apiKey = await resolveApiKey(provider, headerApiKey, keyStore);
 
-			if (provider !== 'ollama' && !apiKey) {
+			if (!apiKey) {
 				const envVarName = PROVIDER_ENV_VARS[provider];
 				return status(
 					'Unauthorized',
@@ -63,26 +92,13 @@ export function createAIPlugin() {
 				);
 			}
 
-			const adapter = createAdapter(provider, model, apiKey ?? '');
+			const adapter = createAdapter(provider, model, apiKey);
 			if (!adapter) {
 				return status('Bad Request', `Unsupported provider: ${provider}`);
 			}
 
-			// AbortController for cleanup when client disconnects mid-stream.
-			// Passed to both chat() and toServerSentEventsResponse() so the
-			// LLM API call and the SSE stream are both cancelled on disconnect.
-			// This is the recommended TanStack AI pattern (see api.tanchat.ts).
 			const abortController = new AbortController();
 
-			// `chat()` can throw synchronously on adapter/config errors
-			// (e.g. invalid model name, malformed options). Streaming errors
-			// (rate limits, network drops) are handled internally by TanStack
-			// AI—they arrive as `RUN_ERROR` SSE events, not thrown exceptions.
-			//
-			// We wrap only `chat()` because `toServerSentEventsResponse()` is
-			// pure construction (builds a Response around a ReadableStream) and
-			// doesn't throw. This keeps the error boundary surgical: one
-			// trySync for the one call that can fail.
 			const { data: stream, error: chatError } = trySync({
 				try: () =>
 					chat({
@@ -97,13 +113,9 @@ export function createAIPlugin() {
 			});
 
 			if (chatError) {
-				// 499 "Client Closed Request" (nginx convention) — the client
-				// disconnected before chat() could start streaming.
 				if (chatError.name === 'AbortError' || abortController.signal.aborted) {
 					return status(499, 'Client closed request');
 				}
-				// 502 "Bad Gateway" — we're proxying to the AI provider and
-				// it rejected the request (bad API key, unknown model, etc.).
 				return status('Bad Gateway', `Provider error: ${chatError.message}`);
 			}
 
@@ -111,12 +123,12 @@ export function createAIPlugin() {
 		},
 		{
 			body: t.Object({
-				messages: t.Array(t.Any()), // ModelMessage[] — validated by TanStack AI at runtime
+				messages: t.Array(t.Any()),
 				provider: t.String(),
 				model: t.String(),
 				conversationId: t.Optional(t.String()),
 				systemPrompt: t.Optional(t.String()),
-				modelOptions: t.Optional(t.Any()), // Provider-specific options (temperature, thinking, etc.)
+				modelOptions: t.Optional(t.Any()),
 			}),
 			response: {
 				400: t.String(),

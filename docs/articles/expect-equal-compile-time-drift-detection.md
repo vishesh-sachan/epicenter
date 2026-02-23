@@ -8,11 +8,10 @@ You don't need a library. These two types come from Matt Pocock's [Total TypeScr
 
 ```typescript
 type Expect<T extends true> = T;
-type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <
-  T,
->() => T extends Y ? 1 : 2
-  ? true
-  : false;
+type Equal<X, Y> =
+	(<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
+		? true
+		: false;
 ```
 
 `Expect` constrains its input to `true`. If you hand it `false`, TypeScript complains. That's it.
@@ -37,16 +36,18 @@ The case that pushed me to add it: we store third-party data as `unknown[]` in a
 type TanStackMessagePart = UIMessage['parts'][number];
 
 type ExpectedPartTypes =
-  | 'text'
-  | 'image'
-  | 'audio'
-  | 'video'
-  | 'document'
-  | 'tool-call'
-  | 'tool-result'
-  | 'thinking';
+	| 'text'
+	| 'image'
+	| 'audio'
+	| 'video'
+	| 'document'
+	| 'tool-call'
+	| 'tool-result'
+	| 'thinking';
 
-type _DriftCheck = Expect<Equal<TanStackMessagePart['type'], ExpectedPartTypes>>;
+type _DriftCheck = Expect<
+	Equal<TanStackMessagePart['type'], ExpectedPartTypes>
+>;
 ```
 
 If the library adds `'file'` or drops `'thinking'`, the build fails before we ship. One line replaces what used to take four:
