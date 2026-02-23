@@ -78,8 +78,8 @@ const PROVIDER_MODELS = {
 
 type Provider = keyof typeof PROVIDER_MODELS;
 
-const DEFAULT_PROVIDER: Provider = 'openai';
-const DEFAULT_MODEL = 'gpt-4o-mini';
+const DEFAULT_PROVIDER: Provider = 'anthropic';
+const DEFAULT_MODEL = PROVIDER_MODELS[DEFAULT_PROVIDER][0];
 const AVAILABLE_PROVIDERS = Object.keys(PROVIDER_MODELS) as Provider[];
 
 // ─────────────────────────────────────────────────────────────────────────────
