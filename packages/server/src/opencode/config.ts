@@ -70,7 +70,7 @@ export type GenerateConfigOptions = {
  * Creates a config where every provider's `baseURL` points to the hub's
  * reverse proxy (`{hubUrl}/proxy/{provider}`) and every provider's `apiKey`
  * is the session token. The hub validates the token, resolves the real API
- * key from the encrypted store, and forwards the request to the real
+ * key from the environment variable, and forwards the request to the real
  * provider API.
  *
  * @example

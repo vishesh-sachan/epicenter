@@ -3,11 +3,6 @@ import { Elysia } from 'elysia';
 import * as Y from 'yjs';
 import { createAIPlugin } from './ai';
 import { type AuthPluginConfig, createAuthPlugin } from './auth';
-import {
-	createKeyManagementPlugin,
-	createKeyStore,
-	type KeyStore,
-} from './keys';
 import { createProxyPlugin } from './proxy';
 import type { AuthConfig } from './sync/auth';
 import { createSyncPlugin } from './sync/plugin';
@@ -30,18 +25,6 @@ export type HubServerConfig = {
 	 */
 	auth?: AuthPluginConfig;
 
-	/**
-	 * Encrypted API key store for server-side key management.
-	 *
-	 * When provided, the hub stores provider API keys encrypted on disk
-	 * and mounts key management REST endpoints at `/api/provider-keys`.
-	 * Also enables the AI proxy for OpenCode at `/proxy/{provider}/*`.
-	 *
-	 * Pass `true` to use the default store directory (`~/.epicenter/server/`),
-	 * or pass a `KeyStore` instance for custom configuration.
-	 */
-	keyStore?: KeyStore | true;
-
 	/** Sync plugin options (WebSocket rooms, auth, lifecycle hooks). */
 	sync?: {
 		/** Auth for sync endpoints. Omit for open mode (no auth). */
@@ -60,10 +43,9 @@ export type HubServerConfig = {
  *
  * The hub is the coordination server in the three-tier topology. It provides:
  * - Better Auth authentication (when configured)
- * - API key management (when key store configured)
- * - AI proxy for OpenCode (when key store configured)
+ * - AI proxy for OpenCode (reads API keys from env vars)
  * - Sync relay (primary) — all devices sync through the hub
- * - AI streaming — all providers (cloud + Ollama) via SSE
+ * - AI streaming — all providers via SSE
  * - OpenAPI docs
  * - Discovery root
  *
@@ -73,28 +55,21 @@ export type HubServerConfig = {
  * ```typescript
  * import { Database } from 'bun:sqlite';
  *
- * // Full hub: auth + key store + proxy + sync + AI
+ * // Full hub: auth + proxy + sync + AI
  * createHubServer({
  *   auth: {
  *     database: new Database('auth.db'),
  *     secret: 'my-secret',
  *     trustedOrigins: ['tauri://localhost'],
  *   },
- *   keyStore: true,
  * }).start();
  *
- * // Minimal hub — no auth, no key store (development)
+ * // Minimal hub — no auth (development)
  * createHubServer({}).start();
  * ```
  */
 export function createHubServer(config: HubServerConfig) {
 	const { sync } = config;
-
-	// Resolve key store: `true` = default store, `KeyStore` = custom, `undefined` = none
-	const keyStore =
-		config.keyStore === true
-			? createKeyStore()
-			: (config.keyStore ?? undefined);
 
 	/** Ephemeral Y.Docs for rooms (hub is a pure relay, no pre-registered workspaces). */
 	const dynamicDocs = new Map<string, Y.Doc>();
@@ -128,7 +103,7 @@ export function createHubServer(config: HubServerConfig) {
 				}),
 			),
 		)
-		.use(new Elysia({ prefix: '/ai' }).use(createAIPlugin({ keyStore })))
+		.use(new Elysia({ prefix: '/ai' }).use(createAIPlugin()))
 		.get('/', () => ({
 			name: 'Epicenter Hub',
 			version: '1.0.0',
@@ -140,11 +115,8 @@ export function createHubServer(config: HubServerConfig) {
 		app.use(createAuthPlugin(config.auth));
 	}
 
-	// Mount key management and AI proxy when key store is active
-	if (keyStore) {
-		app.use(createKeyManagementPlugin(keyStore));
-		app.use(createProxyPlugin({ keyStore }));
-	}
+	// Mount AI proxy unconditionally — reads API keys from env vars
+	app.use(createProxyPlugin());
 
 	const port = config.port ?? Number.parseInt(process.env.PORT ?? '3913', 10);
 

@@ -1,6 +1,9 @@
 import { Elysia } from 'elysia';
-import { isSupportedProvider, type SupportedProvider } from '../ai/adapters';
-import type { KeyStore } from '../keys/store';
+import {
+	isSupportedProvider,
+	PROVIDER_ENV_VARS,
+	type SupportedProvider,
+} from '../ai/adapters';
 
 /**
  * Provider API base URLs.
@@ -18,14 +21,6 @@ const PROVIDER_BASE_URLS: Partial<Record<SupportedProvider, string>> = {
 
 export type ProxyPluginConfig = {
 	/**
-	 * Key store for resolving real API keys.
-	 *
-	 * The proxy reads the real API key from the store and injects it
-	 * into the forwarded request, replacing the session token.
-	 */
-	keyStore: KeyStore;
-
-	/**
 	 * Session validator function.
 	 *
 	 * Validates the Authorization header (which carries a session token,
@@ -42,10 +37,8 @@ export type ProxyPluginConfig = {
  * The proxy allows OpenCode instances to call LLM providers through the hub
  * without having direct access to API keys. OpenCode sends requests to
  * `{hubUrl}/proxy/{provider}/...` with a session token as the Authorization header.
- * The hub validates the session, resolves the real API key from the encrypted
- * store, and forwards the request unchanged to the real provider API.
- *
- * This is ~30 lines of proxy code per provider. No request parsing needed.
+ * The hub validates the session, resolves the real API key from the operator's
+ * environment variable, and forwards the request unchanged to the real provider API.
  *
  * Registers routes:
  *
@@ -55,16 +48,15 @@ export type ProxyPluginConfig = {
  *
  * @example
  * ```typescript
- * const store = createKeyStore();
  * const app = new Elysia()
- *   .use(createProxyPlugin({ keyStore: store }));
+ *   .use(createProxyPlugin());
  *
  * // OpenCode calls: POST /proxy/anthropic/v1/messages
- * // Hub: validates session → resolves anthropic key → forwards to api.anthropic.com/v1/messages
+ * // Hub: validates session → reads ANTHROPIC_API_KEY env var → forwards to api.anthropic.com/v1/messages
  * ```
  */
-export function createProxyPlugin(config: ProxyPluginConfig) {
-	const { keyStore, validateSession } = config;
+export function createProxyPlugin(config?: ProxyPluginConfig) {
+	const validateSession = config?.validateSession;
 
 	return new Elysia({ prefix: '/proxy' }).all(
 		'/:provider/*',
@@ -102,12 +94,13 @@ export function createProxyPlugin(config: ProxyPluginConfig) {
 				}
 			}
 
-			// Resolve the real API key from the encrypted store
-			const apiKey = await keyStore.get(provider);
+			// Resolve the real API key from the operator's environment variable
+			const envVarName = PROVIDER_ENV_VARS[provider];
+			const apiKey = process.env[envVarName];
 			if (!apiKey) {
 				return status(
 					'Bad Gateway',
-					`No API key configured for ${provider}. Add one via PUT /api/provider-keys/${provider}`,
+					`No API key configured for ${provider}. Set ${envVarName} environment variable.`,
 				);
 			}
 

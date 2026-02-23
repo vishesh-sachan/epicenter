@@ -1,30 +1,12 @@
 import { chat, toServerSentEventsResponse } from '@tanstack/ai';
 import { Elysia, t } from 'elysia';
 import { Err, trySync } from 'wellcrafted/result';
-import type { KeyStore } from '../keys/store';
 import {
 	createAdapter,
 	isSupportedProvider,
 	PROVIDER_ENV_VARS,
 	resolveApiKey,
 } from './adapters';
-
-/**
- * Configuration for the AI plugin.
- */
-export type AIPluginConfig = {
-	/**
-	 * Encrypted key store for server-side API key resolution.
-	 *
-	 * When provided, the resolution chain becomes:
-	 * 1. Per-request header (x-provider-api-key)
-	 * 2. Server key store (encrypted)
-	 * 3. Environment variable
-	 *
-	 * Omit for header-only or env-only key resolution.
-	 */
-	keyStore?: KeyStore;
-};
 
 /**
  * Creates an Elysia plugin that provides a streaming AI chat endpoint.
@@ -39,10 +21,9 @@ export type AIPluginConfig = {
  * The server creates the appropriate TanStack AI adapter, calls `chat()`,
  * and streams the response back as SSE using `toServerSentEventsResponse()`.
  *
- * **API key resolution chain** (when key store is provided):
- * 1. `x-provider-api-key` header (per-request, backward compat)
- * 2. Server key store (encrypted on disk)
- * 3. Environment variable (`OPENAI_API_KEY`, etc.)
+ * **API key resolution chain:**
+ * 1. `x-provider-api-key` header (per-request BYOK — user's own billing)
+ * 2. Environment variable (`OPENAI_API_KEY`, etc.) — operator's key
  *
  * All providers require an API key — there are no exceptions.
  *
@@ -50,21 +31,12 @@ export type AIPluginConfig = {
  * ```typescript
  * import { createAIPlugin } from '@epicenter/server/ai';
  *
- * // Without key store (backward compat)
  * const app = new Elysia()
  *   .use(new Elysia({ prefix: '/ai' }).use(createAIPlugin()))
  *   .listen(3913);
- *
- * // With key store (hub server)
- * const store = createKeyStore();
- * const app = new Elysia()
- *   .use(new Elysia({ prefix: '/ai' }).use(createAIPlugin({ keyStore: store })))
- *   .listen(3913);
  * ```
  */
-export function createAIPlugin(config?: AIPluginConfig) {
-	const keyStore = config?.keyStore;
-
+export function createAIPlugin() {
 	return new Elysia().post(
 		'/chat',
 		async ({ body, headers, status }) => {
@@ -82,7 +54,7 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				return status('Bad Request', `Unsupported provider: ${provider}`);
 			}
 
-			const apiKey = await resolveApiKey(provider, headerApiKey, keyStore);
+			const apiKey = resolveApiKey(provider, headerApiKey);
 
 			if (!apiKey) {
 				const envVarName = PROVIDER_ENV_VARS[provider];

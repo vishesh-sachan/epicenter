@@ -3,7 +3,9 @@
 **Date**: 2026-02-22
 **Status**: Draft
 **Author**: AI-assisted
-**Related**: `20260222T195800-server-side-api-key-management.md` (API key storage — this spec protects those endpoints)
+**Related**: ~~`20260222T195800-server-side-api-key-management.md`~~ (superseded — key store removed, see `20260223T102844-remove-key-store-simplify-api-key-resolution.md`)
+
+> **Note (2026-02-23)**: The `/api/provider-keys` endpoints referenced in this spec have been removed along with the encrypted key store. API keys are now resolved from environment variables. The security model for auth, sync, and proxy endpoints still applies, but key management endpoints no longer exist.
 
 ## Overview
 

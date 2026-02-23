@@ -101,8 +101,6 @@ type HubServerConfig = {
 	port?: number;
 	/** Better Auth configuration for session-based auth. */
 	auth?: AuthPluginConfig;
-	/** Encrypted API key store for server-side key management and AI proxy. */
-	keyStore?: KeyStore | true;
 	/** Sync plugin options. */
 	sync?: {
 		auth?: AuthConfig;
@@ -171,9 +169,9 @@ createLocalServer()
 ```
 createHubServer()
 ├── Sync Plugin        → /rooms/:room           (Cloud sync relay)
-├── AI Plugin          → /ai/...                (Streaming + Proxy)
+├── AI Plugin          → /ai/...                (Streaming)
 ├── Auth Plugin        → /auth/...              (Better Auth)
-└── Key Management     → /api/provider-keys     (Encrypted store)
+└── Proxy Plugin       → /proxy/:provider/*     (AI provider proxy, env var keys)
 ```
 
 ## URL Hierarchy
@@ -196,8 +194,7 @@ createHubServer()
 /rooms/{roomId}                                - WebSocket sync relay
 /ai/chat                                       - AI streaming endpoint
 /auth/*                                        - Better Auth endpoints
-/api/provider-keys                             - Key management
-/proxy/{provider}/*                            - AI provider proxy
+/proxy/{provider}/*                            - AI provider proxy (env var keys)
 ```
 
 ## WebSocket Sync

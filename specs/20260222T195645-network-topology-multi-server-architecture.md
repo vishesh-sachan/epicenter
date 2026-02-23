@@ -13,6 +13,18 @@
 > - Epicenter Cloud will never run Ollama (no local GPU on CF Workers).
 > - Removing it simplified the architecture: every provider now follows the same key-required path.
 > - Ollama can be re-added in a future self-hosted-only iteration if there's demand.
+
+> **Implementation Note — Encrypted Key Store Removed (2026-02-23)**
+>
+> The encrypted key store (`keys/store.ts`, `keys/plugin.ts`, `/api/provider-keys` REST API) has been removed. See `20260223T102844-remove-key-store-simplify-api-key-resolution.md` for the full rationale. Summary:
+>
+> - The encryption was security theater (`master.key` in the same directory as `keys.json`).
+> - `process.env` lookups are nanoseconds vs. async disk decryption in the hot path.
+> - Env vars are the standard mechanism for both cloud and self-hosted deployments.
+> - User BYOK keys belong on the client side (encrypted Yjs workspaces, sent per-request via `x-provider-api-key` header).
+> - API key resolution is now synchronous: header → env var → 401. The proxy plugin reads `process.env[PROVIDER_ENV_VARS[provider]]` directly.
+>
+> References to the key store, `keys.json`, `master.key`, and `/api/provider-keys` endpoints in this spec are historical context only.
 >
 > References to Ollama below are **historical** — they document the original design reasoning but no longer reflect the implementation.
 

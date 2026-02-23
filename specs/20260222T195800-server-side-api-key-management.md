@@ -1,9 +1,14 @@
 # Server-Side API Key Management
 
 **Date**: 2026-02-22
-**Status**: Draft
+**Status**: Superseded
+**Superseded by**: `20260223T102844-remove-key-store-simplify-api-key-resolution.md`
 **Author**: AI-assisted
 **Related**: `20260213T030000-encrypted-api-key-vault.md` (zero-knowledge approach — different tradeoffs), `20260213T005300-encrypted-workspace-storage.md` (value-level Yjs encryption — broader scope)
+
+> **Superseded (2026-02-23)**: This entire spec has been superseded. The encrypted key store, key management REST API (`/api/provider-keys`), and all associated code (`keys/store.ts`, `keys/plugin.ts`, `keys/index.ts`) have been removed. API key resolution is now a synchronous two-step chain: `x-provider-api-key` header → environment variable → 401.
+>
+> **Why**: The encrypted key store was security theater — `master.key` sat in the same directory as `keys.json`, making encryption trivial to bypass with filesystem access. It added ~400 lines of async decryption in the hot path for something `process.env` handles in nanoseconds. Env vars are the standard mechanism for both cloud (hosting provider secrets) and self-hosted (`.env` file) deployments. User-owned BYOK keys belong on the client side (encrypted Yjs workspaces, sent per-request via header), not in a server-side store. See the superseding spec for the full rationale.
 
 ## Overview
 

@@ -18,11 +18,6 @@ export {
 	getDiscoveredDevices,
 } from './discovery';
 export { createHubServer, type HubServerConfig } from './hub';
-export {
-	createKeyManagementPlugin,
-	createKeyStore,
-	type KeyStore,
-} from './keys';
 export { createLocalServer, type LocalServerConfig } from './local';
 export {
 	createOpenCodeProcess,

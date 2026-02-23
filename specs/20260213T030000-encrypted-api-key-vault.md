@@ -2,7 +2,7 @@
 
 **Date**: 2026-02-13
 **Status**: Superseded
-**Superseded by**: `20260222T195800-server-side-api-key-management.md` — Server-side storage with auto-generated `master.key` encryption. The zero-knowledge approach described here is the wrong model for API keys because the server must read them to call providers. See the superseding spec's "Research Findings > Prior Art in This Codebase" section for the full rationale.
+**Superseded by**: `20260222T195800-server-side-api-key-management.md` (which is itself superseded by `20260223T102844-remove-key-store-simplify-api-key-resolution.md` — server-side key storage removed entirely, API keys come from env vars or per-request headers). The zero-knowledge approach described here is the wrong model for API keys because the server must read them to call providers.
 
 ## Overview
 
