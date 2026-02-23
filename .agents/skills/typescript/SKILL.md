@@ -644,6 +644,25 @@ function processRow(rowId: string) {
 
 This makes type boundaries visible and intentional, without forcing awkward parameter renames.
 
+### Branded IDs for Workspace Tables
+
+Every `defineTable()` schema MUST use branded ID types for the `id` field and all string foreign keys. Never use plain `'string'` for table IDs.
+
+For tables that use arktype schemas, define the brand as a type + arktype pipe pair:
+
+```typescript
+export type ConversationId = string & Brand<'ConversationId'>;
+export const ConversationId = type('string').pipe(
+	(s): ConversationId => s as ConversationId,
+);
+```
+
+Then use directly in the schema: `id: ConversationId` and for optional FKs: `'parentId?': ConversationId.or('undefined')`.
+
+When generating IDs with `generateId()` (which returns `Id`, a different brand), cast through string: `generateId() as string as ConversationId`.
+
+See the `static-workspace-api` skill for the full pattern and rules.
+
 # Const Generic Array Inference
 
 Use `const T extends readonly T[]` to preserve literal types without requiring `as const` at call sites.

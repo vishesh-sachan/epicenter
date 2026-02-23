@@ -40,7 +40,12 @@ import { OPENAI_CHAT_MODELS } from '@tanstack/ai-openai';
 import type { UIMessage } from '@tanstack/ai-svelte';
 import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte';
 import { getServerUrl } from '$lib/state/settings';
-import type { ChatMessage, Conversation } from '$lib/workspace';
+import type {
+	ChatMessage,
+	ChatMessageId,
+	Conversation,
+	ConversationId,
+} from '$lib/workspace';
 import { popupWorkspace } from '$lib/workspace-popup';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,7 +135,7 @@ function createAiChatState() {
 	// ── Active Conversation ───────────────────────────────────────────
 
 	/** Initialize to the most recent conversation, or null if none exist. */
-	let activeConversationId = $state<string | null>(
+	let activeConversationId = $state<ConversationId | null>(
 		conversations[0]?.id ?? null,
 	);
 
@@ -157,7 +162,7 @@ function createAiChatState() {
 		conversations.find((c) => c.id === activeConversationId) ?? null;
 
 	/** Load persisted messages for a conversation from Y.Doc. */
-	const loadMessagesForConversation = (conversationId: string) =>
+	const loadMessagesForConversation = (conversationId: ConversationId) =>
 		popupWorkspace.tables.chatMessages
 			.filter((m) => m.conversationId === conversationId)
 			.sort((a, b) => a.createdAt - b.createdAt)
@@ -175,7 +180,10 @@ function createAiChatState() {
 	 * - No `setMessages()` swapping needed on conversation switch
 	 * - Multiple conversations can stream concurrently
 	 */
-	const chatInstances = new Map<string, ReturnType<typeof createChat>>();
+	const chatInstances = new Map<
+		ConversationId,
+		ReturnType<typeof createChat>
+	>();
 
 	/**
 	 * Get or create a ChatClient for a conversation.
@@ -190,7 +198,9 @@ function createAiChatState() {
 	 * chat.sendMessage({ content: 'Hello' });
 	 * ```
 	 */
-	function ensureChat(conversationId: string): ReturnType<typeof createChat> {
+	function ensureChat(
+		conversationId: ConversationId,
+	): ReturnType<typeof createChat> {
 		const existing = chatInstances.get(conversationId);
 		if (existing) return existing;
 
@@ -249,11 +259,11 @@ function createAiChatState() {
 	 */
 	function createConversation(opts?: {
 		title?: string;
-		parentId?: string;
+		parentId?: ConversationId;
 		sourceMessageId?: string;
 		systemPrompt?: string;
-	}): string {
-		const id = generateId();
+	}): ConversationId {
+		const id = generateId() as string as ConversationId;
 		const now = Date.now();
 		const current = getActiveConversation();
 
@@ -285,7 +295,7 @@ function createAiChatState() {
 	 * (e.g., a response that completed in the background since the user
 	 * last viewed this conversation).
 	 */
-	function switchConversation(conversationId: string) {
+	function switchConversation(conversationId: ConversationId) {
 		activeConversationId = conversationId;
 
 		// Refresh idle instances from Y.Doc so the view is always current.
@@ -305,7 +315,7 @@ function createAiChatState() {
 	 * ChatClient instance. If the deleted conversation was active,
 	 * switches to the most recent remaining one.
 	 */
-	function deleteConversation(conversationId: string) {
+	function deleteConversation(conversationId: ConversationId) {
 		// Stop and discard the ChatClient instance
 		const instance = chatInstances.get(conversationId);
 		if (instance) {
@@ -345,7 +355,7 @@ function createAiChatState() {
 	 * Writes to Y.Doc — the observer propagates the change to the
 	 * reactive `conversations` list and `activeConversation` derived.
 	 */
-	function renameConversation(conversationId: string, title: string) {
+	function renameConversation(conversationId: ConversationId, title: string) {
 		const conv = conversations.find((c) => c.id === conversationId);
 		if (!conv) return;
 
@@ -519,7 +529,7 @@ function createAiChatState() {
 				});
 			}
 
-			const userMessageId = generateId();
+			const userMessageId = generateId() as string as ChatMessageId;
 
 			// Write user message to Y.Doc
 			popupWorkspace.tables.chatMessages.set({
@@ -585,7 +595,7 @@ function createAiChatState() {
 		 * {/if}
 		 * ```
 		 */
-		isStreaming(conversationId: string): boolean {
+		isStreaming(conversationId: ConversationId): boolean {
 			return chatInstances.get(conversationId)?.isLoading ?? false;
 		},
 	};
