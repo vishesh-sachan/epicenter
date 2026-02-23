@@ -367,7 +367,7 @@ export const definition = defineWorkspace({
 		 * detection in `ui-message.ts` catches type mismatches on
 		 * TanStack AI upgrades instead.
 		 *
-		 * @see {@link file://./ui-message.ts} — drift detection + rowToUIMessage boundary
+		 * @see {@link file://./ui-message.ts} — drift detection + toUiMessage boundary
 		 */
 		chatMessages: defineTable(
 			type({

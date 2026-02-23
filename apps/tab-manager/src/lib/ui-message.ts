@@ -16,6 +16,8 @@
 
 import type { UIMessage } from '@tanstack/ai-svelte';
 
+import type { ChatMessage } from '$lib/workspace';
+
 // ── Type test utilities ───────────────────────────────────────────────
 // Rolling-your-own type testing from Total TypeScript.
 // @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own
@@ -53,23 +55,18 @@ type _DriftCheck = Expect<
 // ── Typed boundary: unknown[] → MessagePart[] ─────────────────────────
 
 /**
- * Convert a persisted chat message row to a TanStack AI UIMessage.
+ * Convert a persisted chat message to a TanStack AI UiMessage.
  *
  * This is the single boundary where `unknown[]` is cast to `MessagePart[]`.
  * Safe because parts are always produced by TanStack AI and round-tripped
  * through Y.Doc serialization (structuredClone-compatible, lossless for
  * plain objects).
  */
-export function rowToUIMessage(row: {
-	id: string;
-	role: 'user' | 'assistant' | 'system';
-	parts: unknown[];
-	createdAt: number;
-}): UIMessage {
+export function toUiMessage(message: ChatMessage): UIMessage {
 	return {
-		id: row.id,
-		role: row.role,
-		parts: row.parts as TanStackMessagePart[],
-		createdAt: new Date(row.createdAt),
+		id: message.id,
+		role: message.role,
+		parts: message.parts as TanStackMessagePart[],
+		createdAt: new Date(message.createdAt),
 	};
 }
