@@ -119,25 +119,13 @@ function createAiChatState() {
 		conversations = readAllConversations();
 	});
 
-	// Refresh message list when messages are added/updated (e.g. background completion).
-	// Uses changedIds to resolve which conversations are affected — only those
-	// conversations get their messages refreshed instead of all cached instances.
-	popupWorkspace.tables.chatMessages.observe((changedIds) => {
-		const affectedConversations = new Set<string>();
-
-		for (const msgId of changedIds) {
-			const result = popupWorkspace.tables.chatMessages.get(msgId);
-			if (result.status !== 'valid') continue;
-			affectedConversations.add(result.row.conversationId);
-		}
-
-		for (const conversationId of affectedConversations) {
-			const instance = chatInstances.get(conversationId);
-			if (!instance) continue;
-			// Skip streaming instances — they are already reactive to their own stream
-			if (instance.isLoading) continue;
-			instance.setMessages(loadMessagesForConversation(conversationId));
-		}
+	// Refresh active conversation's messages when Y.Doc changes (e.g. background completion).
+	// Non-active conversations get refreshed on switch via `switchConversation`.
+	popupWorkspace.tables.chatMessages.observe(() => {
+		if (!activeConversationId) return;
+		const instance = chatInstances.get(activeConversationId);
+		if (!instance || instance.isLoading) return;
+		instance.setMessages(loadMessagesForConversation(activeConversationId));
 	});
 	// ── Active Conversation ───────────────────────────────────────────
 
@@ -171,7 +159,6 @@ function createAiChatState() {
 	/** Load persisted messages for a conversation from Y.Doc. */
 	const loadMessagesForConversation = (conversationId: string) =>
 		popupWorkspace.tables.chatMessages
-			.getAllValid()
 			.filter((m) => m.conversationId === conversationId)
 			.sort((a, b) => a.createdAt - b.createdAt)
 			.map(toUiMessage);
@@ -191,39 +178,11 @@ function createAiChatState() {
 	const chatInstances = new Map<string, ReturnType<typeof createChat>>();
 
 	/**
-	 * Maximum number of ChatClient instances to keep in memory.
-	 *
-	 * When exceeded, idle (non-active, non-streaming) instances are evicted
-	 * oldest-first (Map iteration order is insertion order). Evicted
-	 * conversations recreate their instance on next access via `ensureChat`.
-	 */
-	const MAX_CACHED_INSTANCES = 20;
-
-	/**
-	 * Evict idle ChatClient instances when the cache exceeds the limit.
-	 *
-	 * Preserves the active conversation's instance and any instance that
-	 * is currently streaming. Iterates in insertion order (oldest first).
-	 */
-	function evictStaleInstances() {
-		if (chatInstances.size <= MAX_CACHED_INSTANCES) return;
-
-		for (const [id, instance] of chatInstances) {
-			if (chatInstances.size <= MAX_CACHED_INSTANCES) break;
-			if (id === activeConversationId) continue;
-			if (instance.isLoading) continue;
-			chatInstances.delete(id);
-		}
-	}
-
-	/**
 	 * Get or create a ChatClient for a conversation.
 	 *
 	 * Lazily creates instances on first access. The connection callback
 	 * reads the conversation's provider/model at request time (not creation
 	 * time) so provider/model changes take effect on the next send.
-	 *
-	 * Triggers eviction when the instance cache exceeds `MAX_CACHED_INSTANCES`.
 	 *
 	 * @example
 	 * ```typescript
@@ -275,7 +234,6 @@ function createAiChatState() {
 		});
 
 		chatInstances.set(conversationId, instance);
-		evictStaleInstances();
 		return instance;
 	}
 
