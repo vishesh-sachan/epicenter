@@ -1,22 +1,12 @@
 import { chat, toServerSentEventsResponse } from '@tanstack/ai';
 import { Elysia, t } from 'elysia';
+import { Err, trySync } from 'wellcrafted/result';
 import {
 	createAdapter,
 	isSupportedProvider,
 	PROVIDER_ENV_VARS,
 	resolveApiKey,
-	SUPPORTED_PROVIDERS,
 } from './adapters';
-
-/**
- * Configuration for the AI plugin.
- *
- * All options are optional — the plugin works out-of-the-box with sensible defaults.
- */
-export type AIPluginConfig = {
-	/** Override the list of supported providers. Defaults to all built-in adapters. */
-	providers?: string[];
-};
 
 /**
  * Creates an Elysia plugin that provides a streaming AI chat endpoint.
@@ -45,9 +35,7 @@ export type AIPluginConfig = {
  * // POST /ai/chat → SSE stream
  * ```
  */
-export function createAIPlugin(config?: AIPluginConfig) {
-	const allowedProviders = config?.providers ?? SUPPORTED_PROVIDERS;
-
+export function createAIPlugin() {
 	return new Elysia().post(
 		'/chat',
 		async ({ body, headers, status }) => {
@@ -60,10 +48,6 @@ export function createAIPlugin(config?: AIPluginConfig) {
 				systemPrompt,
 				modelOptions,
 			} = body;
-
-			if (!allowedProviders.includes(provider)) {
-				return status('Bad Request', `Unsupported provider: ${provider}`);
-			}
 
 			if (!isSupportedProvider(provider)) {
 				return status('Bad Request', `Unsupported provider: ${provider}`);
@@ -90,34 +74,40 @@ export function createAIPlugin(config?: AIPluginConfig) {
 			// This is the recommended TanStack AI pattern (see api.tanchat.ts).
 			const abortController = new AbortController();
 
-			try {
-				const stream = chat({
-					adapter,
-					messages,
-					conversationId,
-					abortController,
-					...(systemPrompt ? { systemPrompts: [systemPrompt] } : {}),
-					...(modelOptions ? { modelOptions } : {}),
-				});
+			// `chat()` can throw synchronously on adapter/config errors
+			// (e.g. invalid model name, malformed options). Streaming errors
+			// (rate limits, network drops) are handled internally by TanStack
+			// AI—they arrive as `RUN_ERROR` SSE events, not thrown exceptions.
+			//
+			// We wrap only `chat()` because `toServerSentEventsResponse()` is
+			// pure construction (builds a Response around a ReadableStream) and
+			// doesn't throw. This keeps the error boundary surgical: one
+			// trySync for the one call that can fail.
+			const { data: stream, error: chatError } = trySync({
+				try: () =>
+					chat({
+						adapter,
+						messages,
+						conversationId,
+						abortController,
+						...(systemPrompt ? { systemPrompts: [systemPrompt] } : {}),
+						...(modelOptions ? { modelOptions } : {}),
+					}),
+				catch: (e) => Err(e instanceof Error ? e : new Error(String(e))),
+			});
 
-				return toServerSentEventsResponse(stream, { abortController });
-			} catch (error) {
-				// Distinguish client disconnects from provider errors.
-				// TanStack AI reference pattern: 499 for aborted requests.
-				// 499 is non-standard (nginx), so use numeric literal.
-				if (
-					error instanceof Error &&
-					(error.name === 'AbortError' || abortController.signal.aborted)
-				) {
-					throw status(499, 'Client closed request');
+			if (chatError) {
+				// 499 "Client Closed Request" (nginx convention) — the client
+				// disconnected before chat() could start streaming.
+				if (chatError.name === 'AbortError' || abortController.signal.aborted) {
+					return status(499, 'Client closed request');
 				}
-
-				// Provider errors (bad API key, rate limit, model not found)
-				// may throw synchronously before streaming starts.
-				const message =
-					error instanceof Error ? error.message : 'Unknown error';
-				throw status('Bad Gateway', `Provider error: ${message}`);
+				// 502 "Bad Gateway" — we're proxying to the AI provider and
+				// it rejected the request (bad API key, unknown model, etc.).
+				return status('Bad Gateway', `Provider error: ${chatError.message}`);
 			}
+
+			return toServerSentEventsResponse(stream, { abortController });
 		},
 		{
 			body: t.Object({

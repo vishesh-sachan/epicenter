@@ -1,8 +1,10 @@
 # Encrypted Workspace Storage
 
 **Date**: 2026-02-13
-**Status**: Draft
+**Status**: Draft (API key portions superseded)
 **Supersedes**: `20260213T030000-encrypted-api-key-vault.md` (original was overengineered; see Analysis section)
+
+> **Note (2026-02-22)**: The API key encryption portions of this spec are superseded by `20260222T195800-server-side-api-key-management.md`, which uses server-side AES-256-GCM with an auto-generated `master.key` at `~/.epicenter/server/master.key`. The broader value-level workspace encryption described here (for transcriptions, notes, chat histories) remains valid and is a separate concern from API key storage.
 
 ## Overview
 

@@ -82,8 +82,10 @@ Current approaches force trade-offs:
 
 ### File Structure
 
+> **Path convention update (2026-02):** This spec originally proposed `~/.epicenter/workspaces/` for workspace data. The convention has since been refined: workspace data lives at `<project>/.epicenter/` (project-local), while `~/.epicenter/server/` is reserved for global server config (API keys, master encryption key, server settings). See `docs/articles/home-dotfiles-beat-xdg-for-developer-tools.md` for the rationale.
+
 ```
-~/.epicenter/
+<project>/.epicenter/
 ├── workspaces/
 │   │
 │   ├── habit-tracker/                    ← AI-generated workspace
@@ -777,7 +779,7 @@ The result: **Natural language to complete local-first applications.**
 │                                                                             │
 │                          ═══════════════════▶                               │
 │                                                                             │
-│   ~/.epicenter/workspaces/habit-tracker/                                    │
+│   <project>/.epicenter/workspaces/habit-tracker/                            │
 │   ├── schema.json     ← Your data structure                                 │
 │   ├── ui.json         ← Your interface                                      │
 │   ├── data.yjs        ← Your data                                           │

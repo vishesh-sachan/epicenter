@@ -1,6 +1,6 @@
 ---
 name: control-flow
-description: Human-readable control flow patterns for refactoring complex conditionals. Use when refactoring nested conditionals, improving code readability, or restructuring decision logic.
+description: Human-readable control flow patterns for early returns, guard clauses, and linearizing nested logic. Use when refactoring nested conditionals, replacing try-catch with linear flow, or restructuring decision logic.
 ---
 
 # Human-Readable Control Flow
@@ -22,18 +22,19 @@ Into this: linear flow that mirrors human decision-making
 // From apps/whispering/src/routes/(app)/_layout-utils/check-ffmpeg.ts
 
 export async function checkFfmpegRecordingMethodCompatibility() {
-  if (!window.__TAURI_INTERNALS__) return;
+	if (!window.__TAURI_INTERNALS__) return;
 
-  // Only check if FFmpeg recording method is selected
-  if (settings.value['recording.method'] !== 'ffmpeg') return;
+	// Only check if FFmpeg recording method is selected
+	if (settings.value['recording.method'] !== 'ffmpeg') return;
 
-  const { data: ffmpegInstalled } = await rpc.ffmpeg.checkFfmpegInstalled.ensure();
-  if (ffmpegInstalled) return; // FFmpeg is installed, all good
+	const { data: ffmpegInstalled } =
+		await rpc.ffmpeg.checkFfmpegInstalled.ensure();
+	if (ffmpegInstalled) return; // FFmpeg is installed, all good
 
-  // FFmpeg recording method selected but not installed
-  toast.warning('FFmpeg Required for FFmpeg Recording Method', {
-    // ... toast content
-  });
+	// FFmpeg recording method selected but not installed
+	toast.warning('FFmpeg Required for FFmpeg Recording Method', {
+		// ... toast content
+	});
 }
 ```
 
@@ -44,8 +45,9 @@ export async function checkFfmpegRecordingMethodCompatibility() {
 
 const isUsingNavigator = settings.value['recording.method'] === 'navigator';
 const isUsingLocalTranscription =
-  settings.value['transcription.selectedTranscriptionService'] === 'whispercpp' ||
-  settings.value['transcription.selectedTranscriptionService'] === 'parakeet';
+	settings.value['transcription.selectedTranscriptionService'] ===
+		'whispercpp' ||
+	settings.value['transcription.selectedTranscriptionService'] === 'parakeet';
 
 return isUsingNavigator && isUsingLocalTranscription && !isFFmpegInstalled;
 ```
@@ -62,8 +64,92 @@ return isUsingNavigator && isUsingLocalTranscription && !isFFmpegInstalled;
  */
 const needsOldFileCleanup = oldFilename && oldFilename !== filename;
 if (needsOldFileCleanup) {
-  const oldFilePath = path.join(tableConfig.directory, oldFilename);
-  await deleteMarkdownFile({ filePath: oldFilePath });
-  tracking[table.name]!.deleteByFilename({ filename: oldFilename });
+	const oldFilePath = path.join(tableConfig.directory, oldFilename);
+	await deleteMarkdownFile({ filePath: oldFilePath });
+	tracking[table.name]!.deleteByFilename({ filename: oldFilename });
 }
 ```
+
+## Example: Linearizing try-catch into Guard + Happy Path
+
+try-catch blocks create a nested, two-branch structure: the try body and the catch body. When only one call inside the try can actually throw, replace the try-catch with a guarded call + early return so the code reads top-to-bottom.
+
+Before (nested, mixed throw/return):
+
+```typescript
+async ({ body, status }) => {
+	const adapter = createAdapter(body.provider);
+
+	try {
+		const stream = chat({ adapter, messages: body.messages });
+		return toServerSentEventsResponse(stream);
+	} catch (error) {
+		if (error instanceof Error && error.name === 'AbortError') {
+			throw status(499, 'Client closed request');
+		}
+		const message = error instanceof Error ? error.message : 'Unknown error';
+		throw status('Bad Gateway', `Provider error: ${message}`);
+	}
+};
+```
+
+After (linear, consistent returns):
+
+```typescript
+async ({ body, status }) => {
+	const adapter = createAdapter(body.provider);
+
+	const { data: stream, error: chatError } = trySync({
+		try: () => chat({ adapter, messages: body.messages }),
+		catch: (e) => Err(e instanceof Error ? e : new Error(String(e))),
+	});
+
+	if (chatError) {
+		if (chatError.name === 'AbortError') {
+			return status(499, 'Client closed request');
+		}
+		return status('Bad Gateway', `Provider error: ${chatError.message}`);
+	}
+
+	return toServerSentEventsResponse(stream);
+};
+```
+
+The transformation follows the same human reasoning pattern:
+
+1. **Try the risky thing** — wrap only what can fail
+2. **Check if it failed** — early return with the appropriate error
+3. **Continue with the happy path** — the rest of the function assumes success
+
+This eliminates the nesting, makes `return` vs `throw` consistent, and separates the error boundary from the safe code that follows it.
+
+## Example: Sequential Guards in a Handler
+
+When a handler has multiple failure points, each guard follows the same pattern: do the thing, check the result, return early or continue.
+
+```typescript
+async ({ body, status }) => {
+	// Guard 1: validate input
+	if (!isSupportedProvider(body.provider)) {
+		return status('Bad Request', `Unsupported provider: ${body.provider}`);
+	}
+
+	// Guard 2: resolve dependency
+	const apiKey = resolveApiKey(body.provider, headers['x-api-key']);
+	if (!apiKey) {
+		return status('Unauthorized', 'Missing API key');
+	}
+
+	// Guard 3: risky operation
+	const { data: stream, error } = trySync({
+		try: () => chat({ adapter: createAdapter(body.provider, apiKey) }),
+		catch: (e) => Err(e instanceof Error ? e : new Error(String(e))),
+	});
+	if (error) return status('Bad Gateway', error.message);
+
+	// Happy path — all guards passed
+	return toServerSentEventsResponse(stream);
+};
+```
+
+Every guard has the same shape: check → return early on failure. The happy path accumulates at the bottom. Reading top-to-bottom, you see every way the function can fail before you see the success case.
