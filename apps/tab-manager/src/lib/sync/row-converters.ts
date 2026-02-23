@@ -9,6 +9,7 @@ import {
 	createGroupCompositeId,
 	createTabCompositeId,
 	createWindowCompositeId,
+	type DeviceId,
 	TAB_ID_NONE,
 	type Tab,
 	type TabGroup,
@@ -33,7 +34,10 @@ import {
  * if (row) tables.tabs.set(row);
  * ```
  */
-export function tabToRow(deviceId: string, tab: Browser.tabs.Tab): Tab | null {
+export function tabToRow(
+	deviceId: DeviceId,
+	tab: Browser.tabs.Tab,
+): Tab | null {
 	// tab.id is undefined for foreign tabs (sessions API) and TAB_ID_NONE (-1)
 	// for non-browser tabs like devtools windows.
 	if (tab.id === undefined || tab.id === TAB_ID_NONE) return null;
@@ -68,7 +72,7 @@ export function tabToRow(deviceId: string, tab: Browser.tabs.Tab): Tab | null {
  * ```
  */
 export function windowToRow(
-	deviceId: string,
+	deviceId: DeviceId,
 	window: Browser.windows.Window,
 ): Window | null {
 	if (window.id === undefined) return null;
@@ -97,7 +101,7 @@ export function windowToRow(
  * ```
  */
 export function tabGroupToRow(
-	deviceId: string,
+	deviceId: DeviceId,
 	group: Browser.tabGroups.TabGroup,
 ): TabGroup {
 	const { id, windowId, ...rest } = group;

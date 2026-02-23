@@ -41,6 +41,49 @@ export const TAB_ID_NONE = -1;
 export const TAB_GROUP_ID_NONE = -1;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Branded ID Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Branded device ID — nanoid generated once per browser installation.
+ *
+ * Prevents accidental mixing with other string IDs (conversation, tab, etc.).
+ */
+export type DeviceId = string & Brand<'DeviceId'>;
+export const DeviceId = type('string').pipe((s): DeviceId => s as DeviceId);
+
+/**
+ * Branded saved tab ID — nanoid generated when a tab is explicitly saved.
+ *
+ * Prevents accidental mixing with composite tab IDs or other string IDs.
+ */
+export type SavedTabId = string & Brand<'SavedTabId'>;
+export const SavedTabId = type('string').pipe(
+	(s): SavedTabId => s as SavedTabId,
+);
+
+/**
+ * Branded conversation ID — nanoid generated when a chat conversation is created.
+ *
+ * Used as the primary key for conversations and as a foreign key in chat messages.
+ * Prevents accidental mixing with message IDs or other string IDs.
+ */
+export type ConversationId = string & Brand<'ConversationId'>;
+export const ConversationId = type('string').pipe(
+	(s): ConversationId => s as ConversationId,
+);
+
+/**
+ * Branded chat message ID — nanoid generated when a message is created.
+ *
+ * Prevents accidental mixing with conversation IDs or other string IDs.
+ */
+export type ChatMessageId = string & Brand<'ChatMessageId'>;
+export const ChatMessageId = type('string').pipe(
+	(s): ChatMessageId => s as ChatMessageId,
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Composite ID Types
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -85,7 +128,7 @@ export const GroupCompositeId = type('string').pipe(
  * `undefined` check for that field.
  */
 export function createTabCompositeId(
-	deviceId: string,
+	deviceId: DeviceId,
 	tabId: number,
 ): TabCompositeId {
 	return `${deviceId}_${tabId}` as TabCompositeId;
@@ -100,7 +143,7 @@ export function createTabCompositeId(
  * for comparisons but should not be stored as a real window reference.
  */
 export function createWindowCompositeId(
-	deviceId: string,
+	deviceId: DeviceId,
 	windowId: number,
 ): WindowCompositeId {
 	return `${deviceId}_${windowId}` as WindowCompositeId;
@@ -115,7 +158,7 @@ export function createWindowCompositeId(
  * @see https://developer.chrome.com/docs/extensions/reference/api/tabGroups#property-TAB_GROUP_ID_NONE
  */
 export function createGroupCompositeId(
-	deviceId: string,
+	deviceId: DeviceId,
 	groupId: number,
 ): GroupCompositeId | undefined {
 	if (groupId === TAB_GROUP_ID_NONE) return undefined;
@@ -127,11 +170,11 @@ export function createGroupCompositeId(
  */
 function parseCompositeIdInternal(
 	compositeId: string,
-): { deviceId: string; nativeId: number } | null {
+): { deviceId: DeviceId; nativeId: number } | null {
 	const idx = compositeId.indexOf('_');
 	if (idx === -1) return null;
 
-	const deviceId = compositeId.slice(0, idx);
+	const deviceId = compositeId.slice(0, idx) as DeviceId;
 	const nativeId = Number.parseInt(compositeId.slice(idx + 1), 10);
 
 	if (Number.isNaN(nativeId)) return null;
@@ -144,7 +187,7 @@ function parseCompositeIdInternal(
  */
 export function parseTabId(
 	compositeId: TabCompositeId,
-): { deviceId: string; tabId: number } | null {
+): { deviceId: DeviceId; tabId: number } | null {
 	const result = parseCompositeIdInternal(compositeId);
 	if (!result) return null;
 	return { deviceId: result.deviceId, tabId: result.nativeId };
@@ -155,7 +198,7 @@ export function parseTabId(
  */
 export function parseWindowId(
 	compositeId: WindowCompositeId,
-): { deviceId: string; windowId: number } | null {
+): { deviceId: DeviceId; windowId: number } | null {
 	const result = parseCompositeIdInternal(compositeId);
 	if (!result) return null;
 	return { deviceId: result.deviceId, windowId: result.nativeId };
@@ -166,7 +209,7 @@ export function parseWindowId(
  */
 export function parseGroupId(
 	compositeId: GroupCompositeId,
-): { deviceId: string; groupId: number } | null {
+): { deviceId: DeviceId; groupId: number } | null {
 	const result = parseCompositeIdInternal(compositeId);
 	if (!result) return null;
 	return { deviceId: result.deviceId, groupId: result.nativeId };
@@ -199,7 +242,7 @@ export const definition = defineWorkspace({
 		 */
 		devices: defineTable(
 			type({
-				id: 'string', // NanoID, generated once on install
+				id: DeviceId, // NanoID, generated once on install
 				name: 'string', // User-editable: "Chrome on macOS", "Firefox on Windows"
 				lastSeen: 'string', // ISO timestamp, updated on each sync
 				browser: 'string', // 'chrome' | 'firefox' | 'safari' | 'edge' | 'opera'
@@ -219,7 +262,7 @@ export const definition = defineWorkspace({
 		tabs: defineTable(
 			type({
 				id: TabCompositeId, // Composite: `${deviceId}_${tabId}`
-				deviceId: 'string', // Foreign key to devices table
+				deviceId: DeviceId, // Foreign key to devices table
 				tabId: 'number', // Original chrome.tabs.Tab.id for API calls
 				windowId: WindowCompositeId, // Composite: `${deviceId}_${windowId}`
 				index: 'number', // Zero-based position in tab strip
@@ -269,7 +312,7 @@ export const definition = defineWorkspace({
 		windows: defineTable(
 			type({
 				id: WindowCompositeId, // Composite: `${deviceId}_${windowId}`
-				deviceId: 'string', // Foreign key to devices table
+				deviceId: DeviceId, // Foreign key to devices table
 				windowId: 'number', // Original browser window ID for API calls
 				focused: 'boolean',
 				alwaysOnTop: 'boolean',
@@ -298,7 +341,7 @@ export const definition = defineWorkspace({
 		tabGroups: defineTable(
 			type({
 				id: GroupCompositeId, // Composite: `${deviceId}_${groupId}`
-				deviceId: 'string', // Foreign key to devices table
+				deviceId: DeviceId, // Foreign key to devices table
 				groupId: 'number', // Original browser group ID for API calls
 				windowId: WindowCompositeId, // Composite: `${deviceId}_${windowId}`
 				collapsed: 'boolean',
@@ -324,12 +367,12 @@ export const definition = defineWorkspace({
 		 */
 		savedTabs: defineTable(
 			type({
-				id: 'string', // nanoid, generated on save
+				id: SavedTabId, // nanoid, generated on save
 				url: 'string', // The tab URL
 				title: 'string', // Tab title at time of save
 				'favIconUrl?': 'string | undefined', // Favicon URL (nullable)
 				pinned: 'boolean', // Whether tab was pinned
-				sourceDeviceId: 'string', // Device that saved this tab
+				sourceDeviceId: DeviceId, // Device that saved this tab
 				savedAt: 'number', // Timestamp (ms since epoch)
 				_v: '1',
 			}),
@@ -345,10 +388,10 @@ export const definition = defineWorkspace({
 		 */
 		conversations: defineTable(
 			type({
-				id: 'string',
+				id: ConversationId,
 				title: 'string',
-				'parentId?': 'string | undefined',
-				'sourceMessageId?': 'string | undefined',
+				'parentId?': ConversationId.or('undefined'),
+				'sourceMessageId?': ChatMessageId.or('undefined'),
 				'systemPrompt?': 'string | undefined',
 				provider: 'string',
 				model: 'string',
@@ -371,8 +414,8 @@ export const definition = defineWorkspace({
 		 */
 		chatMessages: defineTable(
 			type({
-				id: 'string',
-				conversationId: 'string',
+				id: ChatMessageId,
+				conversationId: ConversationId,
 				role: "'user' | 'assistant' | 'system'",
 				parts: 'unknown[]',
 				createdAt: 'number',
