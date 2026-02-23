@@ -37,10 +37,10 @@ import { ANTHROPIC_MODELS } from '@tanstack/ai-anthropic';
 import { GeminiTextModels } from '@tanstack/ai-gemini';
 import { GROK_CHAT_MODELS } from '@tanstack/ai-grok';
 import { OPENAI_CHAT_MODELS } from '@tanstack/ai-openai';
+import type { UIMessage } from '@tanstack/ai-svelte';
 import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte';
 import { getServerUrl } from '$lib/state/settings';
-import { toUiMessage } from '$lib/ui-message';
-import type { Conversation } from '$lib/workspace';
+import type { ChatMessage, Conversation } from '$lib/workspace';
 import { popupWorkspace } from '$lib/workspace-popup';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,6 +119,17 @@ function createAiChatState() {
 		conversations = readAllConversations();
 	});
 
+	// Refresh message list when messages are added/updated (e.g. background completion)
+	popupWorkspace.tables.chatMessages.observe((ids) => {
+		for (const [id, instance] of chatInstances) {
+			// Skip streaming instances — they are already reactive to their own stream
+			if (instance.isLoading) continue;
+
+			// If any updated message belongs to this conversation, refresh its messages
+			// (Simpler: just refresh if ANY message changed, since we skip streaming ones)
+			instance.setMessages(loadMessagesForConversation(id));
+		}
+	});
 	// ── Active Conversation ───────────────────────────────────────────
 
 	/** Initialize to the most recent conversation, or null if none exist. */
@@ -171,11 +182,39 @@ function createAiChatState() {
 	const chatInstances = new Map<string, ReturnType<typeof createChat>>();
 
 	/**
+	 * Maximum number of ChatClient instances to keep in memory.
+	 *
+	 * When exceeded, idle (non-active, non-streaming) instances are evicted
+	 * oldest-first (Map iteration order is insertion order). Evicted
+	 * conversations recreate their instance on next access via `ensureChat`.
+	 */
+	const MAX_CACHED_INSTANCES = 20;
+
+	/**
+	 * Evict idle ChatClient instances when the cache exceeds the limit.
+	 *
+	 * Preserves the active conversation's instance and any instance that
+	 * is currently streaming. Iterates in insertion order (oldest first).
+	 */
+	function evictStaleInstances() {
+		if (chatInstances.size <= MAX_CACHED_INSTANCES) return;
+
+		for (const [id, instance] of chatInstances) {
+			if (chatInstances.size <= MAX_CACHED_INSTANCES) break;
+			if (id === activeConversationId) continue;
+			if (instance.isLoading) continue;
+			chatInstances.delete(id);
+		}
+	}
+
+	/**
 	 * Get or create a ChatClient for a conversation.
 	 *
 	 * Lazily creates instances on first access. The connection callback
 	 * reads the conversation's provider/model at request time (not creation
 	 * time) so provider/model changes take effect on the next send.
+	 *
+	 * Triggers eviction when the instance cache exceeds `MAX_CACHED_INSTANCES`.
 	 *
 	 * @example
 	 * ```typescript
@@ -227,6 +266,7 @@ function createAiChatState() {
 		});
 
 		chatInstances.set(conversationId, instance);
+		evictStaleInstances();
 		return instance;
 	}
 
@@ -270,12 +310,24 @@ function createAiChatState() {
 	/**
 	 * Switch to a different conversation.
 	 *
-	 * Just changes which conversation the getters read from. No stream
-	 * stopping, no message swapping. If the previous conversation was
-	 * streaming, it continues in the background.
+	 * Changes which conversation the getters read from. If the previous
+	 * conversation was streaming, it continues in the background.
+	 *
+	 * For idle instances (not currently streaming), refreshes messages
+	 * from Y.Doc to ensure the view reflects the latest persisted state
+	 * (e.g., a response that completed in the background since the user
+	 * last viewed this conversation).
 	 */
 	function switchConversation(conversationId: string) {
 		activeConversationId = conversationId;
+
+		// Refresh idle instances from Y.Doc so the view is always current.
+		// Streaming instances keep their internal state (includes the
+		// in-progress assistant message that Y.Doc doesn't have yet).
+		const instance = chatInstances.get(conversationId);
+		if (instance && !instance.isLoading) {
+			instance.setMessages(loadMessagesForConversation(conversationId));
+		}
 	}
 
 	/**
@@ -311,8 +363,9 @@ function createAiChatState() {
 				.getAllValid()
 				.sort((a, b) => b.updatedAt - a.updatedAt);
 
-			if (remaining.length > 0) {
-				switchConversation(remaining[0]!.id);
+			const first = remaining[0];
+			if (first) {
+				switchConversation(first.id);
 			} else {
 				activeConversationId = null;
 			}
@@ -547,7 +600,102 @@ function createAiChatState() {
 			if (!activeConversationId) return;
 			ensureChat(activeConversationId).stop();
 		},
+
+		/**
+		 * Whether a specific conversation is currently streaming a response.
+		 *
+		 * Useful for showing background streaming indicators in the
+		 * conversation list — e.g., a pulsing dot next to conversations
+		 * that are generating responses while the user views another.
+		 *
+		 * Returns `false` for conversations that don't have a ChatClient
+		 * instance (never opened or evicted from cache).
+		 *
+		 * @example
+		 * ```svelte
+		 * {#if aiChatState.isStreaming(conv.id)}
+		 *   <span class="animate-pulse rounded-full bg-primary size-1.5" />
+		 * {/if}
+		 * ```
+		 */
+		isStreaming(conversationId: string): boolean {
+			return chatInstances.get(conversationId)?.isLoading ?? false;
+		},
 	};
 }
 
 export const aiChatState = createAiChatState();
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UIMessage Boundary (co-located from ui-message.ts)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Compile-time drift detection for TanStack AI message types.
+ *
+ * The workspace schema stores message parts as `unknown[]` because:
+ * 1. Parts are always produced by TanStack AI — never user-constructed
+ * 2. Runtime validation of guaranteed-correct data wastes CPU
+ * 3. Replicating 8 complex part types in arktype is fragile to upgrades
+ *
+ * Instead, we use compile-time assertions to catch drift when upgrading
+ * TanStack AI. If the MessagePart shape changes, these assertions fail
+ * and the build breaks — forcing us to update our understanding.
+ *
+ * @see https://tanstack.com/ai/latest — UIMessage / MessagePart types
+ * @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own — Expect / Equal
+ */
+
+// ── Type test utilities ───────────────────────────────────────────────
+// Rolling-your-own type testing from Total TypeScript.
+// @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own
+
+type Expect<T extends true> = T;
+type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <
+	T,
+>() => T extends Y ? 1 : 2
+	? true
+	: false;
+
+// ── Derive the actual MessagePart type from UIMessage ─────────────────
+// This is the type that gets stored in Y.Doc via onFinish/sendMessage.
+
+type TanStackMessagePart = UIMessage['parts'][number];
+
+// ── Compile-time drift detection ──────────────────────────────────────
+// If TanStack AI adds, removes, or renames a part type, TypeScript
+// reports a type error here — forcing us to update our understanding.
+
+type ExpectedPartTypes =
+	| 'text'
+	| 'image'
+	| 'audio'
+	| 'video'
+	| 'document'
+	| 'tool-call'
+	| 'tool-result'
+	| 'thinking';
+
+type _DriftCheck = Expect<
+	Equal<TanStackMessagePart['type'], ExpectedPartTypes>
+>;
+
+// ── Typed boundary: unknown[] → MessagePart[] ─────────────────────────
+
+/**
+ * Convert a persisted chat message to a TanStack AI UIMessage.
+ *
+ * This is the single boundary where `unknown[]` is cast to `MessagePart[]`.
+ * Safe because parts are always produced by TanStack AI and round-tripped
+ * through Y.Doc serialization (structuredClone-compatible, lossless for
+ * plain objects).
+ */
+function toUiMessage(message: ChatMessage): UIMessage {
+	return {
+		id: message.id,
+		role: message.role,
+		parts: message.parts as TanStackMessagePart[],
+		createdAt: new Date(message.createdAt),
+	};
+}

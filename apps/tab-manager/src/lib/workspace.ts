@@ -364,10 +364,10 @@ export const definition = defineWorkspace({
 		 * The `parts` field stores MessagePart[] as a native array (no JSON
 		 * serialization). Runtime validation is skipped for parts because
 		 * they are always produced by TanStack AI — compile-time drift
-		 * detection in `ui-message.ts` catches type mismatches on
+		 * detection in `chat.svelte.ts` catches type mismatches on
 		 * TanStack AI upgrades instead.
 		 *
-		 * @see {@link file://./ui-message.ts} — drift detection + toUiMessage boundary
+		 * @see {@link file://./state/chat.svelte.ts} — drift detection + toUiMessage boundary
 		 */
 		chatMessages: defineTable(
 			type({
