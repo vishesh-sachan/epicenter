@@ -7,6 +7,7 @@
 	import { Textarea } from '@epicenter/ui/textarea';
 	import SendIcon from '@lucide/svelte/icons/send';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
+	import RotateCcwIcon from '@lucide/svelte/icons/rotate-ccw';
 	import SquareIcon from '@lucide/svelte/icons/square';
 
 	let inputValue = $state('');
@@ -28,8 +29,13 @@
 			.join('');
 	}
 
-	const showLoadingDots = $derived(
-		aiChatState.isLoading && aiChatState.messages.at(-1)?.role === 'user',
+	/** Show loading dots when request is submitted but no tokens yet. */
+	const showLoadingDots = $derived(aiChatState.status === 'submitted');
+
+	/** Show regenerate button when idle and last message is from assistant. */
+	const showRegenerate = $derived(
+		aiChatState.status === 'ready' &&
+			aiChatState.messages.at(-1)?.role === 'assistant',
 	);
 </script>
 
@@ -57,6 +63,19 @@
 					<Chat.Bubble variant="received">
 						<Chat.BubbleMessage typing />
 					</Chat.Bubble>
+				{/if}
+				{#if showRegenerate}
+					<div class="flex justify-start px-2 py-1">
+						<Button
+							variant="ghost"
+							size="sm"
+							class="h-7 gap-1 text-xs text-muted-foreground"
+							onclick={() => aiChatState.reload()}
+						>
+							<RotateCcwIcon class="size-3" />
+							Regenerate
+						</Button>
+					</div>
 				{/if}
 			</Chat.List>
 		{/if}

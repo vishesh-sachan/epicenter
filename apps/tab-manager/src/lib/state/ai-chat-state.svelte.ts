@@ -75,8 +75,9 @@ function createAiChatState() {
 	let provider = $state('openai');
 	let model = $state('gpt-4o-mini');
 
-	// Default conversation ID for v1 (single conversation)
-	const conversationId = generateId();
+	// Stable conversation ID for v1 (single conversation).
+	// Using a fixed string so Y.Doc messages persist across app reloads.
+	const conversationId = 'default';
 
 	// ── Y.Doc Persistence: Read existing messages on init ──────────────
 
@@ -154,6 +155,17 @@ function createAiChatState() {
 			return chatInstance.error;
 		},
 
+		/**
+		 * Fine-grained connection status.
+		 *
+		 * More granular than `isLoading` — distinguishes between idle,
+		 * streaming, and other states. Useful for nuanced UI indicators
+		 * (e.g., "connecting…" vs "generating…").
+		 */
+		get status() {
+			return chatInstance.status;
+		},
+
 		/** The active conversation ID. */
 		get conversationId() {
 			return conversationId;
@@ -227,6 +239,39 @@ function createAiChatState() {
 			void chatInstance.sendMessage({ content, id: userMessageId });
 		},
 
+		/**
+		 * Regenerate the last assistant message.
+		 *
+		 * Deletes the old assistant message from Y.Doc, then calls TanStack AI's
+		 * `reload()` which removes all messages after the last user message from
+		 * memory and re-requests a response. The new response is persisted to
+		 * Y.Doc via the `onFinish` callback when streaming completes.
+		 *
+		 * The Y.Doc delete happens eagerly (before the network request) to keep
+		 * persistence and memory in sync. If the network request fails, the old
+		 * response is lost — acceptable since the user explicitly asked to
+		 * regenerate and can re-send.
+		 *
+		 * @example
+		 * ```typescript
+		 * // Typical flow:
+		 * // 1. Delete old assistant message from Y.Doc (sync)
+		 * // 2. TanStack removes it from memory (sync)
+		 * // 3. New response streams in (async)
+		 * // 4. onFinish writes new response to Y.Doc
+		 * aiChatState.reload();
+		 * ```
+		 */
+		reload() {
+			// Delete the old assistant message from Y.Doc before regenerating,
+			// so it does not resurface as a duplicate on next load.
+			const lastMessage = chatInstance.messages.at(-1);
+			if (lastMessage?.role === 'assistant') {
+				popupWorkspace.tables.chatMessages.delete({ id: lastMessage.id });
+			}
+			void chatInstance.reload();
+		},
+
 		/** Stop the current streaming response. */
 		stop() {
 			chatInstance.stop();
@@ -234,7 +279,7 @@ function createAiChatState() {
 
 		/** Clear all messages from the chat (does not delete from Y.Doc). */
 		clear() {
-			chatInstance.setMessages([]);
+			chatInstance.clear();
 		},
 	};
 }
