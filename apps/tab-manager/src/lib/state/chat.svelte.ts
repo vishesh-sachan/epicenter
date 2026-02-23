@@ -119,15 +119,24 @@ function createAiChatState() {
 		conversations = readAllConversations();
 	});
 
-	// Refresh message list when messages are added/updated (e.g. background completion)
-	popupWorkspace.tables.chatMessages.observe((ids) => {
-		for (const [id, instance] of chatInstances) {
+	// Refresh message list when messages are added/updated (e.g. background completion).
+	// Uses changedIds to resolve which conversations are affected — only those
+	// conversations get their messages refreshed instead of all cached instances.
+	popupWorkspace.tables.chatMessages.observe((changedIds) => {
+		const affectedConversations = new Set<string>();
+
+		for (const msgId of changedIds) {
+			const result = popupWorkspace.tables.chatMessages.get(msgId);
+			if (result.status !== 'valid') continue;
+			affectedConversations.add(result.row.conversationId);
+		}
+
+		for (const conversationId of affectedConversations) {
+			const instance = chatInstances.get(conversationId);
+			if (!instance) continue;
 			// Skip streaming instances — they are already reactive to their own stream
 			if (instance.isLoading) continue;
-
-			// If any updated message belongs to this conversation, refresh its messages
-			// (Simpler: just refresh if ANY message changed, since we skip streaming ones)
-			instance.setMessages(loadMessagesForConversation(id));
+			instance.setMessages(loadMessagesForConversation(conversationId));
 		}
 	});
 	// ── Active Conversation ───────────────────────────────────────────
@@ -626,7 +635,6 @@ function createAiChatState() {
 
 export const aiChatState = createAiChatState();
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // UIMessage Boundary (co-located from ui-message.ts)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -652,11 +660,10 @@ export const aiChatState = createAiChatState();
 // @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own
 
 type Expect<T extends true> = T;
-type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <
-	T,
->() => T extends Y ? 1 : 2
-	? true
-	: false;
+type Equal<X, Y> =
+	(<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
+		? true
+		: false;
 
 // ── Derive the actual MessagePart type from UIMessage ─────────────────
 // This is the type that gets stored in Y.Doc via onFinish/sendMessage.
