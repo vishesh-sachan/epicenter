@@ -25,11 +25,13 @@
 
 ### Step 3: Key Management on Hub
 
-- [x] 3.1 Create encrypted key store (AES-256-GCM, `packages/server/src/keys/store.ts`)
-- [x] 3.2 Create key management Elysia plugin (`packages/server/src/keys/plugin.ts`)
-- [x] 3.3 Extend `resolveApiKey()` to check server store (async, 3-step chain)
-- [x] 3.4 Wire key management into hub server
-- [x] 3.5 Tests pass (fixed 3 tests for async resolveApiKey)
+> **Reversed (2026-02-23)**: The encrypted key store was removed in `20260223T102844-remove-key-store-simplify-api-key-resolution.md`. The `keys/` directory, key management REST API, and async `resolveApiKey()` are all gone. API keys now resolve from env vars only. See that spec for rationale (security theater, redundant with env vars, ~400 lines of unnecessary code).
+
+- [x] ~~3.1 Create encrypted key store (AES-256-GCM, `packages/server/src/keys/store.ts`)~~ — Removed
+- [x] ~~3.2 Create key management Elysia plugin (`packages/server/src/keys/plugin.ts`)~~ — Removed
+- [x] ~~3.3 Extend `resolveApiKey()` to check server store (async, 3-step chain)~~ — Reverted to sync 2-step
+- [x] ~~3.4 Wire key management into hub server~~ — Removed
+- [x] 3.5 Tests pass (161/161)
 
 ### Step 4: OLLAMA_HOST Configuration
 
@@ -51,7 +53,7 @@
 ### Step 7: AI Proxy for OpenCode
 
 - [x] 7.1 Create AI proxy plugin (`packages/server/src/proxy/plugin.ts`)
-- [x] 7.2 Wire proxy into hub server (auto-mounted when keyStore is configured)
+- [x] 7.2 Wire proxy into hub server (mounted unconditionally — reads env vars, no keyStore dependency)
 - [x] 7.3 Tests pass
 
 ### Step 8: Server Discovery via Yjs Awareness
@@ -76,9 +78,9 @@
 - `packages/server/src/auth/plugin.ts` — Better Auth Elysia plugin
 - `packages/server/src/auth/local-auth.ts` — Hub-delegated session validator
 - `packages/server/src/auth/index.ts` — Auth exports
-- `packages/server/src/keys/store.ts` — Encrypted key store (AES-256-GCM)
-- `packages/server/src/keys/plugin.ts` — Key management REST endpoints
-- `packages/server/src/keys/index.ts` — Keys exports
+- ~~`packages/server/src/keys/store.ts` — Encrypted key store (AES-256-GCM)~~ — Removed (2026-02-23)
+- ~~`packages/server/src/keys/plugin.ts` — Key management REST endpoints~~ — Removed (2026-02-23)
+- ~~`packages/server/src/keys/index.ts` — Keys exports~~ — Removed (2026-02-23)
 - `packages/server/src/proxy/plugin.ts` — AI proxy for OpenCode
 - `packages/server/src/proxy/index.ts` — Proxy exports
 - `packages/server/src/discovery/awareness.ts` — Yjs Awareness-based discovery
@@ -91,8 +93,8 @@
 
 - `packages/server/src/index.ts` — Updated exports (all modules including opencode)
 - `packages/server/src/start.ts` — Added `--mode hub|local` flag
-- `packages/server/src/ai/adapters.ts` — Async resolveApiKey, KeyStore support, removed Ollama
-- `packages/server/src/ai/plugin.ts` — KeyStore config, async key resolution
+- `packages/server/src/ai/adapters.ts` — Sync resolveApiKey (header → env var), removed Ollama. KeyStore removed (2026-02-23).
+- `packages/server/src/ai/plugin.ts` — No config needed, sync key resolution. KeyStore removed (2026-02-23).
 - `packages/server/src/ai/plugin.test.ts` — Fixed 3 tests for async resolveApiKey
 - `packages/server/package.json` — Added better-auth, @elysiajs/cors, new export paths (incl. ./opencode)
 - `apps/tab-manager/src/lib/state/settings.ts` — Added hubServerUrl setting

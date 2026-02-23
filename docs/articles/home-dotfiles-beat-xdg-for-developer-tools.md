@@ -45,8 +45,6 @@ Epicenter has a wrinkle: it needs both project-local storage and global server c
 ```
 ~/.epicenter/              ← global server config
   └── server/
-      ├── keys.db          ← encrypted API key store
-      ├── master.key       ← AES-256 encryption key
       └── config.json      ← allowed origins, app tokens
 
 <any-project>/.epicenter/  ← project-local workspace data
