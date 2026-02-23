@@ -1,24 +1,18 @@
 /**
  * Reactive AI chat state with multi-conversation support.
  *
- * Manages multiple AI conversations backed by Y.Doc persistence.
- * Uses a single TanStack AI `createChat()` instance with `setMessages()`
- * swapping for conversation switching — no instance recreation.
+ * Uses one TanStack AI `createChat()` instance per conversation, stored
+ * in a Map. Each instance owns its own stream, messages, and lifecycle.
+ * Switching conversations just changes which instance the getters read
+ * from — no `setMessages()` swapping, no background stream tracking.
+ *
+ * Background streaming is free: when the user switches away from a
+ * streaming conversation, its ChatClient keeps streaming. The completed
+ * response appears in Y.Doc via that instance's `onFinish`. Multiple
+ * conversations can stream concurrently.
  *
  * Provider and model are stored per-conversation in the `conversations`
  * table, surviving reloads and syncing across devices.
- *
- * Background streaming: When a user switches conversations mid-stream,
- * the generation finishes silently in the background. The completed
- * response appears in Y.Doc when the user switches back. This avoids
- * lost responses and wasted API spend.
- *
- * Reactivity model:
- * - `conversations` table observer → wholesale-replace `$state` array
- * - `activeConversation` is `$derived` from active ID + conversations
- * - `chatInstance.messages` provides the reactive message list
- * - `streamingConversationId` tracks what ChatClient is streaming for
- *   (decoupled from `activeConversationId` which tracks the user's view)
  *
  * @example
  * ```svelte
@@ -39,13 +33,13 @@
  */
 
 import { generateId } from '@epicenter/hq';
-import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte';
 import { ANTHROPIC_MODELS } from '@tanstack/ai-anthropic';
 import { GeminiTextModels } from '@tanstack/ai-gemini';
 import { GROK_CHAT_MODELS } from '@tanstack/ai-grok';
 import { OPENAI_CHAT_MODELS } from '@tanstack/ai-openai';
-import { toUiMessage } from '$lib/ui-message';
+import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte';
 import { getServerUrl } from '$lib/state/settings';
+import { toUiMessage } from '$lib/ui-message';
 import type { Conversation } from '$lib/workspace';
 import { popupWorkspace } from '$lib/workspace-popup';
 
@@ -143,42 +137,6 @@ function createAiChatState() {
 		conversations.find((c) => c.id === activeConversationId) ?? null,
 	);
 
-	// ── Background Streaming ──────────────────────────────────────────
-
-	/**
-	 * Tracks which conversation the ChatClient is currently streaming for.
-	 *
-	 * Decoupled from `activeConversationId` (what the user is viewing) to
-	 * allow streams to finish in the background when switching conversations.
-	 * Null when idle (no active stream).
-	 */
-	let streamingConversationId = $state<string | null>(null);
-
-	/**
-	 * Whether the ChatClient is streaming for a conversation the user isn't viewing.
-	 *
-	 * Used to gate getters (messages, isLoading, error, status) so the user's
-	 * current view isn't polluted by a background stream's state.
-	 */
-	const isBackgroundStreaming = $derived(
-		streamingConversationId !== null &&
-			streamingConversationId !== activeConversationId,
-	);
-
-	/**
-	 * Realign ChatClient to the currently viewed conversation.
-	 *
-	 * Called after a background stream finishes or is stopped, so the
-	 * ChatClient's internal messages match what the user is viewing.
-	 */
-	function realignChatClient() {
-		if (activeConversationId) {
-			chatInstance.setMessages(
-				loadMessagesForConversation(activeConversationId),
-			);
-		}
-	}
-
 	// ── Helpers ───────────────────────────────────────────────────────
 
 	/**
@@ -198,74 +156,79 @@ function createAiChatState() {
 			.sort((a, b) => a.createdAt - b.createdAt)
 			.map(toUiMessage);
 
-	// ── TanStack AI Chat Instance ─────────────────────────────────────
+	// ── Per-Conversation ChatClient Instances ─────────────────────────
 
 	/**
-	 * Single chat instance — reused across conversation switches.
+	 * Map of conversation ID → ChatClient instance.
 	 *
-	 * - `connection`: SSE adapter. The async options callback reads from
-	 *   reactive state closures, so it always sends the current
-	 *   conversation's provider/model without instance recreation.
-	 * - `initialMessages`: Seeded from the most recent conversation (if any).
-	 * - `onFinish`: Persists the completed assistant message to Y.Doc,
-	 *   using `streamingConversationId` (not `activeConversationId`) so
-	 *   background-completed responses go to the right conversation.
+	 * Each conversation gets its own `createChat()` instance with baked-in
+	 * `conversationId` in the connection callback and `onFinish`. This means:
+	 * - Background streaming is free (each instance owns its stream)
+	 * - `onFinish` always persists to the correct conversation
+	 * - No `setMessages()` swapping needed on conversation switch
+	 * - Multiple conversations can stream concurrently
 	 */
-	const chatInstance = createChat({
-		initialMessages: activeConversationId
-			? loadMessagesForConversation(activeConversationId)
-			: [],
-		connection: fetchServerSentEvents(
-			() => `${serverUrlCache}/ai/chat`,
-			async () => {
-				const conv = getActiveConversation();
-				return {
-					body: {
-						provider: conv?.provider ?? DEFAULT_PROVIDER,
-						model: conv?.model ?? DEFAULT_MODEL,
-						conversationId: activeConversationId ?? undefined,
-						systemPrompt: conv?.systemPrompt ?? undefined,
-					},
-				};
-			},
-		),
-		onFinish: (message) => {
-			const convId = streamingConversationId;
-			if (!convId) return;
+	const chatInstances = new Map<string, ReturnType<typeof createChat>>();
 
-			const wasBackground =
-				streamingConversationId !== activeConversationId;
+	/**
+	 * Get or create a ChatClient for a conversation.
+	 *
+	 * Lazily creates instances on first access. The connection callback
+	 * reads the conversation's provider/model at request time (not creation
+	 * time) so provider/model changes take effect on the next send.
+	 *
+	 * @example
+	 * ```typescript
+	 * const chat = ensureChat('conv-123');
+	 * chat.sendMessage({ content: 'Hello' });
+	 * ```
+	 */
+	function ensureChat(conversationId: string): ReturnType<typeof createChat> {
+		const existing = chatInstances.get(conversationId);
+		if (existing) return existing;
 
-			// Persist assistant message to the conversation that was streaming
-			popupWorkspace.tables.chatMessages.set({
-				id: message.id,
-				conversationId: convId,
-				role: 'assistant',
-				parts: message.parts,
-				createdAt: message.createdAt?.getTime() ?? Date.now(),
-				_v: 1,
-			});
-
-			// Touch conversation's updatedAt so it floats to top of list
-			const conv = conversations.find((c) => c.id === convId);
-			if (conv) {
-				popupWorkspace.tables.conversations.set({
-					...conv,
-					updatedAt: Date.now(),
+		const instance = createChat({
+			initialMessages: loadMessagesForConversation(conversationId),
+			connection: fetchServerSentEvents(
+				() => `${serverUrlCache}/ai/chat`,
+				async () => {
+					// Read conversation at request time for fresh provider/model
+					const conv = conversations.find((c) => c.id === conversationId);
+					return {
+						body: {
+							provider: conv?.provider ?? DEFAULT_PROVIDER,
+							model: conv?.model ?? DEFAULT_MODEL,
+							conversationId,
+							systemPrompt: conv?.systemPrompt ?? undefined,
+						},
+					};
+				},
+			),
+			onFinish: (message) => {
+				// conversationId is baked in — can never target the wrong conversation
+				popupWorkspace.tables.chatMessages.set({
+					id: message.id,
+					conversationId,
+					role: 'assistant',
+					parts: message.parts,
+					createdAt: message.createdAt?.getTime() ?? Date.now(),
+					_v: 1,
 				});
-			}
 
-			// Clear streaming state
-			streamingConversationId = null;
+				// Touch conversation's updatedAt so it floats to top of list
+				const conv = conversations.find((c) => c.id === conversationId);
+				if (conv) {
+					popupWorkspace.tables.conversations.set({
+						...conv,
+						updatedAt: Date.now(),
+					});
+				}
+			},
+		});
 
-			// Realign ChatClient to the currently viewed conversation.
-			// Without this, ChatClient would still hold the background
-			// conversation's messages after the stream finishes.
-			if (wasBackground) {
-				realignChatClient();
-			}
-		},
-	});
+		chatInstances.set(conversationId, instance);
+		return instance;
+	}
 
 	// ── Conversation CRUD ─────────────────────────────────────────────
 
@@ -307,40 +270,28 @@ function createAiChatState() {
 	/**
 	 * Switch to a different conversation.
 	 *
-	 * If a stream is active, it continues in the background — only the
-	 * user's view changes. If idle, stops any pending state and swaps
-	 * the ChatClient's messages to the target conversation's history.
+	 * Just changes which conversation the getters read from. No stream
+	 * stopping, no message swapping. If the previous conversation was
+	 * streaming, it continues in the background.
 	 */
 	function switchConversation(conversationId: string) {
-		if (streamingConversationId !== null) {
-			// Streaming — let it continue in background, just change the view.
-			// The messages getter will route to loadMessagesForConversation()
-			// for the new conversation, or reconnect to the live stream if
-			// the user switches back to the streaming conversation.
-			activeConversationId = conversationId;
-		} else {
-			// Idle — normal switch with ChatClient realignment
-			chatInstance.stop();
-			activeConversationId = conversationId;
-			chatInstance.setMessages(
-				loadMessagesForConversation(conversationId),
-			);
-		}
+		activeConversationId = conversationId;
 	}
 
 	/**
 	 * Delete a conversation and all its messages.
 	 *
 	 * Uses a Y.Doc batch so the observer fires once (not N+1 times).
-	 * If the deleted conversation was active, switches to the most
-	 * recent remaining one or clears state if none remain.
-	 * If the deleted conversation is background-streaming, stops the stream.
+	 * Stops any active stream for the conversation and removes its
+	 * ChatClient instance. If the deleted conversation was active,
+	 * switches to the most recent remaining one.
 	 */
 	function deleteConversation(conversationId: string) {
-		// Stop background stream if we're deleting the conversation it targets
-		if (streamingConversationId === conversationId) {
-			chatInstance.stop();
-			streamingConversationId = null;
+		// Stop and discard the ChatClient instance
+		const instance = chatInstances.get(conversationId);
+		if (instance) {
+			instance.stop();
+			chatInstances.delete(conversationId);
 		}
 
 		const messages = popupWorkspace.tables.chatMessages
@@ -364,7 +315,6 @@ function createAiChatState() {
 				switchConversation(remaining[0]!.id);
 			} else {
 				activeConversationId = null;
-				chatInstance.clear();
 			}
 		}
 	}
@@ -427,55 +377,46 @@ function createAiChatState() {
 		/**
 		 * The current conversation's messages (reactive).
 		 *
-		 * Routes between two sources:
-		 * - Live stream / idle: `chatInstance.messages` (ChatClient owns the data)
-		 * - Background streaming: `loadMessagesForConversation()` (Y.Doc snapshot
-		 *   for the viewed conversation, since ChatClient is busy with another)
+		 * Reads from the active conversation's ChatClient instance.
+		 * When no conversation is active, returns an empty array.
 		 */
 		get messages() {
-			if (isBackgroundStreaming) {
-				return activeConversationId
-					? loadMessagesForConversation(activeConversationId)
-					: [];
-			}
-			return chatInstance.messages;
+			if (!activeConversationId) return [];
+			return ensureChat(activeConversationId).messages;
 		},
 
 		/**
-		 * Whether a response is currently streaming.
+		 * Whether a response is currently streaming for the active conversation.
 		 *
-		 * Returns `false` when streaming is happening in the background,
-		 * since the user's current view isn't loading.
+		 * Only reflects the active conversation's state — other conversations
+		 * may be streaming in the background without affecting this.
 		 */
 		get isLoading() {
-			if (isBackgroundStreaming) return false;
-			return chatInstance.isLoading;
+			if (!activeConversationId) return false;
+			return ensureChat(activeConversationId).isLoading;
 		},
 
 		/**
-		 * The latest error from the chat connection, if any.
+		 * The latest error from the active conversation's stream, if any.
 		 *
-		 * Suppressed during background streaming — errors from a stream
-		 * the user isn't viewing shouldn't interrupt their current view.
+		 * Scoped to the active conversation — background stream errors
+		 * don't leak into the current view.
 		 */
 		get error() {
-			if (isBackgroundStreaming) return null;
-			return chatInstance.error;
+			if (!activeConversationId) return null;
+			return ensureChat(activeConversationId).error;
 		},
 
 		/**
-		 * Fine-grained connection status.
+		 * Fine-grained connection status for the active conversation.
 		 *
 		 * More granular than `isLoading` — distinguishes between idle,
 		 * streaming, and other states. Useful for nuanced UI indicators
 		 * (e.g., "connecting..." vs "generating...").
-		 *
-		 * Returns `'ready'` during background streaming since the user's
-		 * current view is idle.
 		 */
 		get status() {
-			if (isBackgroundStreaming) return 'ready' as const;
-			return chatInstance.status;
+			if (!activeConversationId) return 'ready' as const;
+			return ensureChat(activeConversationId).status;
 		},
 
 		// ── Conversation Management ───────────────────────────────────
@@ -544,24 +485,11 @@ function createAiChatState() {
 		 * If no conversation is active, one is auto-created with the
 		 * message text as its title (truncated to 50 characters).
 		 *
-		 * If a background stream is running (user switched away from a
-		 * streaming conversation), it is stopped before sending. The
-		 * partial response is discarded (matches current stop behavior).
-		 *
 		 * Writes the user message to Y.Doc before sending, and persists
 		 * the assistant response via `onFinish`.
 		 */
 		sendMessage(content: string) {
 			if (!content.trim()) return;
-
-			// If background streaming, stop it and realign ChatClient
-			// so it has the correct messages for the conversation we're
-			// about to send in.
-			if (isBackgroundStreaming) {
-				chatInstance.stop();
-				streamingConversationId = null;
-				realignChatClient();
-			}
 
 			// Auto-create conversation if none active
 			let convId = activeConversationId;
@@ -570,9 +498,6 @@ function createAiChatState() {
 					title: content.trim().slice(0, 50),
 				});
 			}
-
-			// Track which conversation this stream belongs to
-			streamingConversationId = convId;
 
 			const userMessageId = generateId();
 
@@ -595,8 +520,8 @@ function createAiChatState() {
 				});
 			}
 
-			// Send via TanStack AI (triggers SSE streaming)
-			void chatInstance.sendMessage({ content, id: userMessageId });
+			// Send via this conversation's ChatClient (triggers SSE streaming)
+			void ensureChat(convId).sendMessage({ content, id: userMessageId });
 		},
 
 		/**
@@ -605,42 +530,22 @@ function createAiChatState() {
 		 * Deletes the old assistant message from Y.Doc, then calls
 		 * `reload()` which re-requests a response from the server.
 		 * The new response is persisted via `onFinish`.
-		 *
-		 * Blocked when ChatClient is streaming for a different conversation
-		 * (background streaming) since the ChatClient can't serve two streams.
 		 */
 		reload() {
-			// Can't reload when ChatClient is busy with another conversation
-			if (isBackgroundStreaming) return;
+			if (!activeConversationId) return;
 
-			const lastMessage = chatInstance.messages.at(-1);
+			const chat = ensureChat(activeConversationId);
+			const lastMessage = chat.messages.at(-1);
 			if (lastMessage?.role === 'assistant') {
 				popupWorkspace.tables.chatMessages.delete({ id: lastMessage.id });
 			}
-
-			// Track streaming for the active conversation
-			if (activeConversationId) {
-				streamingConversationId = activeConversationId;
-			}
-
-			void chatInstance.reload();
+			void chat.reload();
 		},
 
-		/**
-		 * Stop the current streaming response.
-		 *
-		 * Works whether the stream is foreground or background. If stopping
-		 * a background stream, realigns the ChatClient to the currently
-		 * viewed conversation afterward.
-		 */
+		/** Stop the active conversation's streaming response. */
 		stop() {
-			const wasBackground = isBackgroundStreaming;
-			chatInstance.stop();
-			streamingConversationId = null;
-
-			if (wasBackground) {
-				realignChatClient();
-			}
+			if (!activeConversationId) return;
+			ensureChat(activeConversationId).stop();
 		},
 	};
 }
