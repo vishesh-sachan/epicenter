@@ -1,10 +1,10 @@
 export {
-	createAuthPlugin,
-	createBetterAuth,
-	type AuthPluginConfig,
-} from './plugin';
-export {
 	createHubSessionValidator,
 	type HubSessionValidatorConfig,
 	type SessionValidationResult,
-} from './sidecar-auth';
+} from './local-auth';
+export {
+	type AuthPluginConfig,
+	createAuthPlugin,
+	createBetterAuth,
+} from './plugin';

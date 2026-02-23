@@ -63,7 +63,7 @@ export type AuthPluginConfig = {
  * Create the Better Auth instance from config.
  *
  * Separated from the Elysia plugin so callers can access
- * `auth.api.getSession()` for token validation (e.g., sidecar → hub).
+ * `auth.api.getSession()` for token validation (e.g., local server → hub).
  *
  * @example
  * ```typescript
@@ -137,20 +137,18 @@ export function createBetterAuth(config: AuthPluginConfig) {
 export function createAuthPlugin(config: AuthPluginConfig) {
 	const auth = createBetterAuth(config);
 
-	return new Elysia({ name: 'better-auth' })
-		.mount(auth.handler)
-		.macro({
-			auth: {
-				async resolve({ status, request: { headers } }) {
-					const session = await auth.api.getSession({ headers });
+	return new Elysia({ name: 'better-auth' }).mount(auth.handler).macro({
+		auth: {
+			async resolve({ status, request: { headers } }) {
+				const session = await auth.api.getSession({ headers });
 
-					if (!session) return status(401);
+				if (!session) return status(401);
 
-					return {
-						user: session.user,
-						session: session.session,
-					};
-				},
+				return {
+					user: session.user,
+					session: session.session,
+				};
 			},
-		});
+		},
+	});
 }

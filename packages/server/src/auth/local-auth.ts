@@ -1,11 +1,11 @@
 /**
- * Hub-delegated session validation for the local sidecar.
+ * Hub-delegated session validation for the local server.
  *
- * The sidecar doesn't run Better Auth — it validates session tokens
+ * The local server doesn't run Better Auth — it validates session tokens
  * by calling the hub's `GET /auth/get-session` endpoint and caching
  * the result with a configurable TTL.
  *
- * This keeps the sidecar stateless with respect to auth while still
+ * This keeps the local server stateless with respect to auth while still
  * rejecting unauthorized requests. The cache prevents hitting the hub
  * on every request — acceptable for the threat model (local process
  * isolation, not internet-facing auth).
@@ -38,7 +38,7 @@ export type HubSessionValidatorConfig = {
 	/**
 	 * The hub server URL (e.g., 'https://hub.example.com' or 'http://localhost:3913').
 	 *
-	 * The sidecar calls `{hubUrl}/auth/get-session` to validate tokens.
+	 * The local server calls `{hubUrl}/auth/get-session` to validate tokens.
 	 */
 	hubUrl: string;
 
@@ -49,17 +49,19 @@ export type HubSessionValidatorConfig = {
 	 * the hub on every request. Default: 5 minutes (300000ms).
 	 *
 	 * The threat model is local process isolation — a 5-minute
-	 * stale window is acceptable for a localhost sidecar.
+	 * stale window is acceptable for a localhost server.
 	 */
 	cacheTtlMs?: number;
 };
 
-export type SessionValidationResult = {
-	valid: true;
-	user: { id: string; email: string; name?: string };
-} | {
-	valid: false;
-};
+export type SessionValidationResult =
+	| {
+			valid: true;
+			user: { id: string; email: string; name?: string };
+	  }
+	| {
+			valid: false;
+	  };
 
 /**
  * Create a session validator that delegates to the hub server.

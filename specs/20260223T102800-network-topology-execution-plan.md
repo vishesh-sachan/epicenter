@@ -7,12 +7,12 @@
 
 ## Execution Steps
 
-### Step 1: Hub & Sidecar Server Composition Split
+### Step 1: Hub & Local Server Composition Split
 
 - [x] 1.1 Create `createHubServer()` with sync + AI + OpenAPI (`packages/server/src/hub.ts`)
-- [x] 1.2 Create `createSidecarServer()` with sync + workspace + OpenAPI, no AI (`packages/server/src/sidecar.ts`)
+- [x] 1.2 Create `createLocalServer()` with sync + workspace + OpenAPI, no AI (`packages/server/src/local.ts`)
 - [x] 1.3 Update exports in `index.ts`
-- [x] 1.4 Update `start.ts` to support `--mode hub|sidecar` flag
+- [x] 1.4 Update `start.ts` to support `--mode hub|local` flag
 - [x] 1.5 Tests pass (161/162, 1 pre-existing failure)
 
 ### Step 2: Better Auth Plugin
@@ -35,10 +35,10 @@
 
 - [x] 4.1 Update Ollama adapter factory to use `OLLAMA_HOST` env var (done in Step 3)
 
-### Step 5: Sidecar Auth Boundary
+### Step 5: Local Server Auth Boundary
 
-- [x] 5.1 Create hub-delegated session validator with TTL cache (`packages/server/src/auth/sidecar-auth.ts`)
-- [x] 5.2 Wire sidecar auth into `createSidecarServer()` config (`hubUrl` option)
+- [x] 5.1 Create hub-delegated session validator with TTL cache (`packages/server/src/auth/local-auth.ts`)
+- [x] 5.2 Wire local auth into `createLocalServer()` config (`hubUrl` option)
 - [x] 5.3 Add CORS configuration via `@elysiajs/cors` (allowedOrigins)
 - [x] 5.4 Tests pass
 
@@ -58,7 +58,7 @@
 
 - [x] 8.1 Define discovery room and Awareness state types (`packages/server/src/discovery/awareness.ts`)
 - [x] 8.2 Discovery room (`_epicenter_discovery`) works via existing sync layer (no special wiring needed)
-- [x] 8.3 Sidecar presence helpers: `createSidecarPresence()`, `createClientPresence()`
+- [x] 8.3 Local presence helpers: `createLocalPresence()`, `createClientPresence()`
 - [x] 8.4 Device discovery helper: `getDiscoveredDevices()` with deduplication
 
 ### Step 9: OpenCode Integration
@@ -72,9 +72,9 @@
 ## Files Created
 
 - `packages/server/src/hub.ts` — Hub server composition
-- `packages/server/src/sidecar.ts` — Sidecar server composition
+- `packages/server/src/local.ts` — Local server composition
 - `packages/server/src/auth/plugin.ts` — Better Auth Elysia plugin
-- `packages/server/src/auth/sidecar-auth.ts` — Hub-delegated session validator
+- `packages/server/src/auth/local-auth.ts` — Hub-delegated session validator
 - `packages/server/src/auth/index.ts` — Auth exports
 - `packages/server/src/keys/store.ts` — Encrypted key store (AES-256-GCM)
 - `packages/server/src/keys/plugin.ts` — Key management REST endpoints
@@ -90,7 +90,7 @@
 ## Files Modified
 
 - `packages/server/src/index.ts` — Updated exports (all modules including opencode)
-- `packages/server/src/start.ts` — Added `--mode hub|sidecar` flag
+- `packages/server/src/start.ts` — Added `--mode hub|local` flag
 - `packages/server/src/ai/adapters.ts` — Async resolveApiKey, KeyStore support, removed Ollama
 - `packages/server/src/ai/plugin.ts` — KeyStore config, async key resolution
 - `packages/server/src/ai/plugin.test.ts` — Fixed 3 tests for async resolveApiKey
@@ -105,10 +105,10 @@ All execution steps complete (Steps 1-9). Two items deferred to future work:
 - **Tauri lifecycle wiring**: The `createOpenCodeProcess()` API is ready, but wiring it to Tauri's app startup/shutdown needs Rust changes in `apps/epicenter/src-tauri/src/lib.rs`.
 - **Plugin list sync**: Needs an `opencode_plugins` table in the Yjs workspace schema, which doesn't exist yet.
 
-The server package now has a full hub/sidecar split with:
+The server package now has a full hub/local split with:
 
 - Hub: sync + AI + auth (Better Auth) + key management + AI proxy + discovery
-- Sidecar: sync + workspace + CORS + session validation against hub
+- Local: sync + workspace + CORS + session validation against hub
 - OpenCode: config generator + XDG-isolated process manager with lifecycle API
 - Client: hub URL setting + AI chat routing through hub
 

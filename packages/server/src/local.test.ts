@@ -6,9 +6,10 @@ import {
 	defineWorkspace,
 } from '@epicenter/hq';
 import { type } from 'arktype';
-import { createServer, DEFAULT_PORT } from './server';
+import { createLocalServer } from './local';
+import { DEFAULT_PORT } from './server';
 
-describe('createServer', () => {
+describe('createLocalServer', () => {
 	test('DEFAULT_PORT is 3913', () => {
 		expect(DEFAULT_PORT).toBe(3913);
 	});
@@ -23,7 +24,7 @@ describe('createServer', () => {
 			}),
 		);
 
-		const server = createServer({ clients: [client] });
+		const server = createLocalServer({ clients: [client] });
 
 		try {
 			const response = await server.app.handle(new Request('http://test/'));
@@ -31,8 +32,9 @@ describe('createServer', () => {
 
 			expect(response.status).toBe(200);
 			expect(body).toEqual({
-				name: 'Epicenter API',
+				name: 'Epicenter Local',
 				version: '1.0.0',
+				mode: 'local',
 				workspaces: ['discovery-workspace'],
 				actions: [],
 			});
@@ -53,7 +55,7 @@ describe('createServer', () => {
 
 		client.tables.posts.set({ id: 'post-1', title: 'Hello', _v: 1 });
 
-		const server = createServer({ clients: [client] });
+		const server = createLocalServer({ clients: [client] });
 
 		try {
 			const response = await server.app.handle(
@@ -89,7 +91,7 @@ describe('createServer', () => {
 		blogClient.tables.posts.set({ id: 'post-1', title: 'Blog Post', _v: 1 });
 		docsClient.tables.pages.set({ id: 'page-1', title: 'Docs Page', _v: 1 });
 
-		const server = createServer({ clients: [blogClient, docsClient] });
+		const server = createLocalServer({ clients: [blogClient, docsClient] });
 
 		try {
 			const discoveryResponse = await server.app.handle(
@@ -133,7 +135,7 @@ describe('createServer', () => {
 			},
 		});
 
-		const server = createServer({ clients: [clientWithActions] });
+		const server = createLocalServer({ clients: [clientWithActions] });
 
 		try {
 			const response = await server.app.handle(new Request('http://test/'));
@@ -157,7 +159,7 @@ describe('createServer', () => {
 			}),
 		);
 
-		const server = createServer({ clients: [client], port: 0 });
+		const server = createLocalServer({ clients: [client], port: 0 });
 		const runningServer = server.start();
 		let didDestroyWorkspace = false;
 		client.ydoc.on('destroy', () => {

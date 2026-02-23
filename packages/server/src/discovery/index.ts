@@ -1,9 +1,9 @@
 export {
 	createClientPresence,
-	createSidecarPresence,
-	DISCOVERY_ROOM_ID,
-	getDiscoveredDevices,
+	createLocalPresence,
 	type DeviceCapability,
 	type DeviceType,
+	DISCOVERY_ROOM_ID,
 	type DiscoveryState,
+	getDiscoveredDevices,
 } from './awareness';

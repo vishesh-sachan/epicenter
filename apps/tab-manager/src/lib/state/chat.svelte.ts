@@ -76,7 +76,7 @@ const AVAILABLE_PROVIDERS = Object.keys(PROVIDER_MODELS) as Provider[];
  *
  * `fetchServerSentEvents` requires a synchronous URL getter (`string | (() => string)`).
  * We initialize with the default and update asynchronously from settings.
- * AI chat routes through the hub server (auth + AI + keys), not the local sidecar.
+ * AI chat routes through the hub server (auth + AI + keys), not the local server.
  */
 let hubUrlCache = 'http://127.0.0.1:3913';
 void getHubServerUrl().then((url) => {

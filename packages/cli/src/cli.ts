@@ -1,4 +1,4 @@
-import { createServer } from '@epicenter/server';
+import { createLocalServer } from '@epicenter/server';
 import yargs from 'yargs';
 import { buildActionCommands } from './command-builder';
 import { buildKvCommands } from './commands/kv-commands';
@@ -23,7 +23,7 @@ export function createCLI(client?: AnyWorkspaceClient) {
 					default: 3913,
 				}),
 			async (argv) => {
-				const server = createServer({
+				const server = createLocalServer({
 					clients: client ? [client] : [],
 					port: argv.port,
 				});

@@ -7,10 +7,10 @@ export {
 	createHubSessionValidator,
 	type HubSessionValidatorConfig,
 	type SessionValidationResult,
-} from './auth/sidecar-auth';
+} from './auth/local-auth';
 export {
 	createClientPresence,
-	createSidecarPresence,
+	createLocalPresence,
 	type DeviceCapability,
 	type DeviceType,
 	DISCOVERY_ROOM_ID,
@@ -23,6 +23,7 @@ export {
 	createKeyStore,
 	type KeyStore,
 } from './keys';
+export { createLocalServer, type LocalServerConfig } from './local';
 export {
 	createOpenCodeProcess,
 	type GenerateConfigOptions,
@@ -33,6 +34,5 @@ export {
 	type OpenCodeProcessConfig,
 } from './opencode';
 export { createProxyPlugin, type ProxyPluginConfig } from './proxy';
-export { createServer, DEFAULT_PORT, type ServerConfig } from './server';
-export { createSidecarServer, type SidecarServerConfig } from './sidecar';
+export { DEFAULT_PORT } from './server';
 export { createWorkspacePlugin } from './workspace';

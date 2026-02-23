@@ -2,7 +2,7 @@
  * Server URL settings for the tab manager extension.
  *
  * Two URLs are maintained:
- * - **Server URL** (`serverUrl`): The local sidecar server for sync and workspace
+ * - **Server URL** (`serverUrl`): The local server for sync and workspace
  *   operations. Defaults to `http://127.0.0.1:3913`.
  * - **Hub Server URL** (`hubServerUrl`): The hub server for AI, auth, and key
  *   management. Defaults to the same address — in single-server setups both
@@ -11,7 +11,7 @@
  *
  * @example
  * ```typescript
- * const sidecar = await getServerUrl(); // 'http://127.0.0.1:3913'
+ * const local = await getServerUrl(); // 'http://127.0.0.1:3913'
  * const hub = await getHubServerUrl(); // 'http://127.0.0.1:3913' (or custom)
  * await setHubServerUrl('https://hub.epicenter.so');
  * ```
@@ -22,9 +22,9 @@ import { storage } from '@wxt-dev/storage';
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:3913';
 
 /**
- * Sidecar server URL storage item.
+ * Local server URL storage item.
  *
- * Points to the local sidecar for sync and workspace operations.
+ * Points to the local server for sync and workspace operations.
  * Defaults to localhost — the standard self-hosted server address.
  * Persisted in chrome.storage.local so it survives browser restarts.
  */
@@ -37,7 +37,7 @@ const serverUrlItem = storage.defineItem<string>('local:serverUrl', {
  *
  * Points to the hub server for AI completions, authentication, and
  * API key management. Defaults to the same localhost address as the
- * sidecar — in single-server setups both URLs are identical.
+ * local server — in single-server setups both URLs are identical.
  *
  * For multi-server deployments (e.g., Epicenter Cloud), set this to
  * the hub's public address.
@@ -47,7 +47,7 @@ const hubServerUrlItem = storage.defineItem<string>('local:hubServerUrl', {
 });
 
 /**
- * Get the current sidecar server URL.
+ * Get the current local server URL.
  *
  * Returns the user-configured URL, or the default localhost address
  * if no custom URL has been set. Used for sync and workspace operations.
@@ -57,7 +57,7 @@ export async function getServerUrl(): Promise<string> {
 }
 
 /**
- * Set the sidecar server URL.
+ * Set the local server URL.
  *
  * Persisted to chrome.storage.local. Takes effect on the next
  * request (not retroactively on active connections).

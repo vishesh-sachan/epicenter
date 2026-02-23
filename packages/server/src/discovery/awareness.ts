@@ -10,11 +10,11 @@
  *
  * @example
  * ```typescript
- * // On sidecar boot — broadcast presence to discovery room
+ * // On local server boot — broadcast presence to discovery room
  * import { WebsocketProvider } from '@epicenter/sync';
  *
  * const provider = new WebsocketProvider(hubUrl, DISCOVERY_ROOM_ID, doc);
- * provider.awareness.setLocalState(createSidecarPresence({
+ * provider.awareness.setLocalState(createLocalPresence({
  *   url: 'http://192.168.1.100:3913',
  *   deviceId: 'device_abc123',
  *   hostname: "Braden's MacBook Pro",
@@ -39,16 +39,16 @@ export const DISCOVERY_ROOM_ID = '_epicenter_discovery';
 /**
  * Device types in the discovery network.
  *
- * - `sidecar` — Desktop running a Bun sidecar (sync + workspace)
+ * - `local` — Desktop running a local server (sync + workspace)
  * - `client` — Browser extension, mobile app, or other thin client
  */
-export type DeviceType = 'sidecar' | 'client';
+export type DeviceType = 'local' | 'client';
 
 /**
  * Capabilities a device can advertise.
  *
  * Used by other devices to understand what each participant offers.
- * Sidecars typically advertise `sync` and `workspace`.
+ * Local servers typically advertise `sync` and `workspace`.
  * Clients advertise nothing (they consume, not provide).
  */
 export type DeviceCapability = 'sync' | 'workspace';
@@ -63,11 +63,11 @@ export type DeviceCapability = 'sync' | 'workspace';
  * protocol automatically removes its state after ~30 seconds.
  */
 export type DiscoveryState = {
-	/** Device type (sidecar or client). */
+	/** Device type (local or client). */
 	type: DeviceType;
 
 	/**
-	 * Reachable URL for this device's server (sidecars only).
+	 * Reachable URL for this device's server (local servers only).
 	 *
 	 * Other devices can use this to connect directly for fast local sync.
 	 * Example: `http://192.168.1.100:3913`
@@ -95,13 +95,13 @@ export type DiscoveryState = {
 };
 
 /**
- * Create an Awareness state for a sidecar device.
+ * Create an Awareness state for a local server device.
  *
- * Used when the sidecar boots and connects to the hub's discovery room.
+ * Used when the local server boots and connects to the hub's discovery room.
  *
  * @example
  * ```typescript
- * const state = createSidecarPresence({
+ * const state = createLocalPresence({
  *   url: 'http://192.168.1.100:3913',
  *   deviceId: 'device_abc123',
  *   hostname: "Braden's MacBook Pro",
@@ -109,13 +109,13 @@ export type DiscoveryState = {
  * awareness.setLocalState(state);
  * ```
  */
-export function createSidecarPresence(config: {
+export function createLocalPresence(config: {
 	url: string;
 	deviceId: string;
 	hostname: string;
 }): DiscoveryState {
 	return {
-		type: 'sidecar',
+		type: 'local',
 		url: config.url,
 		deviceId: config.deviceId,
 		capabilities: ['sync', 'workspace'],
@@ -162,7 +162,7 @@ export function createClientPresence(config: {
  * @example
  * ```typescript
  * const devices = getDiscoveredDevices(awareness.getStates());
- * const sidecars = devices.filter(d => d.type === 'sidecar');
+ * const localServers = devices.filter(d => d.type === 'local');
  * ```
  */
 export function getDiscoveredDevices(
@@ -191,7 +191,7 @@ function isDiscoveryState(state: unknown): state is DiscoveryState {
 	if (!state || typeof state !== 'object') return false;
 	const s = state as Record<string, unknown>;
 	return (
-		(s.type === 'sidecar' || s.type === 'client') &&
+		(s.type === 'local' || s.type === 'client') &&
 		typeof s.deviceId === 'string' &&
 		Array.isArray(s.capabilities) &&
 		typeof s.hostname === 'string'

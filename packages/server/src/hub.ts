@@ -3,7 +3,11 @@ import { Elysia } from 'elysia';
 import * as Y from 'yjs';
 import { createAIPlugin } from './ai';
 import { type AuthPluginConfig, createAuthPlugin } from './auth';
-import { createKeyManagementPlugin, createKeyStore, type KeyStore } from './keys';
+import {
+	createKeyManagementPlugin,
+	createKeyStore,
+	type KeyStore,
+} from './keys';
 import { createProxyPlugin } from './proxy';
 import type { AuthConfig } from './sync/auth';
 import { createSyncPlugin } from './sync/plugin';
@@ -63,7 +67,7 @@ export type HubServerConfig = {
  * - OpenAPI docs
  * - Discovery root
  *
- * The hub does NOT serve workspace CRUD — that's the sidecar's job.
+ * The hub does NOT serve workspace CRUD — that's the local server's job.
  *
  * @example
  * ```typescript
@@ -90,7 +94,7 @@ export function createHubServer(config: HubServerConfig) {
 	const keyStore =
 		config.keyStore === true
 			? createKeyStore()
-			: config.keyStore ?? undefined;
+			: (config.keyStore ?? undefined);
 
 	/** Ephemeral Y.Docs for rooms (hub is a pure relay, no pre-registered workspaces). */
 	const dynamicDocs = new Map<string, Y.Doc>();
@@ -142,9 +146,7 @@ export function createHubServer(config: HubServerConfig) {
 		app.use(createProxyPlugin({ keyStore }));
 	}
 
-	const port =
-		config.port ??
-		Number.parseInt(process.env.PORT ?? '3913', 10);
+	const port = config.port ?? Number.parseInt(process.env.PORT ?? '3913', 10);
 
 	return {
 		app,

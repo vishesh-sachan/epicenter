@@ -3,7 +3,7 @@ import { openapi } from '@elysiajs/openapi';
 import type { AnyWorkspaceClient } from '@epicenter/hq';
 import { Elysia } from 'elysia';
 import * as Y from 'yjs';
-import { createHubSessionValidator, type HubSessionValidatorConfig } from './auth/sidecar-auth';
+import { createHubSessionValidator } from './auth/local-auth';
 import type { AuthConfig } from './sync/auth';
 import { createSyncPlugin } from './sync/plugin';
 import { createWorkspacePlugin } from './workspace';
@@ -11,7 +11,7 @@ import { collectActionPaths } from './workspace/actions';
 
 export { DEFAULT_PORT } from './server';
 
-export type SidecarServerConfig = {
+export type LocalServerConfig = {
 	/**
 	 * Workspace clients to expose via REST CRUD and action endpoints.
 	 *
@@ -30,7 +30,7 @@ export type SidecarServerConfig = {
 	/**
 	 * Hub URL for session token validation.
 	 *
-	 * When provided, the sidecar validates all requests by checking
+	 * When provided, the local server validates all requests by checking
 	 * the Bearer token against the hub's `/auth/get-session` endpoint.
 	 * Results are cached with a 5-minute TTL.
 	 *
@@ -41,8 +41,8 @@ export type SidecarServerConfig = {
 	/**
 	 * CORS allowed origins.
 	 *
-	 * Default: `['tauri://localhost']` — only the Tauri webview can call the sidecar.
-	 * Add the hub origin if the hub needs to reach the sidecar directly.
+	 * Default: `['tauri://localhost']` — only the Tauri webview can call the local server.
+	 * Add the hub origin if the hub needs to reach it directly.
 	 */
 	allowedOrigins?: string[];
 
@@ -60,9 +60,9 @@ export type SidecarServerConfig = {
 };
 
 /**
- * Create an Epicenter sidecar server.
+ * Create an Epicenter local server.
  *
- * The sidecar runs on each desktop as a Tauri sidecar. It provides:
+ * The local server runs on each desktop (as a Tauri sidecar process). It provides:
  * - Sync relay (local) — fast sub-ms WebSocket sync between webview and Y.Doc
  * - Workspace API — RESTful CRUD for workspace tables and actions
  * - CORS protection — only Tauri webview origin allowed by default
@@ -70,22 +70,22 @@ export type SidecarServerConfig = {
  * - OpenAPI docs
  * - Discovery root
  *
- * The sidecar does NOT handle AI streaming — all AI goes through the hub.
+ * The local server does NOT handle AI streaming — all AI goes through the hub.
  *
  * @example
  * ```typescript
- * // Sidecar with auth (production)
- * createSidecarServer({
+ * // Local server with auth (production)
+ * createLocalServer({
  *   clients: [blogClient],
  *   hubUrl: 'https://hub.example.com',
  *   allowedOrigins: ['tauri://localhost'],
  * }).start();
  *
- * // Minimal sidecar (development, no auth)
- * createSidecarServer({ clients: [] }).start();
+ * // Minimal local server (development, no auth)
+ * createLocalServer({ clients: [] }).start();
  * ```
  */
-export function createSidecarServer(config: SidecarServerConfig) {
+export function createLocalServer(config: LocalServerConfig) {
 	const { clients, sync } = config;
 
 	const workspaces: Record<string, AnyWorkspaceClient> = {};
@@ -121,8 +121,7 @@ export function createSidecarServer(config: SidecarServerConfig) {
 					info: {
 						title: 'Epicenter Sidecar API',
 						version: '1.0.0',
-						description:
-							'Sidecar server — local sync relay and workspace API.',
+						description: 'Sidecar server — local sync relay and workspace API.',
 					},
 				},
 			}),
@@ -170,9 +169,9 @@ export function createSidecarServer(config: SidecarServerConfig) {
 			),
 		)
 		.get('/', () => ({
-			name: 'Epicenter Sidecar',
+			name: 'Epicenter Local',
 			version: '1.0.0',
-			mode: 'sidecar' as const,
+			mode: 'local' as const,
 			workspaces: Object.keys(workspaces),
 			actions: allActionPaths,
 		}));
@@ -183,9 +182,7 @@ export function createSidecarServer(config: SidecarServerConfig) {
 		);
 	}
 
-	const port =
-		config.port ??
-		Number.parseInt(process.env.PORT ?? '3913', 10);
+	const port = config.port ?? Number.parseInt(process.env.PORT ?? '3913', 10);
 
 	return {
 		app,

@@ -212,7 +212,7 @@ The AI plugin on hub handles every provider identically. For cloud providers it 
 The sidecar is a minimal composition focused on sync and workspace:
 
 ```
-Sidecar (createSidecarServer)
+Local Server (createLocalServer)
 ├── GET  /                                     ← Discovery / health check
 ├── WS   /rooms/{id}/sync                      ← Yjs WebSocket sync (local relay)
 ├── /workspaces/...                             ← Workspace CRUD (local)
@@ -645,7 +645,7 @@ Define the hub server as a distinct composition of existing plugins, plus Better
 
 Strip the local sidecar to sync + workspace only.
 
-- [ ] **2.1** Create `createSidecarServer()` composition: sync plugin + workspace plugin (NO AI plugin, NO key management)
+- [ ] **2.1** Create `createLocalServer()` composition: sync plugin + workspace plugin (NO AI plugin, NO key management)
 - [ ] **2.2** Implement session token validation on the local sidecar — validates against hub's `/auth/session` endpoint with response caching
 - [ ] **2.3** Configure CORS allowlist on sidecar startup (Tauri webview origin + hub origin)
 - [ ] **2.4** Wire the auth boundary into the Tauri sidecar startup flow
@@ -828,7 +828,7 @@ The hub is a single point of failure for cross-device features. This is an inher
 
 ## References
 
-- `packages/server/src/server.ts` — Current `createServer()` composition
+- `packages/server/src/local.ts` — Local server composition (`createLocalServer()`)
 - `packages/server/src/ai/plugin.ts` — AI chat plugin with `resolveApiKey()`
 - `packages/server/src/ai/adapters.ts` — Provider adapters, Ollama exemption, `PROVIDER_ENV_VARS`
 - `packages/server/src/sync/plugin.ts` — Sync plugin (WebSocket rooms)
