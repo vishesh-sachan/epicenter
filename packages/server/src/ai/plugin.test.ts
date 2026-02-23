@@ -16,7 +16,7 @@ function chatRequest(
 }
 
 describe('createAIPlugin', () => {
-	test('returns 401 when x-provider-api-key header is missing (non-ollama)', async () => {
+	test('returns 401 when x-provider-api-key header is missing', async () => {
 		const app = new Elysia().use(createAIPlugin());
 
 		const response = await app.handle(
@@ -67,11 +67,9 @@ describe('createAIPlugin', () => {
 		expect(response.status).toBe(422);
 	});
 
-	test('ollama does not require x-provider-api-key header', async () => {
+	test('unsupported provider returns 400 (ollama removed)', async () => {
 		const app = new Elysia().use(createAIPlugin());
 
-		// Ollama will fail at the adapter level (no Ollama running),
-		// but it should NOT fail with 401 (missing key).
 		const response = await app.handle(
 			chatRequest('/chat', {
 				messages: [{ role: 'user', content: 'Hello' }],
@@ -80,28 +78,10 @@ describe('createAIPlugin', () => {
 			}),
 		);
 
-		// Should not be 401 — Ollama doesn't need a key
-		expect(response.status).not.toBe(401);
-	});
-
-	test('config.providers restricts allowed providers', async () => {
-		const app = new Elysia().use(createAIPlugin({ providers: ['openai'] }));
-
-		const response = await app.handle(
-			chatRequest(
-				'/chat',
-				{
-					messages: [{ role: 'user', content: 'Hello' }],
-					provider: 'anthropic',
-					model: 'claude-sonnet-4',
-				},
-				{ 'x-provider-api-key': 'sk-test-key' },
-			),
-		);
-
+		// Ollama is no longer a supported provider
 		expect(response.status).toBe(400);
 		const body = await response.text();
-		expect(body).toBe('Unsupported provider: anthropic');
+		expect(body).toBe('Unsupported provider: ollama');
 	});
 
 	test('route is reachable through Elysia prefix mount', async () => {
@@ -125,7 +105,9 @@ describe('createAIPlugin', () => {
 		const { resolveApiKey } = await import('./adapters');
 		process.env.OPENAI_API_KEY = 'sk-env-key';
 		try {
-			expect(resolveApiKey('openai', 'sk-header-key')).toBe('sk-header-key');
+			expect(await resolveApiKey('openai', 'sk-header-key')).toBe(
+				'sk-header-key',
+			);
 		} finally {
 			delete process.env.OPENAI_API_KEY;
 		}
@@ -135,7 +117,7 @@ describe('createAIPlugin', () => {
 		const { resolveApiKey } = await import('./adapters');
 		process.env.OPENAI_API_KEY = 'sk-env-key';
 		try {
-			expect(resolveApiKey('openai')).toBe('sk-env-key');
+			expect(await resolveApiKey('openai')).toBe('sk-env-key');
 		} finally {
 			delete process.env.OPENAI_API_KEY;
 		}
@@ -144,7 +126,7 @@ describe('createAIPlugin', () => {
 	test('resolveApiKey returns undefined when neither present', async () => {
 		const { resolveApiKey } = await import('./adapters');
 		delete process.env.OPENAI_API_KEY;
-		expect(resolveApiKey('openai')).toBeUndefined();
+		expect(await resolveApiKey('openai')).toBeUndefined();
 	});
 
 	test('401 error message mentions env var name', async () => {
