@@ -334,6 +334,27 @@ export const definition = defineWorkspace({
 				_v: '1',
 			}),
 		),
+
+		/**
+		 * Chat messages table — AI chat messages persisted for conversation history.
+		 *
+		 * Stores TanStack AI UIMessage data with a conversationId for future
+		 * multi-conversation support. The `parts` field stores MessagePart[]
+		 * directly as a native array — no JSON serialization needed.
+		 *
+		 * v1 uses a single default conversation. The conversationId field
+		 * future-proofs for multi-conversation UI.
+		 */
+		chatMessages: defineTable(
+			type({
+				id: 'string', // TanStack AI message ID or nanoid
+				conversationId: 'string', // Groups messages into threads
+				role: "'user' | 'assistant'", // Message sender
+				parts: 'unknown[]', // TanStack AI MessagePart[] — stored as native array
+				createdAt: 'number', // ms since epoch
+				_v: '1',
+			}),
+		),
 	},
 });
 
@@ -348,3 +369,4 @@ export type Tab = InferTableRow<Tables['tabs']>;
 export type Window = InferTableRow<Tables['windows']>;
 export type TabGroup = InferTableRow<Tables['tabGroups']>;
 export type SavedTab = InferTableRow<Tables['savedTabs']>;
+export type ChatMessage = InferTableRow<Tables['chatMessages']>;

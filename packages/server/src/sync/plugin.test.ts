@@ -478,7 +478,7 @@ describe('sync plugin REST document snapshot', () => {
 			const room = uniqueRoom();
 			const res = await fetch(ctx.httpUrl(`/rooms/${room}`));
 			expect(res.status).toBe(404);
-			expect(await res.json()).toEqual({ error: `Room not found: ${room}` });
+			expect(await res.text()).toBe(`Room not found: ${room}`);
 		} finally {
 			await ctx.server.stop();
 		}
@@ -566,7 +566,7 @@ describe('sync plugin REST document update', () => {
 			});
 
 			expect(res.status).toBe(400);
-			expect(await res.json()).toEqual({ error: 'Empty update body' });
+			expect(await res.text()).toBe('Empty update body');
 		} finally {
 			await ctx.server.stop();
 		}
@@ -588,7 +588,7 @@ describe('sync plugin REST document update', () => {
 			});
 
 			expect(res.status).toBe(404);
-			expect(await res.json()).toEqual({ error: `Room not found: ${room}` });
+			expect(await res.text()).toBe(`Room not found: ${room}`);
 		} finally {
 			ctx.app.stop();
 		}
@@ -602,7 +602,7 @@ describe('sync plugin REST auth', () => {
 		try {
 			const res = await fetch(ctx.httpUrl('/rooms/'));
 			expect(res.status).toBe(401);
-			expect(await res.json()).toEqual({ error: 'Unauthorized' });
+			expect(await res.text()).toBe('Unauthorized');
 		} finally {
 			await ctx.server.stop();
 		}
@@ -616,7 +616,7 @@ describe('sync plugin REST auth', () => {
 				headers: { Authorization: 'Bearer wrong' },
 			});
 			expect(res.status).toBe(401);
-			expect(await res.json()).toEqual({ error: 'Unauthorized' });
+			expect(await res.text()).toBe('Unauthorized');
 		} finally {
 			await ctx.server.stop();
 		}

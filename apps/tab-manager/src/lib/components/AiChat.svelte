@@ -1,0 +1,151 @@
+<script lang="ts">
+	import { aiChatState } from '$lib/state/ai-chat-state.svelte';
+	import { Button } from '@epicenter/ui/button';
+	import * as Chat from '@epicenter/ui/chat';
+	import * as Empty from '@epicenter/ui/empty';
+	import * as Select from '@epicenter/ui/select';
+	import SendIcon from '@lucide/svelte/icons/send';
+	import SparklesIcon from '@lucide/svelte/icons/sparkles';
+	import SquareIcon from '@lucide/svelte/icons/square';
+
+	let inputValue = $state('');
+
+	function handleSend() {
+		const content = inputValue.trim();
+		if (!content) return;
+		inputValue = '';
+		aiChatState.sendMessage(content);
+	}
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			handleSend();
+		}
+	}
+
+	/** Extract text content from a message's parts array. */
+	function getTextContent(
+		parts: Array<{ type: string; content?: string }>,
+	): string {
+		return parts
+			.filter((p): p is { type: 'text'; content: string } => p.type === 'text')
+			.map((p) => p.content)
+			.join('');
+	}
+
+	const showLoadingDots = $derived(
+		aiChatState.isLoading &&
+			aiChatState.messages.length > 0 &&
+			aiChatState.messages[aiChatState.messages.length - 1].role === 'user',
+	);
+</script>
+
+<div class="flex h-full flex-col">
+	<!-- Messages area -->
+	<div class="min-h-0 flex-1">
+		{#if aiChatState.messages.length === 0}
+			<Empty.Root class="py-12">
+				<Empty.Media>
+					<SparklesIcon class="size-8 text-muted-foreground" />
+				</Empty.Media>
+				<Empty.Title>AI Chat</Empty.Title>
+				<Empty.Description>Send a message to start chatting</Empty.Description>
+			</Empty.Root>
+		{:else}
+			<Chat.List class="h-full">
+				{#each aiChatState.messages as message (message.id)}
+					<Chat.Bubble variant={message.role === 'user' ? 'sent' : 'received'}>
+						<Chat.BubbleMessage>
+							{getTextContent(message.parts)}
+						</Chat.BubbleMessage>
+					</Chat.Bubble>
+				{/each}
+				{#if showLoadingDots}
+					<Chat.Bubble variant="received">
+						<Chat.BubbleMessage typing />
+					</Chat.Bubble>
+				{/if}
+			</Chat.List>
+		{/if}
+	</div>
+
+	<!-- Error banner -->
+	{#if aiChatState.error}
+		<div
+			class="border-t border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+		>
+			{aiChatState.error.message || 'Something went wrong'}
+		</div>
+	{/if}
+
+	<!-- Controls area -->
+	<div class="space-y-2 border-t bg-background px-3 py-2">
+		<!-- Provider + Model selects -->
+		<div class="flex gap-2">
+			<Select.Root
+				type="single"
+				value={aiChatState.provider}
+				onValueChange={(v) => {
+					if (v) aiChatState.provider = v;
+				}}
+			>
+				<Select.Trigger size="sm" class="flex-1">
+					{aiChatState.provider}
+				</Select.Trigger>
+				<Select.Content>
+					{#each aiChatState.availableProviders as p (p)}
+						<Select.Item value={p} label={p} />
+					{/each}
+				</Select.Content>
+			</Select.Root>
+
+			<Select.Root
+				type="single"
+				value={aiChatState.model}
+				onValueChange={(v) => {
+					if (v) aiChatState.model = v;
+				}}
+			>
+				<Select.Trigger size="sm" class="flex-1">
+					{aiChatState.model}
+				</Select.Trigger>
+				<Select.Content>
+					{#each aiChatState.modelsForProvider(aiChatState.provider) as m (m)}
+						<Select.Item value={m} label={m} />
+					{/each}
+				</Select.Content>
+			</Select.Root>
+		</div>
+
+		<!-- Input + send/stop button -->
+		<div class="flex gap-2">
+			<textarea
+				class="border-input placeholder:text-muted-foreground flex-1 resize-none rounded-md border bg-transparent px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				rows={1}
+				placeholder="Type a message…"
+				bind:value={inputValue}
+				onkeydown={handleKeydown}
+				disabled={aiChatState.isLoading}
+			></textarea>
+			{#if aiChatState.isLoading}
+				<Button
+					variant="outline"
+					size="icon"
+					onclick={() => aiChatState.stop()}
+				>
+					<SquareIcon class="size-4" />
+				</Button>
+			{:else}
+				<Button
+					variant="default"
+					size="icon"
+					onclick={handleSend}
+					disabled={!inputValue.trim()}
+				>
+					<SendIcon class="size-4" />
+				</Button>
+			{/if}
+		</div>
+	</div>
+</div>
