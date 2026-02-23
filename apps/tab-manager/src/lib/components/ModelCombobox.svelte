@@ -13,9 +13,7 @@
 	const combobox = useCombobox();
 	let searchValue = $state('');
 
-	const models = $derived(
-		aiChatState.modelsForProvider(aiChatState.provider),
-	);
+	const models = $derived(aiChatState.modelsForProvider(aiChatState.provider));
 
 	const filteredModels = $derived(
 		searchValue
@@ -31,9 +29,7 @@
 	 */
 	const showCustomOption = $derived(
 		searchValue.trim() !== '' &&
-			!models.some(
-				(m) => m.toLowerCase() === searchValue.trim().toLowerCase(),
-			),
+			!models.some((m) => m.toLowerCase() === searchValue.trim().toLowerCase()),
 	);
 
 	function selectModel(model: string) {
@@ -54,7 +50,8 @@
 				variant="outline"
 				size="sm"
 			>
-				<span class="truncate">{aiChatState.model || 'Select model\u2026'}</span>
+				<span class="truncate">{aiChatState.model || 'Select model\u2026'}</span
+				>
 				<ChevronsUpDownIcon class="ml-2 size-3 shrink-0 opacity-50" />
 			</Button>
 		{/snippet}
