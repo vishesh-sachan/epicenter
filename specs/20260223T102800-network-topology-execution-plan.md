@@ -1,0 +1,89 @@
+# Network Topology: Execution Plan
+
+**Date**: 2026-02-23
+**Status**: In Progress
+**Parent Spec**: `20260222T195645-network-topology-multi-server-architecture.md`
+**Branch**: `feat/network-topology-multi-server`
+
+## Execution Steps
+
+### Step 1: Hub & Sidecar Server Composition Split
+- [x] 1.1 Create `createHubServer()` with sync + AI + OpenAPI (`packages/server/src/hub.ts`)
+- [x] 1.2 Create `createSidecarServer()` with sync + workspace + OpenAPI, no AI (`packages/server/src/sidecar.ts`)
+- [x] 1.3 Update exports in `index.ts`
+- [x] 1.4 Update `start.ts` to support `--mode hub|sidecar` flag
+- [x] 1.5 Tests pass (161/162, 1 pre-existing failure)
+
+### Step 2: Better Auth Plugin
+- [x] 2.1 Add `better-auth` to server package dependencies
+- [x] 2.2 Create `createAuthPlugin()` with Better Auth + Bearer plugin (`packages/server/src/auth/plugin.ts`)
+- [x] 2.3 Wire auth plugin into `createHubServer()` (optional config)
+- [x] 2.4 Add session validation macro via `auth.api.getSession()`
+- [x] 2.5 Tests pass
+
+### Step 3: Key Management on Hub
+- [x] 3.1 Create encrypted key store (AES-256-GCM, `packages/server/src/keys/store.ts`)
+- [x] 3.2 Create key management Elysia plugin (`packages/server/src/keys/plugin.ts`)
+- [x] 3.3 Extend `resolveApiKey()` to check server store (async, 3-step chain)
+- [x] 3.4 Wire key management into hub server
+- [x] 3.5 Tests pass (fixed 3 tests for async resolveApiKey)
+
+### Step 4: OLLAMA_HOST Configuration
+- [x] 4.1 Update Ollama adapter factory to use `OLLAMA_HOST` env var (done in Step 3)
+
+### Step 5: Sidecar Auth Boundary
+- [x] 5.1 Create hub-delegated session validator with TTL cache (`packages/server/src/auth/sidecar-auth.ts`)
+- [x] 5.2 Wire sidecar auth into `createSidecarServer()` config (`hubUrl` option)
+- [x] 5.3 Add CORS configuration via `@elysiajs/cors` (allowedOrigins)
+- [x] 5.4 Tests pass
+
+### Step 6: Client Hub URL Configuration
+- [ ] 6.1 Add hubServerUrl setting
+- [ ] 6.2 Update AI chat to use hub URL
+- [ ] 6.3 Run typecheck
+
+### Step 7: AI Proxy for OpenCode
+- [x] 7.1 Create AI proxy plugin (`packages/server/src/proxy/plugin.ts`)
+- [x] 7.2 Wire proxy into hub server (auto-mounted when keyStore is configured)
+- [x] 7.3 Tests pass
+
+### Step 8: Server Discovery via Yjs Awareness
+- [x] 8.1 Define discovery room and Awareness state types (`packages/server/src/discovery/awareness.ts`)
+- [x] 8.2 Discovery room (`_epicenter_discovery`) works via existing sync layer (no special wiring needed)
+- [x] 8.3 Sidecar presence helpers: `createSidecarPresence()`, `createClientPresence()`
+- [x] 8.4 Device discovery helper: `getDiscoveredDevices()` with deduplication
+
+### Step 9: OpenCode Integration
+- [ ] 9.1 Create OpenCode spawner module
+- [ ] 9.2 Generate OPENCODE_CONFIG_CONTENT with hub proxy baseURLs
+- [ ] 9.3 Wire OpenCode lifecycle to app lifecycle
+- [ ] 9.4 Plugin list sync via Yjs
+
+## Files Created
+- `packages/server/src/hub.ts` — Hub server composition
+- `packages/server/src/sidecar.ts` — Sidecar server composition
+- `packages/server/src/auth/plugin.ts` — Better Auth Elysia plugin
+- `packages/server/src/auth/sidecar-auth.ts` — Hub-delegated session validator
+- `packages/server/src/auth/index.ts` — Auth exports
+- `packages/server/src/keys/store.ts` — Encrypted key store (AES-256-GCM)
+- `packages/server/src/keys/plugin.ts` — Key management REST endpoints
+- `packages/server/src/keys/index.ts` — Keys exports
+- `packages/server/src/proxy/plugin.ts` — AI proxy for OpenCode
+- `packages/server/src/proxy/index.ts` — Proxy exports
+- `packages/server/src/discovery/awareness.ts` — Yjs Awareness-based discovery
+- `packages/server/src/discovery/index.ts` — Discovery exports
+
+## Files Modified
+- `packages/server/src/index.ts` — Updated exports
+- `packages/server/src/start.ts` — Added `--mode hub|sidecar` flag
+- `packages/server/src/ai/adapters.ts` — Async resolveApiKey, OLLAMA_HOST, KeyStore support
+- `packages/server/src/ai/plugin.ts` — KeyStore config, async key resolution
+- `packages/server/src/ai/plugin.test.ts` — Fixed 3 tests for async resolveApiKey
+- `packages/server/package.json` — Added better-auth, @elysiajs/cors, new export paths
+
+## Review
+Steps 1-5 and 7-8 complete. The server package now has a full hub/sidecar split with:
+- Hub: sync + AI + auth (Better Auth) + key management + AI proxy + discovery
+- Sidecar: sync + workspace + CORS + session validation against hub
+
+Remaining: Step 6 (client configuration) and Step 9 (OpenCode integration) depend on the Tauri app and are more application-level work.
