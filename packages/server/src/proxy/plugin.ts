@@ -136,8 +136,6 @@ export function createProxyPlugin(config: ProxyPluginConfig) {
 				method: request.method,
 				headers: forwardHeaders,
 				body: request.body,
-				
-				
 			});
 
 			// Stream the response back to OpenCode

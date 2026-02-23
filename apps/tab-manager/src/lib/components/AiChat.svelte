@@ -30,9 +30,7 @@
 		parts: Array<{ type: string; content?: string }>,
 	): string {
 		return parts
-			.filter(
-				(p): p is { type: 'text'; content: string } => p.type === 'text',
-			)
+			.filter((p): p is { type: 'text'; content: string } => p.type === 'text')
 			.map((p) => p.content)
 			.join('');
 	}
@@ -79,7 +77,12 @@
 							class="group justify-between text-xs"
 							onclick={() => aiChatState.switchConversation(conv.id)}
 						>
-							<span class={cn("min-w-0 truncate", conv.id === aiChatState.activeConversationId && "font-medium")}>
+							<span
+								class={cn(
+									'min-w-0 truncate',
+									conv.id === aiChatState.activeConversationId && 'font-medium',
+								)}
+							>
 								{conv.title}
 							</span>
 							<button
@@ -96,7 +99,8 @@
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>
 		{:else}
-			<span class="flex-1 px-2 text-xs text-muted-foreground">No chats yet</span>
+			<span class="flex-1 px-2 text-xs text-muted-foreground">No chats yet</span
+			>
 		{/if}
 
 		<Button
@@ -128,9 +132,7 @@
 		{:else}
 			<Chat.List class="h-full">
 				{#each aiChatState.messages as message (message.id)}
-					<Chat.Bubble
-						variant={message.role === 'user' ? 'sent' : 'received'}
-					>
+					<Chat.Bubble variant={message.role === 'user' ? 'sent' : 'received'}>
 						<Chat.BubbleMessage>
 							{getTextContent(message.parts)}
 						</Chat.BubbleMessage>

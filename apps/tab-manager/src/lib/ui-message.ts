@@ -21,11 +21,10 @@ import type { UIMessage } from '@tanstack/ai-svelte';
 // @see https://www.totaltypescript.com/how-to-test-your-types#rolling-your-own
 
 type Expect<T extends true> = T;
-type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <
-	T,
->() => T extends Y ? 1 : 2
-	? true
-	: false;
+type Equal<X, Y> =
+	(<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
+		? true
+		: false;
 
 // ── Derive the actual MessagePart type from UIMessage ─────────────────
 // This is the type that gets stored in Y.Doc via onFinish/sendMessage.

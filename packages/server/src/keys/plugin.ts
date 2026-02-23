@@ -37,7 +37,10 @@ export function createKeyManagementPlugin(store: KeyStore) {
 			'/:provider',
 			async ({ params, body, status }) => {
 				if (!isSupportedProvider(params.provider)) {
-					return status('Bad Request', `Unsupported provider: ${params.provider}`);
+					return status(
+						'Bad Request',
+						`Unsupported provider: ${params.provider}`,
+					);
 				}
 
 				await store.set(params.provider, body.apiKey);
@@ -56,22 +59,29 @@ export function createKeyManagementPlugin(store: KeyStore) {
 		.get('/', () => ({
 			providers: store.list(),
 		}))
-		.delete('/:provider', ({ params, status }) => {
-			if (!isSupportedProvider(params.provider)) {
-				return status('Bad Request', `Unsupported provider: ${params.provider}`);
-			}
+		.delete(
+			'/:provider',
+			({ params, status }) => {
+				if (!isSupportedProvider(params.provider)) {
+					return status(
+						'Bad Request',
+						`Unsupported provider: ${params.provider}`,
+					);
+				}
 
-			const removed = store.remove(params.provider);
+				const removed = store.remove(params.provider);
 
-			if (!removed) {
-				return status('Not Found', `No key stored for: ${params.provider}`);
-			}
+				if (!removed) {
+					return status('Not Found', `No key stored for: ${params.provider}`);
+				}
 
-			return { ok: true, provider: params.provider };
-		}, {
-			response: {
-				400: t.String(),
-				404: t.String(),
+				return { ok: true, provider: params.provider };
 			},
-		});
+			{
+				response: {
+					400: t.String(),
+					404: t.String(),
+				},
+			},
+		);
 }
