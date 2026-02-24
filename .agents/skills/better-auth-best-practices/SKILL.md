@@ -130,6 +130,48 @@ Client plugins go in `createAuthClient({ plugins: [...] })`.
 
 ---
 
+
+## Native App / Desktop Auth (Tauri, Electron, Expo)
+
+Cookies are unreliable in non-browser contexts (Tauri webview rejects `Secure` cookies from `tauri://`, split cookie jars between webview and Rust HTTP, debug/release inconsistencies).
+
+**Use the `bearer()` plugin.** It makes Better Auth work for native apps without changing server-side session logic:
+
+- `bearer()` adds `set-auth-token` response header to all auth responses
+- Sign-in/sign-up endpoints already return `{ token: session.token }` in the response body
+- The client extracts the token from the body or header, stores it locally
+- On subsequent requests: `Authorization: Bearer <token>` → bearer() converts to cookie internally → Better Auth validates normally
+
+**Client config for native apps:**
+```typescript
+const authClient = createAuthClient({
+  baseURL: 'https://hub.example.com',
+  fetchOptions: {
+    auth: {
+      type: 'Bearer',
+      token: () => localStorage.getItem('session-token') || '',
+    },
+  },
+});
+```
+
+**Token extraction on sign-in:**
+```typescript
+const { data } = await authClient.signIn.email({
+  email: 'user@example.com',
+  password: 'password',
+}, {
+  onSuccess: (ctx) => {
+    const token = ctx.response.headers.get('set-auth-token');
+    localStorage.setItem('session-token', token);
+  },
+});
+```
+
+**Key point:** bearer() handles opaque HMAC session tokens only. It does NOT validate JWTs. The `jwt()` plugin is separate and for issuing tokens to external services, not for native app auth.
+
+---
+
 ## Client
 
 Import from: `better-auth/client` (vanilla), `better-auth/react`, `better-auth/vue`, `better-auth/svelte`, `better-auth/solid`.

@@ -28,6 +28,7 @@ import { indexeddbPersistence } from '@epicenter/hq/extensions/sync/web';
 import { Ok, tryAsync } from 'wellcrafted/result';
 import { defineBackground } from 'wxt/utils/define-background';
 import type { Transaction } from 'yjs';
+import { startCommandConsumer } from '$lib/commands/consumer';
 import {
 	generateDefaultDeviceName,
 	getBrowserName,
@@ -380,6 +381,19 @@ export default defineBackground(() => {
 	})().catch((err) => {
 		console.error('[Background] Initialization failed:', err);
 		throw err;
+	});
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Command Consumer — execute AI commands targeting this device
+	// ─────────────────────────────────────────────────────────────────────────
+
+	whenReady.then(({ deviceId }) => {
+		startCommandConsumer(
+			client.tables.commands,
+			client.tables.savedTabs,
+			deviceId,
+		);
+		console.log('[Background] Command consumer started');
 	});
 
 	// ─────────────────────────────────────────────────────────────────────────

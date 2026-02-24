@@ -17,7 +17,7 @@ function chatRequest(
 
 describe('createAIPlugin', () => {
 	test('returns 401 when x-provider-api-key header is missing', async () => {
-		const app = new Elysia().use(createAIPlugin());
+		const app = new Elysia().use(createAIPlugin({ getDoc: () => undefined }));
 
 		const response = await app.handle(
 			chatRequest('/chat', {
@@ -33,7 +33,7 @@ describe('createAIPlugin', () => {
 	});
 
 	test('returns 400 for unsupported provider', async () => {
-		const app = new Elysia().use(createAIPlugin());
+		const app = new Elysia().use(createAIPlugin({ getDoc: () => undefined }));
 
 		const response = await app.handle(
 			chatRequest(
@@ -53,7 +53,7 @@ describe('createAIPlugin', () => {
 	});
 
 	test('returns 422 when required body fields are missing', async () => {
-		const app = new Elysia().use(createAIPlugin());
+		const app = new Elysia().use(createAIPlugin({ getDoc: () => undefined }));
 
 		const response = await app.handle(
 			chatRequest(
@@ -68,7 +68,7 @@ describe('createAIPlugin', () => {
 	});
 
 	test('unsupported provider returns 400 (ollama removed)', async () => {
-		const app = new Elysia().use(createAIPlugin());
+		const app = new Elysia().use(createAIPlugin({ getDoc: () => undefined }));
 
 		const response = await app.handle(
 			chatRequest('/chat', {
@@ -86,7 +86,9 @@ describe('createAIPlugin', () => {
 
 	test('route is reachable through Elysia prefix mount', async () => {
 		const app = new Elysia().use(
-			new Elysia({ prefix: '/ai' }).use(createAIPlugin()),
+			new Elysia({ prefix: '/ai' }).use(
+				createAIPlugin({ getDoc: () => undefined }),
+			),
 		);
 
 		const response = await app.handle(
@@ -128,7 +130,7 @@ describe('createAIPlugin', () => {
 	});
 
 	test('401 error message mentions env var name', async () => {
-		const app = new Elysia().use(createAIPlugin());
+		const app = new Elysia().use(createAIPlugin({ getDoc: () => undefined }));
 		delete process.env.OPENAI_API_KEY;
 
 		const response = await app.handle(
@@ -145,7 +147,7 @@ describe('createAIPlugin', () => {
 	});
 
 	test('plugin accepts request without header when env var set', async () => {
-		const app = new Elysia().use(createAIPlugin());
+		const app = new Elysia().use(createAIPlugin({ getDoc: () => undefined }));
 		process.env.OPENAI_API_KEY = 'sk-test-env-key';
 
 		try {
