@@ -1,6 +1,6 @@
 import { createTaggedError } from 'wellcrafted/error';
-import type { Settings } from '$lib/settings/settings';
 import type { Transformation } from '$lib/services/isomorphic/db';
+import type { Settings } from '$lib/settings/settings';
 
 /**
  * Configuration export format.

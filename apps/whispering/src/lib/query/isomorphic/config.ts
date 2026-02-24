@@ -1,5 +1,4 @@
 import { Err, Ok } from 'wellcrafted/result';
-import type { Settings } from '$lib/settings/settings';
 import { defineMutation, defineQuery } from '$lib/query/client';
 import { services } from '$lib/services';
 import type {
@@ -7,6 +6,7 @@ import type {
 	ExportConfigOptions,
 	ImportConfigOptions,
 } from '$lib/services/isomorphic/config-export';
+import type { Settings } from '$lib/settings/settings';
 
 /**
  * Query keys for config export/import operations
@@ -29,8 +29,10 @@ export const config = {
 			options?: ExportConfigOptions;
 		}) => {
 			const { settings, options } = params;
-			const { data, error } =
-				await services.configExport.exportConfig(settings, options);
+			const { data, error } = await services.configExport.exportConfig(
+				settings,
+				options,
+			);
 
 			if (error) {
 				return Err({

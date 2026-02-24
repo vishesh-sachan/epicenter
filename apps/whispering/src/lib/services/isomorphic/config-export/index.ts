@@ -1,17 +1,17 @@
-import { Err, Ok, trySync, type Result } from 'wellcrafted/result';
 import { type } from 'arktype';
+import { Err, Ok, type Result, trySync } from 'wellcrafted/result';
+import type { Transformation as TransformationType } from '$lib/services/isomorphic/db';
+import { Transformation } from '$lib/services/isomorphic/db/models/transformations';
+import type { DbService } from '$lib/services/isomorphic/db/types';
 import type { Settings } from '$lib/settings/settings';
 import { Settings as SettingsSchema } from '$lib/settings/settings';
-import { Transformation } from '$lib/services/isomorphic/db/models/transformations';
-import type { Transformation as TransformationType } from '$lib/services/isomorphic/db';
-import type { DbService } from '$lib/services/isomorphic/db/types';
 import {
-	ConfigExportErr,
-	ConfigImportErr,
-	ConfigValidationErr,
 	type ConfigExport,
+	ConfigExportErr,
 	type ConfigExportError,
+	ConfigImportErr,
 	type ConfigImportError,
+	ConfigValidationErr,
 	type ConfigValidationError,
 	type ExportConfigOptions,
 	type ImportConfigOptions,
@@ -252,8 +252,7 @@ export function createConfigExportService(
 
 			// Create all imported transformations
 			for (const transformation of config.transformations) {
-				const createResult =
-					await db.transformations.create(transformation);
+				const createResult = await db.transformations.create(transformation);
 				if (createResult.error) {
 					// Log error but continue with other transformations
 					console.error(
@@ -275,15 +274,12 @@ export function createConfigExportService(
 				});
 			}
 
-			const existingIds = new Set(
-				existingResult.data.map((t) => t.id),
-			);
+			const existingIds = new Set(existingResult.data.map((t) => t.id));
 
 			for (const transformation of config.transformations) {
 				if (existingIds.has(transformation.id)) {
 					// Update existing transformation
-					const updateResult =
-						await db.transformations.update(transformation);
+					const updateResult = await db.transformations.update(transformation);
 					if (updateResult.error) {
 						console.error(
 							'Failed to update transformation:',
@@ -296,8 +292,7 @@ export function createConfigExportService(
 					}
 				} else {
 					// Create new transformation
-					const createResult =
-						await db.transformations.create(transformation);
+					const createResult = await db.transformations.create(transformation);
 					if (createResult.error) {
 						console.error(
 							'Failed to create transformation:',
