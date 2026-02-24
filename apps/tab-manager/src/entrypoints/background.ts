@@ -28,13 +28,13 @@ import { indexeddbPersistence } from '@epicenter/hq/extensions/sync/web';
 import { Ok, tryAsync } from 'wellcrafted/result';
 import { defineBackground } from 'wxt/utils/define-background';
 import type { Transaction } from 'yjs';
+import { startCommandConsumer } from '$lib/commands/consumer';
 import {
 	generateDefaultDeviceName,
 	getBrowserName,
 	getDeviceId,
 } from '$lib/device/device-id';
 import { tabGroupToRow, tabToRow, windowToRow } from '$lib/sync/row-converters';
-import { startCommandConsumer } from '$lib/commands/consumer';
 import {
 	createGroupCompositeId,
 	createTabCompositeId,
@@ -388,10 +388,13 @@ export default defineBackground(() => {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	whenReady.then(({ deviceId }) => {
-		startCommandConsumer(client.tables.commands, client.tables.savedTabs, deviceId);
+		startCommandConsumer(
+			client.tables.commands,
+			client.tables.savedTabs,
+			deviceId,
+		);
 		console.log('[Background] Command consumer started');
 	});
-
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// Browser Keepalive (Chrome MV3 only)

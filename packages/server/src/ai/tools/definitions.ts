@@ -27,8 +27,7 @@ export const searchTabsDef = toolDefinition({
 
 export const listTabsDef = toolDefinition({
 	name: 'listTabs',
-	description:
-		'List all open tabs. Optionally filter by device or window.',
+	description: 'List all open tabs. Optionally filter by device or window.',
 	inputSchema: type({
 		'deviceId?': 'string',
 		'windowId?': 'string',
@@ -92,8 +91,7 @@ export const activateTabDef = toolDefinition({
 
 export const saveTabsDef = toolDefinition({
 	name: 'saveTabs',
-	description:
-		'Save tabs for later. Optionally close them after saving.',
+	description: 'Save tabs for later. Optionally close them after saving.',
 	inputSchema: type({
 		tabIds: 'string[]',
 		'close?': 'boolean',

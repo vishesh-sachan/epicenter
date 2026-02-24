@@ -6,11 +6,10 @@
  * after filtering for this device and checking TTL.
  */
 
-import { generateId } from '@epicenter/hq';
-import type { Command, DeviceId, SavedTabId } from '$lib/workspace';
-import { parseTabId } from '$lib/workspace';
 import type { TableHelper } from '@epicenter/hq';
-import type { SavedTab } from '$lib/workspace';
+import { generateId } from '@epicenter/hq';
+import type { Command, DeviceId, SavedTab, SavedTabId } from '$lib/workspace';
+import { parseTabId } from '$lib/workspace';
 
 /**
  * Extract the native tab ID (number) from a composite tab ID string.
@@ -18,7 +17,10 @@ import type { SavedTab } from '$lib/workspace';
  * Composite format: `${deviceId}_${tabId}`. Returns the number portion.
  * Returns `undefined` if the composite ID doesn't belong to this device.
  */
-function nativeTabId(compositeId: string, deviceId: DeviceId): number | undefined {
+function nativeTabId(
+	compositeId: string,
+	deviceId: DeviceId,
+): number | undefined {
 	const parsed = parseTabId(compositeId as Parameters<typeof parseTabId>[0]);
 	if (!parsed || parsed.deviceId !== deviceId) return undefined;
 	return parsed.tabId;

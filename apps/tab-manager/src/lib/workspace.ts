@@ -89,9 +89,7 @@ export const ChatMessageId = type('string').pipe(
  * Prevents accidental mixing with other string IDs (tab, conversation, etc.).
  */
 export type CommandId = string & Brand<'CommandId'>;
-export const CommandId = type('string').pipe(
-	(s): CommandId => s as CommandId,
-);
+export const CommandId = type('string').pipe((s): CommandId => s as CommandId);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Composite ID Types
