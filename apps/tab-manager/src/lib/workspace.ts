@@ -83,6 +83,16 @@ export const ChatMessageId = type('string').pipe(
 	(s): ChatMessageId => s as ChatMessageId,
 );
 
+/**
+ * Branded command ID — nanoid generated when an AI tool writes a command.
+ *
+ * Prevents accidental mixing with other string IDs (tab, conversation, etc.).
+ */
+export type CommandId = string & Brand<'CommandId'>;
+export const CommandId = type('string').pipe(
+	(s): CommandId => s as CommandId,
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Composite ID Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,6 +229,20 @@ export function parseGroupId(
 // Workspace Definition
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Shared command base fields ──────────────────────────────────────────────
+
+const commandBase = type({
+	id: CommandId,
+	deviceId: DeviceId,
+	createdAt: 'number',
+	_v: '1',
+});
+
+// ─── Tab group color (reusable in commands + tabGroups) ─────────────────────
+
+const tabGroupColor =
+	"'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange'";
+
 /**
  * The workspace definition — shared by background and popup.
  *
@@ -345,8 +369,7 @@ export const definition = defineWorkspace({
 				groupId: 'number', // Original browser group ID for API calls
 				windowId: WindowCompositeId, // Composite: `${deviceId}_${windowId}`
 				collapsed: 'boolean',
-				color:
-					"'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange'",
+				color: tabGroupColor,
 				shared: 'boolean', // Chrome 137+
 				// Optional fields — matching chrome.tabGroups.TabGroup optionality
 				'title?': 'string | undefined',
@@ -422,6 +445,68 @@ export const definition = defineWorkspace({
 				_v: '1',
 			}),
 		),
+
+		/**
+		 * AI command queue — discriminated union on `action`.
+		 *
+		 * The server writes commands targeting a device; the device's background
+		 * worker observes, executes the Chrome API action, and writes the result.
+		 * `result?` presence = status: no result = pending, has result = done.
+		 *
+		 * Uses `type.or()` + `.merge()` for a flat list of 8 action variants.
+		 *
+		 * @see specs/20260223T200500-ai-tools-command-queue.md
+		 */
+		commands: defineTable(
+			type.or(
+				commandBase.merge({
+					action: "'closeTabs'",
+					tabIds: 'string[]',
+					'result?': type({ closedCount: 'number' }).or('undefined'),
+				}),
+				commandBase.merge({
+					action: "'openTab'",
+					url: 'string',
+					'windowId?': 'string',
+					'result?': type({ tabId: 'string' }).or('undefined'),
+				}),
+				commandBase.merge({
+					action: "'activateTab'",
+					tabId: 'string',
+					'result?': type({ activated: 'boolean' }).or('undefined'),
+				}),
+				commandBase.merge({
+					action: "'saveTabs'",
+					tabIds: 'string[]',
+					close: 'boolean',
+					'result?': type({ savedCount: 'number' }).or('undefined'),
+				}),
+				commandBase.merge({
+					action: "'groupTabs'",
+					tabIds: 'string[]',
+					'title?': 'string',
+					'color?': tabGroupColor,
+					'result?': type({ groupId: 'string' }).or('undefined'),
+				}),
+				commandBase.merge({
+					action: "'pinTabs'",
+					tabIds: 'string[]',
+					pinned: 'boolean',
+					'result?': type({ pinnedCount: 'number' }).or('undefined'),
+				}),
+				commandBase.merge({
+					action: "'muteTabs'",
+					tabIds: 'string[]',
+					muted: 'boolean',
+					'result?': type({ mutedCount: 'number' }).or('undefined'),
+				}),
+				commandBase.merge({
+					action: "'reloadTabs'",
+					tabIds: 'string[]',
+					'result?': type({ reloadedCount: 'number' }).or('undefined'),
+				}),
+			),
+		),
 	},
 });
 
@@ -438,3 +523,4 @@ export type TabGroup = InferTableRow<Tables['tabGroups']>;
 export type SavedTab = InferTableRow<Tables['savedTabs']>;
 export type Conversation = InferTableRow<Tables['conversations']>;
 export type ChatMessage = InferTableRow<Tables['chatMessages']>;
+export type Command = InferTableRow<Tables['commands']>;
