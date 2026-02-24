@@ -34,6 +34,7 @@ import {
 	getDeviceId,
 } from '$lib/device/device-id';
 import { tabGroupToRow, tabToRow, windowToRow } from '$lib/sync/row-converters';
+import { startCommandConsumer } from '$lib/commands/consumer';
 import {
 	createGroupCompositeId,
 	createTabCompositeId,
@@ -381,6 +382,16 @@ export default defineBackground(() => {
 		console.error('[Background] Initialization failed:', err);
 		throw err;
 	});
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Command Consumer — execute AI commands targeting this device
+	// ─────────────────────────────────────────────────────────────────────────
+
+	whenReady.then(({ deviceId }) => {
+		startCommandConsumer(client.tables.commands, client.tables.savedTabs, deviceId);
+		console.log('[Background] Command consumer started');
+	});
+
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// Browser Keepalive (Chrome MV3 only)
